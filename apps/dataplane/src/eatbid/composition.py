@@ -46,9 +46,9 @@ from eatbid.ingest.postgres_run_closure import (
 )
 from eatbid.mart.build_marts import (
     build_marts,
-    publication_record_types,
     resolve_marts,
 )
+from eatbid.mart.history_schedule import history_marts_to_build, read_history_schedule
 from eatbid.mart.models import MartBuildPlan, MartName
 from eatbid.mart.open_auction_snapshot import open_auction_snapshot_filler
 from eatbid.mart.org_round_summary import fill_org_round_summary
@@ -773,18 +773,46 @@ class Application:
             return result
 
     def build_marts(self, args: argparse.Namespace) -> Any:
-        record_types = publication_record_types(self._mart, args.publication_id)
         marts = resolve_marts(
-            requested=args.mart,
-            record_types=record_types,
-            run_mode=self._mart.run_mode(args.run_id),
+            requested=args.mart, run_mode=self._mart.run_mode(args.run_id)
+        )
+        return self._build_and_announce(
+            marts,
+            args,
+            source_release_id=args.source_release_id,
+            publication_id=args.publication_id,
         )
 
+    def build_history_marts(self, args: argparse.Namespace) -> Any:
+        """예약 entrypoint다. 최신 발행을 아직 반영하지 않은 과거 기록 mart만 다시 만든다(ADR 0060).
+
+        새 발행이 없으면 빈 결과로 성공한다 — 할 일이 없는 것이 정상 상태다. 발행 DAG는 이제 스냅샷만 만들므로
+        회차 요약·낙찰률 분포가 새 발행을 따라가는 길은 이 명령 하나다.
+        """
+        schedule = read_history_schedule(self._connection)
+        marts = history_marts_to_build(schedule, calc_version=args.calc_version)
+        if not marts or schedule.latest is None:
+            return ()
+        return self._build_and_announce(
+            marts,
+            args,
+            source_release_id=schedule.latest.source_release_id,
+            publication_id=schedule.latest.publication_id,
+        )
+
+    def _build_and_announce(
+        self,
+        marts: tuple[MartName, ...],
+        args: argparse.Namespace,
+        *,
+        source_release_id: Any,
+        publication_id: Any,
+    ) -> Any:
         def plan_for(mart_name: MartName) -> MartBuildPlan:
             return MartBuildPlan(
                 mart_name=mart_name,
-                source_release_id=args.source_release_id,
-                publication_id=args.publication_id,
+                source_release_id=source_release_id,
+                publication_id=publication_id,
                 calc_version=args.calc_version,
                 builder_version=args.build_sha,
                 parser_version=args.parser_version,

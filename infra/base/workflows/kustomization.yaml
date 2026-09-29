@@ -13,4 +13,5 @@ resources:
   - expectation-check.yaml
   - backfill-advance.yaml
   - mart-reap.yaml
+  - history-marts.yaml
   - replay-advance.yaml

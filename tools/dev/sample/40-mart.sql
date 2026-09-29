@@ -276,9 +276,11 @@ select 995003, null::bigint,
 -- 발행 제외의 화면 노출 재료다(EAT-295, ADR 0061). 운영에서는 dataplane 빌더가 ingest 원장에서 파생하지만 표본에는
 -- 원장이 없어 부속 행만 합성한다. 991001은 더 늦은 관측이 제외돼 옛 revision이 현행으로 남은 공고라 상세 제목 아래에
 -- "최신 관측 반영 안 됨" 문장이 뜬다. 이번 달에는 제외 공고 2건(그중 미해소 1건)이 있어 분석 표본 아래 문장이 뜬다.
+-- 미반영 행은 활성 열린 공고 스냅샷 build(995001)에, 달별 수는 활성 회차 요약 build(995003)에 싣는다 — 서버가 각각
+-- 그 build에서 읽는다(ADR 0060 결정 3).
 insert into mart.build_stale_auction
   (build_id, auction_attempt_id, auction_revision_id, excluded_observed_at, reflected_observed_at)
-values (995003, 991001, 991001, now() - interval '30 minutes', now() - interval '2 hours');
+values (995001, 991001, 991001, now() - interval '30 minutes', now() - interval '2 hours');
 
 insert into mart.build_exclusion_month
   (build_id, month_kst, excluded_auction_count, unresolved_auction_count)

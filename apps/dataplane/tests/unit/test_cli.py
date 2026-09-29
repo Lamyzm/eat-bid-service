@@ -128,6 +128,13 @@ class _기록애플리케이션:
             raise self.error
         self.calls.append(("next-replay-target", None))
 
+    def build_history_marts(self, args: Namespace) -> tuple[MartBuildResult, ...]:
+        # 과거 기록 mart 예약도 release에 매이지 않는다. 입력은 명령이 원장에서 고른다(ADR 0060).
+        if self.error is not None:
+            raise self.error
+        self.calls.append(("build-history-marts", None))
+        return ()
+
     def reap_marts(self, args: Namespace) -> ReapReport:
         # 회수도 release에 매이지 않는다(EAT-254).
         if self.error is not None:
@@ -165,6 +172,8 @@ RELEASE_FREE_COMMANDS = frozenset(
         "next-backfill-window",
         "scan-contract",
         "reap-marts",
+        # 과거 기록 mart 예약은 원장의 최신 발행을 입력으로 스스로 고른다(ADR 0060).
+        "build-history-marts",
         "next-replay-target",
         # 멎은 run 하나를 식별자로 닫는다. release가 이미 봉인된 뒤라 release에 매이지 않는다(EAT-234).
         "close-stalled-run",
@@ -185,6 +194,20 @@ def _명령(command: str) -> list[str]:
         return [command, "--floor-date", "20250901", "--as-of", "2026-09-01T00:06:00Z"]
     if command == "reap-marts":
         return [command, "--as-of", "2026-09-01T00:06:00Z"]
+    if command == "build-history-marts":
+        return [
+            command,
+            "--build-sha",
+            SHA,
+            "--parser-version",
+            "eat-v5",
+            "--calc-version",
+            "mart-r11",
+            "--as-of",
+            "2026-09-01T00:00:00Z",
+            "--built-at",
+            "2026-09-01T00:04:00Z",
+        ]
     if command == "close-stalled-run":
         # 무엇이 참인지는 확인한 사람이 outcome으로 말한다(EAT-234).
         return [
@@ -997,6 +1020,20 @@ def test_build_marts_machine_result는_mart마다_build와_행_수를_남긴다(
     }
     written = (tmp_path / "marts" / "marts").read_text(encoding="utf-8")
     assert json.loads(written) == printed["marts"]
+
+
+def test_과거_기록_mart_예약은_새_발행이_없으면_빈_mart_목록을_결과로_남긴다(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """할 일이 없는 회차도 성공이다. 결과 파일이 빈 배열이어야 workflow status에서 "안 만들었다"가 읽힌다."""
+    application = _기록애플리케이션()
+    argv = _명령("build-history-marts") + ["--result-dir", str(tmp_path / "history")]
+
+    assert main(argv, application_factory=lambda _: application, settings=_설정()) == 0
+
+    assert json.loads(capsys.readouterr().out) == {"marts": []}
+    assert (tmp_path / "history" / "marts").read_text(encoding="utf-8") == "[]"
+    assert application.calls == [("build-history-marts", None)]
 
 
 RELEASE_COMMIT = "9c9ff63f479d03f0fbfcc036954e8470b182bb61"

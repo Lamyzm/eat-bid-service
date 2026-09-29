@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: eatbid-history-marts
+  namespace: eatbid
+spec:
+  schedules:
+    # 하루 네 번, 매일 KST 07:40·12:40·16:40·20:40(EAT-300, ADR 0060). 과거 기록 mart(회차 요약·낙찰률 분포)는
+    # 발행마다 만들지 않고 여기서 최신 발행까지 한 번에 반영한다.
+    # - 07:40: 밤사이 전진 백필·재처리·07:00 재대조 앞부분을 반영해 업무 시작 전에 둔다. 정시 수집 08:00 회차의
+    #   mart 단계(08:15 전후)와 겹치기 전에 끝나는 자리다.
+    # - 12:40·16:40: 오전·이른 오후 개찰 결과가 그날 안에 분석 화면에 들어오게 한다. 정시 수집 스냅샷 단계가 이
+    #   build를 mutex에서 한 번 기다릴 수 있다 — 하루 두 번의 지연을 받아들이고 매 회차의 지연을 없앴다.
+    # - 20:40: 정시 수집 마지막 회차(19:50)가 끝난 뒤라 그날 개찰 결과 전부를 mutex 다툼 없이 반영한다.
+    # 40분인 이유: 정각은 전진 백필, 5분은 백업, 25분은 재처리(4시간마다), 3·18·33·48분은 감시가 쓴다. 04:30 회수와도
+    # 겹치지 않는다. 새 발행이 없으면 아무것도 하지 않고 성공하므로 회차를 늘리는 비용은 발행이 있을 때만 든다.
+    - "40 7,12,16,20 * * *"
+  timezone: Asia/Seoul
+  suspend: false
+  # 앞 회차가 아직 만들고 있으면 건너뛴다. 다음 회차가 그 사이 발행까지 함께 반영하므로 잃는 것은 몇 시간의 지연뿐이다.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  workflowSpec:
+    workflowTemplateRef:
+      name: eatbid-dataplane
+    entrypoint: history-marts
+    # 수집(100)보다 낮다. 같은 mart mutex를 기다릴 때 사용자가 보는 열린 공고 스냅샷이 먼저다.
+    priority: 40

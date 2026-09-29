@@ -42,6 +42,7 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | `fail-release`(운영자) | `source_release`(failed), `run`(닫힘) | 같은 terminal transaction. planned만 대상이고 같은 category 재실행은 멱등이다 | 어떤 단계도 자동으로 여기 오지 않는다 | EAT-122, [runbook §4.3](../operations/collection-runbook.md) |
 | `project` | `publication`(active 또는 failed)·`run`, `core.organization`·`organization_identifier`·`auction_attempt`·`auction_attempt_link`·`auction_revision`·`auction_organization`·`auction_revision_code_value`·`code_value`·`code_label_observation`·`bid_submission`·`award_decision`·`source_supplier_account`·`supplier_party` | publication과 run, 공고 topology, manifest 구성원을 순서대로 잠근 한 transaction. Argo mutex `eatbid-core-publication`. 실패 기록은 별도 연결로 남겨 되감기에서 살아남는다. 성공 뒤 web cache 무효화 요청은 부수 효과이며 성공 조건이 아니다 | 잠근 행 집합이 manifest와 같고 관계 집합을 검증한다 | ADR 0015, 0033, 0036, 0038 |
 | `build-marts` | `mart.build`(ledger)·`build_coverage`·`org_round_summary`·`win_rate_distribution_monthly`·`open_auction_snapshot`·`open_auction_snapshot_item`(스냅샷 행의 품목 원자 다리표)·`org_round_summary_item`(회차 요약 행의 품목 원자 다리표)·`build_vocabulary_gap`(어휘 밖 조각과 행 수), 그리고 스냅샷이 가리킬 `core.auction_attempt` 행 보장 | mart마다 build 행을 `for update`로 잡고 채움 → 검증 → 활성화 순서다. 활성화는 같은 mart의 active를 superseded로 바꾸고 verified를 active로 올리는 한 commit이다. Argo mutex `eatbid-mart-build` | 활성 포인터 교체가 원자이고 stale은 정상이다 | ADR 0011, 0034 |
+| `build-history-marts`(예약) | `build-marts`와 같은 저장소·빌더로 회차 요약·품목 다리표·낙찰률 분포와 build별 부속 표를 쓴다. 스냅샷은 쓰지 않는다 | 원장에서 최신 발행과 mart별 활성 build를 한 읽기 transaction으로 본 뒤, 그 발행을 아직 반영하지 않은 mart만 `build-marts`와 같은 채움 → 검증 → 활성화로 만든다. Argo mutex `eatbid-mart-build`(발행 DAG의 스냅샷과 같다) | 새 발행이 없으면 아무것도 쓰지 않고 성공한다. build의 `publication_id`는 반영한 마지막 발행이다 | ADR 0034, 0060 |
 | `reap-marts`(예약) | `mart.org_round_summary`·`win_rate_distribution_monthly`·`open_auction_snapshot`(행 삭제; 스냅샷·회차 요약의 품목 다리표는 FK cascade로 함께), `build_coverage` | build 하나가 transaction 하나다. `retain_until`이 지난 `superseded` build만 고르고 build 원장 행은 남긴다. mutex 없음 — superseded는 종착 상태라 활성화와 같은 행을 다투지 않고, 표의 trigger가 build 상태로 다시 거른다 | ADR 0034가 허용한 유일한 공개 mart 행 삭제다. 회수 여부는 원장 열이 아니라 "행이 없다"로 파생된다 | ADR 0034, EAT-254 |
 | `replay` | `run`(replay)·`replay_input`·`publication`, 그 뒤 `normalize`·`validate`·`project`와 같은 표 | 봉인된 release의 얼린 관측 manifest만 받는다. 같은 run 정체성으로 다시 실행하면 저장된 상태를 검증하고 이어 간다 | 재실행이 멱등이다 | ADR 0014, 0015 |
 | `capture-reference` | R2 코드 파일, `run`·`request_unit`·`raw_blob`·`raw_observation`, `source_release`(+`_dataset`·`_run`·`_observation`) | `capture`와 같은 저장 경계이되 파일 하나가 release 하나이며 즉시 봉인한다 | 파일 = release | ADR 0035 |
@@ -79,12 +80,12 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | project-reference | `core/code_release_projection.py` | `core.code_release`, `core.code_release_member` |
 | project-reference, project-code-vocabulary | `ingest/postgres_run_closure.py` | `ingest.run` (발행 단계가 없는 두 lane의 run을 투영이 끝난 자리에서 published로 닫는다, EAT-234) |
 | project-code-vocabulary | `core/code_vocabulary_projection.py` | `core.code_value`, `core.code_mapping` (소스가 코드목록에서 말한 상위 코드를 parent 관계로. 시군구 → 시도, EAT-260) |
-| build-marts | `mart/postgres_repository.py` | `mart.build`, `mart.build_coverage`, `mart.build_exclusion_month`, `mart.build_stale_auction` (재개할 때 이전 부속 행을 지운다) |
-| build-marts | `mart/build_coverage.py` | `mart.build_coverage` |
-| build-marts | `mart/build_exclusion.py` | `mart.build_exclusion_month`, `mart.build_stale_auction` (발행 제외 원장 전체에서 파생한 달별 제외 수와 최신 관측 미반영 공고, EAT-295, ADR 0061) |
-| build-marts | `mart/org_round_summary.py` | `mart.org_round_summary`, `mart.org_round_summary_item` |
-| build-marts | `mart/item_bridge.py` | `mart.build_vocabulary_gap` (스냅샷·회차 요약 빌더가 넘긴 다리표 insert를 실행하고 어휘 밖 조각을 센다, EAT-256) |
-| build-marts | `mart/win_rate_distribution.py` | `mart.win_rate_distribution_monthly` |
+| build-marts, build-history-marts | `mart/postgres_repository.py` | `mart.build`, `mart.build_coverage`, `mart.build_exclusion_month`, `mart.build_stale_auction` (재개할 때 이전 부속 행을 지운다) |
+| build-marts, build-history-marts | `mart/build_coverage.py` | `mart.build_coverage` |
+| build-marts, build-history-marts | `mart/build_exclusion.py` | `mart.build_exclusion_month`, `mart.build_stale_auction` (발행 제외 원장 전체에서 파생한 달별 제외 수와 최신 관측 미반영 공고, EAT-295, ADR 0061) |
+| build-marts, build-history-marts | `mart/org_round_summary.py` | `mart.org_round_summary`, `mart.org_round_summary_item` |
+| build-marts, build-history-marts | `mart/item_bridge.py` | `mart.build_vocabulary_gap` (스냅샷·회차 요약 빌더가 넘긴 다리표 insert를 실행하고 어휘 밖 조각을 센다, EAT-256) |
+| build-marts, build-history-marts | `mart/win_rate_distribution.py` | `mart.win_rate_distribution_monthly` |
 | build-marts | `mart/open_auction_snapshot.py` | `mart.open_auction_snapshot`, `mart.open_auction_snapshot_item`, `core.auction_attempt` |
 | reap-marts | `mart/reaper.py` | `mart.org_round_summary`, `mart.win_rate_distribution_monthly`, `mart.open_auction_snapshot`, `mart.build_coverage`, `mart.build_exclusion_month`, `mart.build_stale_auction` (시한이 지난 superseded build의 행 회수. 원장 build 행은 쓰지 않는다, EAT-254) |
 

@@ -39,7 +39,15 @@ flowchart LR
 `marts`(7)는 `WorkflowTemplate`의 실제 task이며 `project` 뒤에 붙고 CLI `build-marts`를 부른다.
 mutex는 `eatbid-core-publication`이 아니라 **`eatbid-mart-build`**다. 같은 mutex를 쓰면 mart 빌드가
 다음 수집의 발행을 막아 소스 관측이 늦어지는데, mart는 파생물이라 stale이 정상 상태다(ADR 0011).
-`replay`도 core를 다시 앉히므로 `replay-pipeline` DAG가 같은 task를 뒤에 잇는다.
+
+**`marts`는 열린 공고 스냅샷만 만든다(2026-09-29, EAT-300, [ADR 0060](../adr/0060-history-marts-on-schedule.md)).**
+열린 공고를 읽는 `scheduled-pipeline`(poll-open)·`reconcile-pipeline`(daily-reconcile)에만 붙고, backfill·replay DAG는
+`project`·`replay`에서 끝난다. 과거 기록 mart(`org_round_summary`+품목 다리표, `win_rate_distribution_monthly`)는
+CronWorkflow `eatbid-history-marts`가 매일 07:40·12:40·16:40·20:40 KST에 같은 템플릿의 entrypoint `history-marts`
+(CLI `build-history-marts`)로 만든다. 입력은 가장 늦게 발행된 publication이고, 그것을 같은 `calc_version`으로 이미
+반영한 활성 build가 있으면 아무것도 하지 않고 성공한다. mutex는 같은 `eatbid-mart-build`, priority는 40이다. 발행마다
+세 mart를 다 만들던 때 poll-open 한 회차가 36~46분(그중 marts 16~29분)이 되어 하루 72회 계획 중 5~24회만 돌았다.
+시각의 근거(개찰 반영·기존 예약과의 분 충돌)는 ADR 0060 결정 4와 `history-marts.yaml` 주석이다.
 
 web 읽기 캐시 무효화는 **새 pod도 새 task도 아니다**. `project`가 발행을 끝낸 뒤, `build-marts`가
 활성 포인터를 옮긴 뒤 그 프로세스가 직접 web ClusterIP Service(`EATBID_WEB_INTERNAL_URL`, 기본
@@ -276,8 +284,8 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
   2023-09 이후 미해결로 "semaphore key는 ConfigMap에 미리 정의된 고정 값만 받는다"는 현재 상태를
   전제한다) 같은 template 안에서 mode로 key를 바꾸는 대신 template을 나눴다. backfill은
   `WorkflowTemplate`의 별도 entrypoint `backfill-pipeline`으로 돌며(§2.1 표의 submit 명령),
-  `normalize`·`validate`·`project`·`marts`는 semaphore가 없는 단계라 `scheduled-pipeline`과 정의를
-  그대로 공유한다. `spec.priority: 100`(poll-open·daily-reconcile)은 남아 있지만 이제는 같은
+  `normalize`·`validate`·`project`는 semaphore가 없는 단계라 `scheduled-pipeline`과 정의를
+  그대로 공유한다(`marts`는 잇지 않는다 — ADR 0060). `spec.priority: 100`(poll-open·daily-reconcile)은 남아 있지만 이제는 같은
   `eatbid-source-live`를 다투는 두 수집 스케줄 사이 순서와 컨트롤러 큐 일반의 의미로 좁아졌다.
   `replay`는 기존 raw를 새 parser/projector version으로 재해석만 하고 소스를 다시 부르지 않으므로
   두 key 어느 쪽도 잡지 않는다.
@@ -337,12 +345,13 @@ exit category와 exit code:
    제외 원장(`ingest.publication_exclusion`)에 적고 뺄 수 있으며, 창 전체 결함이나 발행당 상한을 넘는 제외는
    발행 전체를 막는다(ADR 0061). 원장에 없는 결손은 발행을 통과하지 못한다.
 5. 짧은 DB transaction에서 core revision과 active publication 포인터를 전환한다.
-6. 영향 범위 mart를 새 build ID로 생성·검증한 뒤 active build를 전환한다.
+6. 열린 공고를 읽는 발행이면 스냅샷 mart를 새 build ID로 생성·검증한 뒤 active build를 전환한다. 과거 기록 mart는
+   예약 `history-marts`가 최신 발행까지 한 번에 같은 절차로 만든다(ADR 0060).
 7. 끝에서 source-to-core 지연, 건수, quarantine, mart freshness를 검증한다.
 
-**"영향 범위"는 어느 행을 고칠지가 아니라 어느 mart를 통째로 다시 만들지의 문제다.** 발행이 실은
-record type이 그 범위를 정하고(`auction.v1`은 회차 요약만, `auction.v2`는 분포까지, 목록 관측은 오늘
-화면만), mart 안에서는 전량을 새 build로 다시 만든다. 행 단위 증분은 "이전 build에서 무엇을
+**"영향 범위"는 어느 행을 고칠지가 아니라 어느 mart를 통째로 다시 만들지의 문제다.** 발행 뒤에는 run
+mode가 그 범위를 정하고(poll-open·daily-reconcile만 오늘 화면의 스냅샷), 과거 기록 mart는 예약이 최신 발행을
+따라 고른다(ADR 0060). mart 안에서는 전량을 새 build로 다시 만든다. 행 단위 증분은 "이전 build에서 무엇을
 물려받았는가"라는 상태를 하나 더 만들고, 실측이 전량 재빌드를 감당한다
 ([규모 실측](../evidence/mart/2026-09-06-mart-build-sizing.md), [ADR 0034](../adr/0034-mart-build-identity-and-atomic-activation.md)).
 
@@ -666,7 +675,8 @@ namespace의 Deployment·Pod·PVC 읽기(get·list)를 더했다(`infra/base/wor
 composition root에 연결되어 있고, product WorkflowTemplate `eatbid-dataplane`은 그 표의 command만 호출한다.
 `infra/tests`가 WorkflowTemplate이 부르는 command와 이 표를 대조하므로 한쪽에만 있는 command는 gate에서
 드러난다. 수집 schedule은 CronWorkflow 세 개뿐이며 `poll-open`·`daily-reconcile`은 활성이고
-`reference-refresh`는 `spec.suspend: true`다. 레거시 Kubernetes CronJob과 수기 `schema.sql`은 base
+`reference-refresh`는 `spec.suspend: true`다. 수집이 아닌 예약(백필·재처리 전진, 과거 기록 mart, 회수, 백업, 감시)도
+같은 CronWorkflow이며 별도 스케줄러를 두지 않는다. 레거시 Kubernetes CronJob과 수기 `schema.sql`은 base
 manifest에서 제거했고, 같은 `infra/tests`가 base·product 렌더 양쪽에서 native CronJob 0을 강제한다
 (AGENTS 9·10).
 

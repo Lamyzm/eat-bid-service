@@ -134,6 +134,7 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
             "next-backfill-window",
             "scan-contract",
             "reap-marts",
+            "build-history-marts",
             "next-replay-target",
             "close-stalled-run",
         }:
@@ -293,4 +294,15 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
         "--mart", action="append", choices=list(MART_NAMES), default=None
     )
     build_marts.add_argument("--region-scheme", default=DEFAULT_REGION_SCHEME)
+
+    # 예약 entrypoint다(ADR 0060). 어떤 run에도 매이지 않는다 — 입력 release·발행은 원장의 최신 발행에서 명령이
+    # 고르므로 인자로 받지 않는다. 받으면 예약 YAML이 그 판단을 따로 하게 된다.
+    history_marts = commands["build-history-marts"]
+    history_marts.add_argument("--build-sha", required=True, type=build_sha)
+    history_marts.add_argument("--parser-version", required=True)
+    history_marts.add_argument("--calc-version", required=True)
+    history_marts.add_argument("--built-at", required=True, type=aware_datetime)
+    history_marts.add_argument("--as-of", required=True, type=aware_datetime)
+    history_marts.add_argument("--region-scheme", default=DEFAULT_REGION_SCHEME)
+    history_marts.add_argument("--result-dir", type=Path, default=None)
     return parser

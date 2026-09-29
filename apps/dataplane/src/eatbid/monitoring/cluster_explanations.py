@@ -21,6 +21,7 @@ CRON_IMPACTS: Mapping[str, str] = {
     "eatbid-replay-advance": "실패했던 발행을 다시 돌리는 일이 늦어져 빠진 공고가 그만큼 오래 비어 있습니다",
     "eatbid-db-backup": "이번 시간 DB 백업이 없습니다. 지금 사고가 나면 그만큼 더 잃습니다",
     "eatbid-mart-reap": "지난 분석 결과 정리가 밀려 DB 디스크가 계속 찹니다",
+    "eatbid-history-marts": "분석·기관 이력 화면이 새 개찰 결과를 반영하지 못하고 앞 회차 기준에 머뭅니다",
     "eatbid-expectation-check": "이 감시 회차가 끝나지 못했습니다. 그 사이 문제는 알림이 늦게 옵니다",
     "eatbid-reference-refresh": "지역·기관 기준정보가 갱신되지 않았습니다",
 }

@@ -1,80 +1,108 @@
-"""`resolve_marts`가 발행마다 어느 mart를 다시 만들지 고르는 규칙을 DB 없이 확인한다."""
+"""발행 뒤 mart 단계와 과거 기록 mart 예약이 어느 mart를 다시 만들지 고르는 규칙을 DB 없이 확인한다(ADR 0060)."""
 
 from __future__ import annotations
 
+from uuid import UUID
+
 import pytest
 
-from eatbid.mart.build_marts import CORE_MARTS, OPEN_AUCTION_MARTS, resolve_marts
+from eatbid.mart.build_marts import HISTORY_MARTS, OPEN_AUCTION_MARTS, resolve_marts
+from eatbid.mart.history_schedule import (
+    ActiveBuildKey,
+    HistorySchedule,
+    PublishedInput,
+    history_marts_to_build,
+)
 from eatbid.mart.models import MART_NAMES
 from eatbid.mart.repository import MartBuildContractError
 
 SNAPSHOT = "open_auction_snapshot"
+RELEASE = UUID("00000000-0000-0000-0000-000000000001")
+LATEST = UUID("00000000-0000-0000-0000-000000000002")
+OLDER = UUID("00000000-0000-0000-0000-000000000003")
 
 
-def test_core_mart와_스냅샷_mart를_합치면_mart_이름_전부다() -> None:
-    assert tuple(CORE_MARTS) + tuple(OPEN_AUCTION_MARTS) == MART_NAMES
+def test_과거_기록_mart와_스냅샷_mart를_합치면_mart_이름_전부다() -> None:
+    assert tuple(HISTORY_MARTS) + tuple(OPEN_AUCTION_MARTS) == MART_NAMES
 
 
 @pytest.mark.parametrize("run_mode", ["poll-open", "daily-reconcile"])
-def test_열린_공고를_읽는_run의_auction_v2_발행은_core_둘과_스냅샷을_함께_만든다(
-    run_mode: str,
-) -> None:
-    assert resolve_marts(
-        requested=None, record_types=("auction.v2",), run_mode=run_mode
-    ) == ("org_round_summary", "win_rate_distribution_monthly", SNAPSHOT)
+def test_열린_공고를_읽는_run의_발행_뒤에는_스냅샷만_만든다(run_mode: str) -> None:
+    # 과거 기록 mart까지 만들던 때 poll-open 한 회차가 36~46분이 되어 사이 회차가 건너뛰어졌다.
+    assert resolve_marts(requested=None, run_mode=run_mode) == (SNAPSHOT,)
 
 
-def test_auction_v1_발행은_분포를_빼되_poll_open이면_스냅샷은_만든다() -> None:
-    assert resolve_marts(
-        requested=None, record_types=("auction.v1",), run_mode="poll-open"
-    ) == ("org_round_summary", SNAPSHOT)
-
-
-def test_record_type이_없는_poll_open_발행도_스냅샷을_만든다() -> None:
-    # 목록만 실린 poll-open(상세 request unit 0건)이 이 모양이다. core 둘은 단서가 없어 다 만든다.
-    assert (
-        resolve_marts(requested=None, record_types=(), run_mode="poll-open") == MART_NAMES
-    )
-
-
-@pytest.mark.parametrize("run_mode", ["backfill", "replay", "reference", None, "unknown"])
-def test_과거_창을_읽거나_모드를_모르는_run은_스냅샷을_만들지_않는다(
+@pytest.mark.parametrize(
+    "run_mode", ["backfill", "replay", "reference", None, "unknown"]
+)
+def test_사람이_과거_창_발행으로_부르면_스냅샷_없이_과거_기록_mart를_만든다(
     run_mode: str | None,
 ) -> None:
-    # 마감된 과거 공고로 스냅샷 활성 build를 물리면 오늘 화면이 빈다. core mart는 그대로 만든다.
-    resolved = resolve_marts(
-        requested=None, record_types=("auction.v2",), run_mode=run_mode
-    )
-    assert resolved == ("org_round_summary", "win_rate_distribution_monthly")
+    # 마감된 과거 공고로 스냅샷 활성 build를 물리면 오늘 화면이 빈다(EAT-98).
+    resolved = resolve_marts(requested=None, run_mode=run_mode)
+    assert resolved == HISTORY_MARTS
     assert not set(OPEN_AUCTION_MARTS) & set(resolved)
 
 
-def test_모르는_record_type은_조용히_무시하지_않고_core_둘_다_만든다() -> None:
-    assert resolve_marts(
-        requested=None, record_types=("auction.v9",), run_mode="backfill"
-    ) == CORE_MARTS
-    assert (
-        resolve_marts(requested=None, record_types=("auction.v9",), run_mode="poll-open")
-        == MART_NAMES
+def test_mart_이름을_직접_주면_run_mode와_무관하게_그대로_쓴다() -> None:
+    assert resolve_marts(requested=[SNAPSHOT], run_mode="backfill") == (SNAPSHOT,)
+    assert resolve_marts(requested=["org_round_summary"], run_mode="poll-open") == (
+        "org_round_summary",
+    )
+    with pytest.raises(MartBuildContractError):
+        resolve_marts(requested=["supplier_monthly_record"], run_mode="poll-open")
+
+
+def _schedule(active: dict[str, ActiveBuildKey]) -> HistorySchedule:
+    return HistorySchedule(
+        latest=PublishedInput(source_release_id=RELEASE, publication_id=LATEST),
+        active=active,
     )
 
 
-def test_같은_record_type이_겹쳐도_mart는_한_번씩만_고른다() -> None:
-    assert resolve_marts(
-        requested=None,
-        record_types=("auction.v2", "auction.v1", "auction.v2"),
-        run_mode="daily-reconcile",
-    ) == ("org_round_summary", "win_rate_distribution_monthly", SNAPSHOT)
+def test_최신_발행을_같은_규칙으로_반영한_활성_build가_있으면_예약은_아무것도_만들지_않는다() -> (
+    None
+):
+    current = ActiveBuildKey(publication_id=LATEST, calc_version="mart-r11")
+    schedule = _schedule({name: current for name in HISTORY_MARTS})
+
+    assert history_marts_to_build(schedule, calc_version="mart-r11") == ()
 
 
-def test_mart_이름을_직접_주면_run_mode와_무관하게_그대로_쓴다() -> None:
-    assert resolve_marts(
-        requested=[SNAPSHOT], record_types=("auction.v2",), run_mode="backfill"
-    ) == (SNAPSHOT,)
-    assert resolve_marts(
-        requested=["org_round_summary"], record_types=(), run_mode="poll-open"
-    ) == ("org_round_summary",)
-    with pytest.raises(MartBuildContractError):
-        resolve_marts(
-            requested=["supplier_monthly_record"], record_types=(), run_mode="poll-open"
-        )
+def test_새_발행이_있으면_그것을_반영하지_않은_과거_기록_mart만_만든다() -> None:
+    schedule = _schedule(
+        {
+            "org_round_summary": ActiveBuildKey(
+                publication_id=OLDER, calc_version="mart-r11"
+            ),
+            "win_rate_distribution_monthly": ActiveBuildKey(
+                publication_id=LATEST, calc_version="mart-r11"
+            ),
+            # 스냅샷은 발행 DAG의 몫이라 예약이 보지 않는다.
+            SNAPSHOT: ActiveBuildKey(publication_id=OLDER, calc_version="mart-r11"),
+        }
+    )
+
+    assert history_marts_to_build(schedule, calc_version="mart-r11") == (
+        "org_round_summary",
+    )
+
+
+def test_계산_규칙이_바뀌면_같은_발행이라도_다시_만든다() -> None:
+    old_rule = ActiveBuildKey(publication_id=LATEST, calc_version="mart-r11")
+    schedule = _schedule({name: old_rule for name in HISTORY_MARTS})
+
+    assert history_marts_to_build(schedule, calc_version="mart-r12") == HISTORY_MARTS
+
+
+def test_활성_build가_없거나_수동_전량_재빌드뿐이면_최신_발행으로_만든다() -> None:
+    manual = ActiveBuildKey(publication_id=None, calc_version="mart-r11")
+    schedule = _schedule({"org_round_summary": manual})
+
+    assert history_marts_to_build(schedule, calc_version="mart-r11") == HISTORY_MARTS
+
+
+def test_발행이_하나도_없으면_만들_입력이_없다() -> None:
+    schedule = HistorySchedule(latest=None, active={})
+
+    assert history_marts_to_build(schedule, calc_version="mart-r11") == ()

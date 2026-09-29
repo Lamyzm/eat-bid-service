@@ -70,6 +70,8 @@ INSERT·UPDATE·DELETE를 거부한다.** 쓰기는 `building` build에만 가�
 
 빌드는 Argo `marts` 단계에서만 실행하며 mutex는 `eatbid-mart-build`로 core 발행과 분리한다.
 mart는 파생물이라 stale이 정상 상태이므로(ADR 0011) 발행이 빌드를 기다리지 않는다.
+(2026-09-29 [ADR 0060](0060-history-marts-on-schedule.md)이 앞 문장을 대체했다: `marts` 단계는 열린 공고 스냅샷만
+만들고 과거 기록 mart는 같은 mutex를 잡는 예약 entrypoint `history-marts`가 만든다.)
 
 ## 후속 결정 — 스냅샷은 목록과 최신 상세의 조인이다 (2026-09-06, EAT-68)
 

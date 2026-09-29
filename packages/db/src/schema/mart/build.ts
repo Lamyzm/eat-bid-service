@@ -46,6 +46,11 @@ export const martBuild = martSchema.table(
     asOf: timestamp("as_of", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     computedAt: timestamp("computed_at", { withTimezone: true }),
+    // 행을 채운 트랜잭션의 실제 시작·끝이다. 위 시각 셋은 workflow가 한 번 찍은 값이라 mart마다 계산에 몇 분이
+    // 걸렸는지 말하지 못한다(EAT-300, ADR 0060). 트랜잭션 안에서도 흐르는 `clock_timestamp()`로 DB가 찍으며,
+    // 이 열이 생기기 전의 build와 채우다 끊긴 build는 null이다.
+    fillStartedAt: timestamp("fill_started_at", { withTimezone: true }),
+    fillFinishedAt: timestamp("fill_finished_at", { withTimezone: true }),
     activatedAt: timestamp("activated_at", { withTimezone: true }),
     supersededAt: timestamp("superseded_at", { withTimezone: true }),
     rowCount: bigint("row_count", { mode: "bigint" }),
@@ -99,6 +104,11 @@ export const martBuild = martSchema.table(
     check(
       "mart_build_activation_chronology",
       sql`${table.activatedAt} is null or ${table.computedAt} is null or ${table.activatedAt} >= ${table.computedAt}`,
+    ),
+    check(
+      "mart_build_fill_chronology",
+      sql`${table.fillFinishedAt} is null
+        or (${table.fillStartedAt} is not null and ${table.fillFinishedAt} >= ${table.fillStartedAt})`,
     ),
     check(
       "mart_build_supersession_chronology",
