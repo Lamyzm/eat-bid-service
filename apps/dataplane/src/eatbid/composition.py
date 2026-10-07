@@ -25,6 +25,7 @@ from eatbid.cache_revalidation import (
 )
 from eatbid.config import ApplicationSettings
 from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
+from eatbid.core.supplier_label_backfill import backfill_supplier_labels
 from eatbid.failures.errors import PublicationFailedError
 from eatbid.failures.report import ApplicationConfigurationError
 from eatbid.ingest.models import CaptureRequest
@@ -527,6 +528,23 @@ class Application:
         superseded가 종착 상태이고 행 삭제는 표의 trigger가 build 상태로 다시 거르기 때문이다(ADR 0034).
         """
         return reap_expired_builds(self._connection, as_of=args.as_of)
+
+    def backfill_supplier_labels(self, args: argparse.Namespace) -> Any:
+        """운영자 entrypoint다. 배포 1 이전 투찰 행의 빈 업체명을 같은 관측의 이름 관측으로 채운다(EAT-310).
+
+        `eatbid-core-publication` mutex를 잡지 않는다. 몇 시간 동안 수집 발행을 막게 되고, 투영과 겹치는
+        지점은 같은 행의 행 잠금뿐이라 묶음 커밋 동안 기다리면 된다. 투영은 새 행에 이름을 직접 넣으므로
+        이 명령이 고칠 행과 투영이 새로 쓰는 행은 겹치지 않는다(ADR 0063 결정 4).
+        """
+        return backfill_supplier_labels(
+            self._connection,
+            target_rows=args.target_rows,
+            on_progress=lambda progress: print(
+                f"parties={progress.parties_done}/{progress.parties}"
+                f" batches={progress.batches} rows_filled={progress.rows_filled}",
+                flush=True,
+            ),
+        )
 
     def next_replay_target(self, args: argparse.Namespace) -> Any:
         """다시 시도할 가치가 있는 실패·멈춤·제외 창 하나를 고른다. 아무것도 바꾸지 않는 읽기다(EAT-274,
