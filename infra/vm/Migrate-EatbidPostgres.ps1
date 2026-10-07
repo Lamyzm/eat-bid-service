@@ -38,6 +38,6 @@ Write-Host "restore: $TargetContext/$targetPod"
 cmd.exe /c "kubectl --context $TargetContext -n $Namespace exec -i $targetPod -- sh -c ""psql -U `"`$POSTGRES_USER`" -d postgres -v ON_ERROR_STOP=0 -q"" < ""$DumpPath"" > ""$DumpPath.restore.log"" 2>&1"
 Write-Host "restore exit=$LASTEXITCODE (log: $DumpPath.restore.log)"
 
-$check = 'select (select count(*) from public.school_auctions) as school_auctions, (select count(*) from core.auction_attempt) as auction_attempt, (select count(*) from pg_roles where rolname like ''eatbid%'') as roles'
+$check = 'select (select count(*) from core.bid_submission) as bid_submission, (select count(*) from core.auction_attempt) as auction_attempt, (select count(*) from pg_roles where rolname like ''eatbid%'') as roles'
 Write-Host 'source:'; kubectl --context $SourceContext -n $Namespace exec $sourcePod -- sh -c "psql -U `"`$POSTGRES_USER`" -d eatbid -At -c `"$check`""
 Write-Host 'target:'; kubectl --context $TargetContext -n $Namespace exec $targetPod -- sh -c "psql -U `"`$POSTGRES_USER`" -d eatbid -At -c `"$check`""
