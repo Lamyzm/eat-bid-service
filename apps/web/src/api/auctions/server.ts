@@ -1,4 +1,4 @@
-/** @module 책임: RSC에서만 쓰는 공고 ID 검증과 세션 쿠키를 실어 나르는 공고·열린 공고 목록 조회를 예상된 실패까지 결과 값으로 돌려주는 표면을 제공한다. */
+/** @module 책임: RSC에서만 쓰는 공고 ID 검증과 세션 쿠키를 실어 나르는 공고·열린 공고 목록·추천 투찰가 조회를 예상된 실패까지 결과 값으로 돌려주는 표면을 제공한다. */
 import 'server-only';
 
 import {
@@ -10,6 +10,7 @@ import {
 
 import { privateServerRequest } from '../_transport/private-server-request.server';
 import { isAuctionNotFoundError, isOpenAuctionCursorInvalidError } from './auction-resource-error';
+import { getAuctionBidPositionWith, type AuctionBidPositionRead } from './get-auction-bid-position';
 import { getAuctionWith } from './get-auction';
 import { listOpenAuctionsWith, type OpenAuctionListInput } from './list-open-auctions';
 import { summarizeOpenAuctionsWith, type OpenAuctionSummaryInput } from './summarize-open-auctions';
@@ -36,7 +37,9 @@ export type AuctionRead =
  * §14). `cache-tags.ts`의 태그 함수와 `revalidate.ts`는 걷어내지 않았으니 그 파일에서 "왜 안 불리는지"를
  * 확인할 수 있다.
  */
-export async function getAuctionFromServer(input: { readonly auctionId: string }): Promise<AuctionRead> {
+export async function getAuctionFromServer(input: {
+  readonly auctionId: string;
+}): Promise<AuctionRead> {
   try {
     return { kind: 'auction', response: await getAuctionWith(privateServerRequest, input) };
   } catch (error) {
@@ -55,7 +58,9 @@ export type OpenAuctionListRead =
  * 멤버십은 서버 clock의 `asOf`에 걸려 있어 캐시가 있었어도 유계 수명 안에서만 유효했다. 화면은 응답의
  * `meta.asOf`를 그대로 보여 준다.
  */
-export async function listOpenAuctionsFromServer(input: OpenAuctionListInput): Promise<OpenAuctionListRead> {
+export async function listOpenAuctionsFromServer(
+  input: OpenAuctionListInput
+): Promise<OpenAuctionListRead> {
   try {
     return { kind: 'page', response: await listOpenAuctionsWith(privateServerRequest, input) };
   } catch (error) {
@@ -75,5 +80,17 @@ export async function summarizeOpenAuctionsFromServer(
 ): Promise<OpenAuctionSummaryV1Response> {
   return await summarizeOpenAuctionsWith(privateServerRequest, input);
 }
+
+/**
+ * 운영자 권한은 사람마다 다르므로 `use cache`를 쓰지 않는다(apps/web/AGENTS.md: 사용자별·session 데이터 금지). 권한
+ * 없음은 결과 값 `forbidden`이고, 그 밖의 실패는 그대로 던져 호출자가 패널 갈래에서만 다룬다.
+ */
+export async function getAuctionBidPositionFromServer(input: {
+  readonly auctionId: string;
+}): Promise<AuctionBidPositionRead> {
+  return await getAuctionBidPositionWith(privateServerRequest, input);
+}
+
+export type { AuctionBidPositionRead };
 
 export { revalidateAuctionCache, revalidateOpenAuctionSnapshotCache } from './revalidate';

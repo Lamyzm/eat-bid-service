@@ -61,6 +61,9 @@ test("과거 회차가 주어인 서술과 홀로 선 이 값이면 제목은 �
       "export function Title() { return <span>이 값이면</span>; }",
       "export const head = `${'90.000'} 기준`;",
       "export const warn = '이 눈금은 사정률입니다. NeaT에 넣는 투찰률과 분모가 다릅니다.';",
+      // 추천 투찰가는 근거와 함께 내는 판단 재료다(ADR 0062).
+      "export const title = '추천 투찰가';",
+      "export const value = '추천값 15,219,619원';",
     ].join("\n"),
   });
   try {
@@ -72,7 +75,7 @@ test("과거 회차가 주어인 서술과 홀로 선 이 값이면 제목은 �
 });
 
 test("CLI는 finding이 있으면 exit 1이고 없으면 살펴본 파일 수를 말한다", () => {
-  const failing = inspect({ "apps/web/src/bad.ts": "export const bad = '추천값 90.030';" });
+  const failing = inspect({ "apps/web/src/bad.ts": "export const bad = '안전구간 90.030';" });
   try {
     assert.throws(() => execFileSync(process.execPath, [cli], { env: { ...process.env, DECISION_VOCABULARY_ROOT: failing.root }, stdio: "pipe" }));
   } finally {

@@ -30,9 +30,9 @@ describe('금지 문구 검사', () => {
     expect(rulesOf('<p>그 값을 내면 됩니다</p>')).toContain('값 지목 지시');
   });
 
-  test('추천·안전 구간·탈락선·밀림 같은 판단 대행 어휘는 문장 속에서도 잡는다', () => {
-    expect(rulesOf('<p>추천값</p>')).toEqual(['추천 어휘']);
-    expect(rulesOf('<p>이 공고의 추천가는 90.030입니다</p>')).toEqual(['추천 어휘']);
+  test('권장·안전 구간·탈락선·밀림 같은 판단 대행 어휘는 문장 속에서도 잡는다', () => {
+    expect(rulesOf('<p>권장값</p>')).toEqual(['단정 어휘']);
+    expect(rulesOf('<p>적정 구간 90.010 ~ 90.030</p>')).toEqual(['단정 어휘']);
     expect(rulesOf('<p>여기가 안전합니다</p>')).toEqual(['안전 단정', '자리 단정']);
     expect(rulesOf('<p>90.010 ~ 90.030은 안전 구간입니다</p>')).toEqual(['안전 단정']);
     expect(rulesOf('<p>탈락선 90.005</p>')).toEqual(['탈락 예측']);
@@ -54,15 +54,16 @@ describe('금지 문구 검사', () => {
     expect(rulesOf('<p>이 값이면 낙찰될 확률 30%</p>')).toEqual([]);
   });
 
-  test('제목·칩에 홀로 선 추천·권장은 잡고 추천하지 않는다는 부정문은 통과한다', () => {
-    expect(rulesOf('<h2>추천</h2>')).toEqual(['추천 어휘']);
-    expect(rulesOf('<span class="chip">권장</span>')).toEqual(['추천 어휘']);
-    expect(rulesOf('<p>추천하지 않습니다</p>')).toEqual([]);
+  test('제목·칩에 홀로 선 권장은 잡고 근거와 함께 내는 추천 투찰가는 통과한다', () => {
+    expect(rulesOf('<span class="chip">권장</span>')).toEqual(['단정 어휘']);
+    // 추천 투찰가는 근거와 함께 내는 판단 재료로 경계 안이다(ADR 0062).
+    expect(rulesOf('<h2>추천 투찰가</h2>')).toEqual([]);
+    expect(rulesOf('<p>추천값 15,219,619원 · 검증 3,450회차 중 78회 낙찰</p>')).toEqual([]);
   });
 
   test('강조 태그로 쪼개진 문장과 속성에 든 문구도 본다', () => {
     expect(rulesOf('<p><b>NeaT</b>에 넣으세요</p>')).toEqual(['NeaT 입력 지시']);
-    expect(rulesOf('<input placeholder="추천값" value="">')).toEqual(['추천 어휘']);
+    expect(rulesOf('<input placeholder="권장값" value="">')).toEqual(['단정 어휘']);
   });
 
   test('실패 출력에는 규칙 이름·잡힌 문형·앞뒤 문맥이 함께 남는다', () => {
