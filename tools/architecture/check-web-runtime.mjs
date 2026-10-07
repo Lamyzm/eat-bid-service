@@ -12,7 +12,7 @@ const requiredDependencies = {
     "@tanstack/react-form": "1.33.5",
     "@tanstack/react-query": "5.102.8",
     "@tanstack/react-query-devtools": "5.102.8",
-    next: "16.3.4",
+    next: "16.3.6",
     react: "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "0.0.1",
