@@ -624,14 +624,15 @@ def test_DB_백업_CronWorkflow는_매시간_소유자로_덤프해_R2에_두고
     dump_env = {
         _mapping(item)["name"]: _mapping(item) for item in _sequence(containers["dump"]["env"])
     }
-    # 전체 덤프는 레거시 `public`까지 읽어야 한다. 그 표들의 소유자는 database 소유자라 migrator로는
-    # LOCK TABLE에서 거부된다(2026-09-10 실측). 그래서 provisioning Job과 같은 bootstrap 자격을 쓴다.
+    # 전체 덤프는 database 전체를 읽는다. 레거시 `public` 표가 있던 동안 migrator는 LOCK TABLE에서 거부됐고
+    # (2026-09-10 실측) 그 표를 지운 뒤에도(EAT-312) 대상은 database 전체라 provisioning Job과 같은 bootstrap
+    # 자격을 쓴다.
     assert "DATABASE_URL" not in dump_env
     for key in ("PGUSER", "PGPASSWORD", "PGDATABASE"):
         assert dump_env[key]["valueFrom"]["secretKeyRef"]["name"] == "eatbid-postgres-bootstrap"
     dump_script = "".join(str(item) for item in _sequence(containers["dump"]["args"]))
     assert "--format=custom" in dump_script
-    # schema를 좁히면 레거시 표가 백업에서 조용히 빠진다. 재해 복구 대상은 database 전체다.
+    # schema를 좁히면 새로 생긴 schema가 백업에서 조용히 빠진다. 재해 복구 대상은 database 전체다.
     assert "--schema" not in dump_script
     upload_env = {
         _mapping(item)["name"]: _mapping(item) for item in _sequence(containers["upload"]["env"])
@@ -1790,7 +1791,7 @@ def test_database_credential은_cross_assignment_없이_consumer별로_분리된
     assert _secret_ref(_env(dataplane, "DATABASE_URL"))[0] == "eatbid-database-dataplane"
 
     rendered = yaml.safe_dump_all(manifests.documents)
-    # db-provisioning(소유자 권한 회수)과 db-backup(레거시 public까지 읽는 전체 덤프)은 database 소유자
+    # db-provisioning(소유자 권한 회수)과 db-backup(database 전체를 읽는 덤프)은 database 소유자
     # 자격이 필요해 postgres bootstrap Secret을 읽는다. 나머지 조합은 여기서 계속 막는다.
     for kind, name, assigned in (
         ("Deployment", "postgres", "eatbid-postgres-bootstrap"),
