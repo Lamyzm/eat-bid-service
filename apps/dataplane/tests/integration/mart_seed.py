@@ -248,9 +248,16 @@ def seed_round(
             insert into core.auction_revision
               (auction_attempt_id, normalized_record_id, observation_id, content_sha256,
                source_status, title, display_bid_no, announced_at, opened_at, floor_rate,
-               base_amount, planned_amount, currency, source_payload)
-            values (%s, %s, %s, %s, 'CLOSED', %s, %s, now(), %s, %s, %s, %s, 'KRW',
-                    %s::jsonb)
+               base_amount, planned_amount, currency, roster_submission_count,
+               source_roster_size, source_category_label, lineage_observed)
+            -- 열 넷은 정규화 기록과 같은 JSON에서 projector와 같은 뜻으로 뽑는다(EAT-308).
+            select %s, %s, %s, %s, 'CLOSED', %s, %s, now(), %s, %s, %s, %s, 'KRW',
+                   case when jsonb_typeof(payload.p #> '{roster,submissions}') = 'array'
+                        then jsonb_array_length(payload.p #> '{roster,submissions}') end,
+                   (payload.p #>> '{roster,sourceRosterSize}')::integer,
+                   payload.p #>> '{classification,sourceCategoryLabel}',
+                   payload.p ? 'lineage'
+              from (select %s::jsonb as p) as payload
             returning auction_revision_id
             """,
             (

@@ -45,7 +45,7 @@ from eatbid.source.eat.code_schemes import (
     AUCTION_LOCATION_SIGUNGU,
     ELIGIBILITY_AREA,
 )
-from eatbid.source.eat.normalize import canonical_payload, canonical_record_object
+from eatbid.source.eat.normalize import canonical_payload
 
 # 통화는 계약 `Money`가 `KRW` 하나로 고정한다. 금액만 옮기고 통화를 잃으면 그 숫자는 해석할 수 없다
 # (AGENTS 15).
@@ -133,7 +133,6 @@ def build_eat_auction_v2_projection(
             if record.classification.source_category_label is not None
             else None
         ),
-        source_payload=canonical_record_object(record),
         roster=_roster(record),
         award=_award(record),
         attempt_links=_attempt_links(record),

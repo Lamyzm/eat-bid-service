@@ -37,10 +37,10 @@ const webSeed = `
   values (${WEB_CURRENT_AUCTION_ID}, 'eat', 'external-8110');
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id, content_sha256, display_bid_no,
-     source_status, title, announced_at, deadline_at, opened_at, base_amount, planned_amount, currency, source_payload)
+     source_status, title, announced_at, deadline_at, opened_at, base_amount, planned_amount, currency, roster_submission_count, source_roster_size, lineage_observed)
   overriding system value
   values (9110, ${WEB_CURRENT_AUCTION_ID}, 5120, 6120, '${sha("7")}', null, 'OPEN', '남산초 축산물 구매',
-    now() - interval '1 day', now() + interval '1 day', now() + interval '1 day 3 hours', 2761700.00, null, 'KRW', '{}');
+    now() - interval '1 day', now() + interval '1 day', now() + interval '1 day 3 hours', 2761700.00, null, 'KRW', null, null, false);
   insert into core.auction_organization (auction_revision_id, organization_id, role)
   values (9110, ${TARGET_ORGANIZATION_ID}, 'purchaser');
 
@@ -70,10 +70,10 @@ const webSeed = `
     winner_supplier_party_id = 7702, list_count = 2
    where auction_attempt_id = ${WEB_OVERLAP_ATTEMPTS.second};
   update core.auction_revision set opened_at = ${OVERLAP_OPENED_AT},
-    source_payload = '{"roster":{"submissions":[{}],"sourceRosterSize":1}}'
+    roster_submission_count = 1, source_roster_size = 1
    where auction_revision_id = 9201;
   update core.auction_revision set opened_at = ${OVERLAP_OPENED_AT},
-    source_payload = '{"roster":{"submissions":[{},{}],"sourceRosterSize":2}}'
+    roster_submission_count = 2, source_roster_size = 2
    where auction_revision_id = 9202;
   -- 회차의 관측 시각은 그 관측에 매달린 구매기관 라벨 하나에서 읽는다. 라벨이 없으면 명단이 있어도 시각을 말할 수 없다.
   insert into core.code_label_observation (code_value_id, label, language, observed_at, observation_id)

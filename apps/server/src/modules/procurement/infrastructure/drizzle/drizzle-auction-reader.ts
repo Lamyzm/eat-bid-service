@@ -228,7 +228,7 @@ export class DrizzleAuctionReader implements AuctionReader {
         revision.currency,
         revision.floor_rate,
         -- 품목 라벨은 관측 그대로의 문자열이며 회차 요약 mart가 읽는 자리와 같다. 코드가 아니다.
-        revision.source_payload #>> '{classification,sourceCategoryLabel}' as item_label,
+        revision.source_category_label as item_label,
         purchaser_org.organization_id,
         ${organizationLabelSql(sql`purchaser_org.organization_id`)} as organization_name,
         purchaser_org.type as organization_type,

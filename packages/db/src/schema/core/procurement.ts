@@ -10,7 +10,6 @@ import {
   char,
   check,
   integer,
-  jsonb,
   numeric,
   primaryKey,
   text,
@@ -63,22 +62,20 @@ export const auctionRevision = coreSchema.table(
     // 계약이 소수 셋째 자리 고정이라 관측 정밀도를 잃지 않는 `numeric(6,3)`으로 받는다.
     floorRate: numeric("floor_rate", { precision: 6, scale: 3 }),
     currency: char("currency", { length: 3 }).notNull(),
-    sourcePayload: jsonb("source_payload").notNull(),
-    // 아래 넷은 `source_payload` jsonb 경로로 읽던 값을 열로 옮긴 것이다(EAT-308). 이 revision을 낳은 정규화 해석의
-    // 값 그대로이며, 배포 1 동안 옛 행은 비어 있다가 `backfill-revision-columns`가 채운다.
+    // 아래 넷은 이 revision을 낳은 정규화 해석의 값 그대로다. 정규화 기록 전체는 `normalized_record_id`가 가리키므로
+    // 그 jsonb 사본을 여기 두지 않고, 읽는 쪽이 쓰는 값만 열로 둔다(EAT-308).
     // 정규화 명단의 줄 수다. 명단 계약이 없는 v1 해석은 null이고 "명단이 비었다"(0)와 다르다.
     rosterSubmissionCount: integer("roster_submission_count"),
     // 원본이 말한 명단 크기(`sourceRosterSize`) 관측이다. 우리가 받은 줄 수와 다를 수 있어 따로 둔다.
     sourceRosterSize: integer("source_roster_size"),
     // 품목 분류 관측 라벨이다. 품목 code scheme이 없어 코드로 승격하지 않는다(EAT-44 판정 §4.2).
     sourceCategoryLabel: text("source_category_label"),
-    // 이 해석이 사슬(`lineage`) 블록을 가진 계약이었는가. 거짓은 "사슬 없음"이 아니라 "모름"이다. null은 배포 1
-    // 이전 행을 아직 채우지 않았다는 뜻이며 배포 2에서 not null로 좁힌다.
-    lineageObserved: boolean("lineage_observed"),
+    // 이 해석이 사슬(`lineage`) 블록을 가진 계약이었는가. 거짓은 "사슬 없음"이 아니라 "모름"이다.
+    lineageObserved: boolean("lineage_observed").notNull(),
   },
   (table) => [
     unique("auction_revision_normalized_record_key").on(table.normalizedRecordId),
-    // 예정가격 0은 금액이 아니라 "추첨된 적 없음"이며 core에는 null로 앉는다. 관측 0은 source_payload가 보존한다
+    // 예정가격 0은 금액이 아니라 "추첨된 적 없음"이며 core에는 null로 앉는다. 관측 0은 raw와 정규화 기록이 보존한다
     // (EAT-199). 0을 열에 두면 `is not null` 조회가 그것을 금액으로 센다.
     check(
       "auction_revision_planned_amount_positive",

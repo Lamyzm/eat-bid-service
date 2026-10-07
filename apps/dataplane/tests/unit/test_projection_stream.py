@@ -9,7 +9,7 @@ from __future__ import annotations
 import gc
 import weakref
 from collections.abc import Iterator, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, fields, replace
 from datetime import UTC, datetime
 
 import pytest
@@ -36,16 +36,21 @@ class TrackedPayload(dict[str, object]):
     """weakref로 생존을 셀 수 있는 payload. 순수 dict는 weakref를 지원하지 않는다."""
 
 
+@dataclass(frozen=True, slots=True, weakref_slot=True)
+class TrackedProjection(AuctionProjection):
+    """weakref로 생존을 셀 수 있는 투영. slots 데이터클래스에는 weakref 자리가 없어 따로 연다."""
+
+
 class AliveSet:
     """id로 묶은 weakref 집합. dict 하위 클래스는 hash가 없어 `WeakSet`에 들어가지 못한다."""
 
     def __init__(self) -> None:
-        self._refs: weakref.WeakValueDictionary[int, TrackedPayload] = (
+        self._refs: weakref.WeakValueDictionary[int, object] = (
             weakref.WeakValueDictionary()
         )
 
-    def add(self, payload: TrackedPayload) -> None:
-        self._refs[id(payload)] = payload
+    def add(self, value: object) -> None:
+        self._refs[id(value)] = value
 
     def __len__(self) -> int:
         return len(self._refs)
@@ -88,7 +93,7 @@ def _verify(member: FrozenPublicationMember, projection: AuctionProjection) -> N
 
 def test_상주_구성원과_투영은_발행_크기가_아니라_batch_크기를_넘지_않는다() -> None:
     """왜: 16,410건 발행에서 구성원 전체를 올렸다가 노드 OOM으로 죽었다(EAT-94). 구성원 payload와
-    투영의 source payload를 weakref로 세어, 어느 batch를 쓰는 순간에도 살아 있는 수가 batch 크기
+    투영 객체를 weakref로 세어, 어느 batch를 쓰는 순간에도 살아 있는 수가 batch 크기
     이하임을 본다. 마지막 batch가 짧아도 앞 batch가 남아 있지 않아야 한다."""
     total, batch_size = 1_003, 100
     alive_payloads: AliveSet = AliveSet()
@@ -99,9 +104,11 @@ def test_상주_구성원과_투영은_발행_크기가_아니라_batch_크기�
 
     def factory(member: FrozenPublicationMember) -> AuctionProjection:
         projection = build_projection(member)
-        tracked = TrackedPayload(projection.source_payload)
+        tracked = TrackedProjection(
+            **{field.name: getattr(projection, field.name) for field in fields(projection)}
+        )
         alive_projections.add(tracked)
-        return replace(projection, source_payload=tracked)
+        return tracked
 
     def apply(
         projection: AuctionProjection, observed_at: datetime

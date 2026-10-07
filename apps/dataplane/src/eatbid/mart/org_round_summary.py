@@ -56,7 +56,8 @@ latest as (
          revision.base_amount,
          revision.planned_amount,
          revision.currency,
-         revision.source_payload
+         revision.source_category_label,
+         revision.lineage_observed
     from core.auction_revision as revision
    order by revision.auction_attempt_id, revision.auction_revision_id desc
 ),
@@ -81,9 +82,7 @@ select
   purchaser.organization_id,
   -- 관측 라벨은 그대로 싣는다. 원자 코드는 열이 아니라 다리표 `org_round_summary_item`이며 `_fill_items`가
   -- 같은 라벨을 `read_item_label`로 읽어 채운다(EAT-256).
-  nullif(btrim(coalesce(
-    latest.source_payload #>> '{{classification,sourceCategoryLabel}}', ''
-  )), ''),
+  nullif(btrim(coalesce(latest.source_category_label, '')), ''),
   latest.announced_at,
   latest.opened_at,
   latest.floor_rate,
@@ -128,7 +127,7 @@ select
   parent.to_auction_attempt_id,
   -- `lineage` 블록이 있는 계약으로 정규화된 회차만 사슬을 관측한 것이다. 그 블록이 없는 계약의
   -- 회차는 "사슬 없음"이 아니라 "모름"이며, 둘을 한 값으로 숨기지 않는다.
-  case when latest.source_payload ? 'lineage' then 'observed' else 'unknown' end,
+  case when latest.lineage_observed then 'observed' else 'unknown' end,
   case
     when latest.opened_at is not null
     then date_trunc('month', latest.opened_at at time zone 'Asia/Seoul')::date

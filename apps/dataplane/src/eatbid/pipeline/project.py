@@ -41,7 +41,7 @@ from eatbid.source.eat.code_schemes import (
     AUCTION_LOCATION_SIGUNGU,
     ELIGIBILITY_AREA,
 )
-from eatbid.source.eat.normalize import canonical_payload, canonical_record_object
+from eatbid.source.eat.normalize import canonical_payload
 
 __all__ = [
     "ProjectionFingerprintItem",
@@ -141,8 +141,6 @@ def build_eat_auction_projection(
         for code in eligibility_codes
     )
 
-    source_payload = canonical_record_object(record)
-
     return AuctionProjection(
         normalized_record_id=member.normalized_record_id,
         observation_id=member.observation_id,
@@ -175,7 +173,6 @@ def build_eat_auction_projection(
             if record.classification.source_category_label is not None
             else None
         ),
-        source_payload=source_payload,
     )
 
 # record type이 어떤 빌더를 부르는지의 단일 출처다. 한 publication 안에 두 record type이 섞이는 것은

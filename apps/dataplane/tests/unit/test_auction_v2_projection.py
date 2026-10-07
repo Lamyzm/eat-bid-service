@@ -110,8 +110,6 @@ def test_eat_v3_구성원은_참가제한지역_코드에_관측_라벨을_붙�
     validate_projection(projection)
 
     assert _eligibility_refs(projection) == [("15714", "경남/창원시")]
-    # 봉인된 payload가 되읽기에서도 canonical이다. source_payload도 producer가 쓴 키만 싣는다.
-    assert "eligibilityAreas" in projection.source_payload["location"]  # type: ignore[index]
 
 
 def test_라벨_이전_v2_구성원은_라벨_없이_그대로_투영된다() -> None:
@@ -120,7 +118,6 @@ def test_라벨_이전_v2_구성원은_라벨_없이_그대로_투영된다() ->
     validate_projection(projection)
 
     assert _eligibility_refs(projection) == [("15714", None)]
-    assert "eligibilityAreas" not in projection.source_payload["location"]  # type: ignore[index]
 
 
 def test_라벨_목록이_코드_목록과_어긋나면_투영하지_않고_끊는다() -> None:
@@ -419,9 +416,8 @@ def test_예정가격_0은_payload에_관측으로_남기되_core_해석은_null
     )
     validate_projection(projection)
 
-    # 0은 금액이 아니라 "추첨된 적 없음"이다. 관측은 payload가 지키고 core 열만 해석으로 비운다(EAT-199).
+    # 0은 금액이 아니라 "추첨된 적 없음"이다. 관측은 정규화 기록이 지키고 core 열만 해석으로 비운다(EAT-199).
     assert projection.planned_amount is None
-    assert projection.source_payload["pricing"]["plannedAmount"]["amount"] == "0.00"
     assert build_eat_auction_v2_projection(frozen_member()).planned_amount == Decimal(
         "6762461.00"
     )

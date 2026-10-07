@@ -38,8 +38,8 @@ export const OBSERVED_AT = {
 const FIXED_ATTEMPT_COUNT = 9;
 
 const sha = (character: string) => character.repeat(64);
-const roster = (count: number) =>
-  `{"roster":{"submissions":[${Array.from({ length: count }, () => "{}").join(",")}],"sourceRosterSize":${count}}}`;
+// revision 열 셋 `(명단 줄 수, 원본 명단 크기, 사슬 관측)`이다. 명단 블록이 있는 v2 해석을 흉내 낸다(EAT-308).
+const roster = (count: number) => `${count}, ${count}, true`;
 
 const identitySeed = `
   insert into core.code_scheme (code_scheme_id, namespace, owner, version_policy, valid_time_policy)
@@ -159,33 +159,32 @@ const auctionSeed = `
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
      content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
-     opened_at, base_amount, planned_amount, currency, source_payload)
+     opened_at, base_amount, planned_amount, currency, roster_submission_count, source_roster_size,
+     lineage_observed)
   overriding system value
   values (9101, 8101, 5101, 6101, '${sha("d")}', null, 'CLOSED', '농산물 구매',
-      '2026-09-01T00:00:00Z', null, '2026-09-05T05:00:00Z', 1000000.00, 990000.00, 'KRW', '${roster(3)}'),
+      '2026-09-01T00:00:00Z', null, '2026-09-05T05:00:00Z', 1000000.00, 990000.00, 'KRW', ${roster(3)}),
     -- 같은 회차의 더 새로운 해석이다. mart가 고정한 9101 대신 이것을 읽으면 내 행이 사라진다.
     (9111, 8101, 5111, 6111, '${sha("e")}', null, 'CLOSED', '농산물 구매',
-      '2026-09-01T00:00:00Z', null, '2026-09-05T05:00:00Z', 1000000.00, 990000.00, 'KRW', '${roster(1)}'),
+      '2026-09-01T00:00:00Z', null, '2026-09-05T05:00:00Z', 1000000.00, 990000.00, 'KRW', ${roster(1)}),
     (9102, 8102, 5102, 6102, '${sha("f")}', null, 'CLOSED', '농산물 구매',
-      '2026-09-02T00:00:00Z', null, '2026-09-06T05:00:00Z', 1000000.00, 990000.00, 'KRW', '${roster(2)}'),
+      '2026-09-02T00:00:00Z', null, '2026-09-06T05:00:00Z', 1000000.00, 990000.00, 'KRW', ${roster(2)}),
     (9103, 8103, 5103, 6103, '${sha("0")}', null, 'OPEN', '명단 미관측 공고',
-      '2026-09-03T00:00:00Z', null, null, 500000.00, null, 'KRW', '{}'),
+      '2026-09-03T00:00:00Z', null, null, 500000.00, null, 'KRW', null, null, false),
     (9104, 8104, 5104, 6104, '${sha("1")}', null, 'CLOSED', '명단 수 불일치 공고',
-      '2026-09-04T00:00:00Z', null, '2026-09-08T05:00:00Z', 500000.00, null, 'KRW', '${roster(3)}'),
+      '2026-09-04T00:00:00Z', null, '2026-09-08T05:00:00Z', 500000.00, null, 'KRW', ${roster(3)}),
     (9105, 8105, 5105, 6105, '${sha("2")}', null, 'CLOSED', '관측 시각 모순 공고',
-      '2026-09-05T00:00:00Z', null, '2026-09-09T05:00:00Z', 500000.00, null, 'KRW', '${roster(1)}'),
+      '2026-09-05T00:00:00Z', null, '2026-09-09T05:00:00Z', 500000.00, null, 'KRW', ${roster(1)}),
     (9106, 8106, 5106, 6106, '${sha("3")}', null, 'CLOSED', '다른 기관 공고',
-      '2026-09-06T00:00:00Z', null, '2026-09-10T05:00:00Z', 500000.00, null, 'KRW', '${roster(1)}'),
+      '2026-09-06T00:00:00Z', null, '2026-09-10T05:00:00Z', 500000.00, null, 'KRW', ${roster(1)}),
     (9107, 8107, 5107, 6107, '${sha("4")}', null, 'CLOSED', '상한 초과 명단 공고',
       '2026-09-07T00:00:00Z', null, '2026-09-11T05:00:00Z', 500000.00, null, 'KRW',
-      jsonb_build_object('roster', jsonb_build_object(
-        'submissions', (select jsonb_agg('{}'::jsonb) from generate_series(1, ${OVERSIZED_ROSTER_ROWS})),
-        'sourceRosterSize', ${OVERSIZED_ROSTER_ROWS}))),
+      ${roster(OVERSIZED_ROSTER_ROWS)}),
     -- 8108·8109는 명단 수·좌표·관측 시각이 모두 정상이고 제출 행 하나의 관측만 어긋난 회차다.
     (9108, 8108, 5108, 6108, '${sha("5")}', null, 'CLOSED', '내 행 관측 어긋난 공고',
-      '2026-09-08T00:00:00Z', null, '2026-09-12T05:00:00Z', 500000.00, null, 'KRW', '${roster(2)}'),
+      '2026-09-08T00:00:00Z', null, '2026-09-12T05:00:00Z', 500000.00, null, 'KRW', ${roster(2)}),
     (9109, 8109, 5109, 6109, '${sha("6")}', null, 'CLOSED', '남의 행 관측 어긋난 공고',
-      '2026-09-09T00:00:00Z', null, '2026-09-13T05:00:00Z', 500000.00, null, 'KRW', '${roster(2)}');
+      '2026-09-09T00:00:00Z', null, '2026-09-13T05:00:00Z', 500000.00, null, 'KRW', ${roster(2)});
   insert into core.auction_organization (auction_revision_id, organization_id, role)
   values (9101, ${TARGET_ORGANIZATION_ID}, 'purchaser'), (9111, ${TARGET_ORGANIZATION_ID}, 'purchaser'),
     (9102, ${TARGET_ORGANIZATION_ID}, 'purchaser'), (9103, ${TARGET_ORGANIZATION_ID}, 'purchaser'),
@@ -278,11 +277,11 @@ const bulkSeed = `
     from generate_series(0, ${BULK_ATTEMPT_COUNT - 1}) as index;
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
-     content_sha256, source_status, title, announced_at, base_amount, currency, source_payload)
+     content_sha256, source_status, title, announced_at, base_amount, currency, lineage_observed)
   overriding system value
   select ${BULK_REVISION_BASE} + index, ${BULK_ATTEMPT_BASE} + index, 5200 + index, 6200 + index,
          md5(index::text) || md5(index::text || 'x'), 'CLOSED', '대량 회차',
-         '2026-09-01T00:00:00Z', 500000.00, 'KRW', '{}'
+         '2026-09-01T00:00:00Z', 500000.00, 'KRW', false
     from generate_series(0, ${BULK_ATTEMPT_COUNT - 1}) as index;
   insert into core.auction_organization (auction_revision_id, organization_id, role)
   select ${BULK_REVISION_BASE} + index, ${TARGET_ORGANIZATION_ID}, 'purchaser'

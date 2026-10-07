@@ -41,7 +41,8 @@ select attempt.auction_attempt_id, 990003, 'auction.v5', attempt.external_bid_id
 insert into core.auction_revision
   (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
    content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
-   opened_at, base_amount, planned_amount, floor_rate, currency, source_payload)
+   opened_at, base_amount, planned_amount, floor_rate, currency, roster_submission_count,
+   lineage_observed)
 overriding system value
 select
   record.normalized_record_id,
@@ -61,7 +62,9 @@ select
   null,
   spec.floor_rate,
   'KRW',
-  jsonb_build_object('source', 'dev-sample', 'openIndex', spec.o)
+  -- 열린 공고 시드는 명단·사슬 블록이 없는 해석이다(EAT-308).
+  null,
+  false
   from ingest.normalized_record record
   join lateral (
     select
@@ -95,7 +98,8 @@ select
 insert into core.auction_revision
   (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
    content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
-   opened_at, base_amount, planned_amount, floor_rate, currency, source_payload)
+   opened_at, base_amount, planned_amount, floor_rate, currency, roster_submission_count,
+   lineage_observed)
 overriding system value
 select
   record.normalized_record_id,
@@ -113,16 +117,9 @@ select
   round(spec.base_amount * 0.99, 2),
   spec.floor_rate,
   'KRW',
-  case
-    when spec.roster_size = 0 then jsonb_build_object('source', 'dev-sample', 'pastIndex', spec.p)
-    else jsonb_build_object(
-      'source', 'dev-sample',
-      'pastIndex', spec.p,
-      'roster', jsonb_build_object(
-        'submissions',
-        (select jsonb_agg(jsonb_build_object('ordinal', ordinal))
-           from generate_series(1, spec.roster_size) as ordinal)))
-  end
+  -- 명단을 심은 회차만 명단 줄 수가 있다. 사슬 블록은 심지 않는다(EAT-308).
+  case when spec.roster_size = 0 then null else spec.roster_size end,
+  false
   from ingest.normalized_record record
   join lateral (
     select

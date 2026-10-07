@@ -224,13 +224,13 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
   `eatbid:auction-item` 원자 code value를 가리키며, 라벨 한 문자열이 원자 여러 행으로 투영되므로 한 revision에
   같은 role 행이 여럿 선다(EAT-230, 마이그레이션 `20260916114829_auction_revision_code_value_item_role`).
   `packages/db/src/schema/core/procurement.ts`가 DDL의 권위다.
-- **revision의 `source_payload`는 걷어 내는 중이다(EAT-308).** 그 jsonb는 `normalized_record_id`가 이미 가리키는
-  `ingest.normalized_record.normalized_payload`와 같은 사본이다(운영 표본 200/200 일치, 표마다 약 7GB). 읽는 곳이
+- **revision은 정규화 기록의 jsonb 사본을 들지 않는다(EAT-308).** 예전 `source_payload` 열은 `normalized_record_id`가 이미 가리키는
+  `ingest.normalized_record.normalized_payload`와 같은 사본이었다(운영 표본 200/200 일치, 표마다 약 7GB). 읽는 곳이
   쓰던 경로 넷은 열 `roster_submission_count`(정규화 명단 줄 수, v1은 null)·`source_roster_size`(원본이 말한 명단
   크기)·`source_category_label`(품목 분류 관측 라벨)·`lineage_observed`(사슬 블록을 가진 계약이었는가, 거짓은
   "모름")로 옮기고, `{schedule,announcedAt}`은 이미 있는 `announced_at`과 운영 126만 행 모두 같아 그 열을 읽는다.
-  배포 1은 열을 더하고 새 revision에 쓰며 `backfill-revision-columns`가 옛 행을 채운다. 배포 2가 읽는 곳을 옮기고
-  `source_payload`를 지운다. 관측 원문은 R2 raw와 정규화 기록에 남는다(규칙 3).
+  두 배포에 걸쳐 열을 채운 뒤 `source_payload`를 지웠다. 정규화 기록 전체가 필요하면 `normalized_record_id`로
+  찾아간다. 관측 원문은 R2 raw와 정규화 기록에 남는다(규칙 3).
 - **`AwardDecision`은 revision당 0 또는 1이다.** 근거는 전수 리포트의 `multiple_award_rows = 0`이며,
   위반이 관측되면 두 행을 만드는 것이 아니라 격리한다.
 - **낙찰 행은 명단 행을 FK로 가리키지 않는다.** `awarded_roster_ordinal`은 같은 revision 명단의 관측
@@ -570,7 +570,7 @@ scheme_namespace, fragment, row_count)`에 build마다 남기고, 운영 기대 
 'opening-gap-over-45-days'`를 달고 행은 남기며, 화면 조회(기관 회차 이력·오늘 화면 기관 요약)는 그 행을 세지 않는다.
 열린 공고 스냅샷은 마감이 관측보다 45일 넘게 먼 목록 행을 싣지 않는다 — `closes_at > now()`에 영원히 남는 유령을
 막는다. (2) 예정가격 `0`은 eaT가 추첨 전·유찰 회차에 보내는 값이며(0인 회차 14,506건 전부 낙찰·명단 없음) 금액이
-아니라 "추첨된 적 없음"이다. core `planned_amount`는 null이고 관측 0은 raw·normalized·`source_payload`에 남는다.
+아니라 "추첨된 적 없음"이다. core `planned_amount`는 null이고 관측 0은 raw와 정규화 기록에 남는다.
 표의 check가 0을 거부한다. (3) 하한율 0.001인 회차(19건)는 낙찰 방식 코드가 모두 `003`이라 코드로는 다른 방식을
 가려낼 수 없고, 기초금액=예정가격(추첨 없음)이 특징이며 낙찰 사정률이 55~95로 흩어진다. 하한율이 코호트 키라
 90·88 코호트와 이미 섞이지 않으므로 별도 제외 규칙을 두지 않는다 — 정체는 확인하지 못했고 그대로 적어 둔다.

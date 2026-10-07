@@ -80,7 +80,8 @@ select
 insert into core.auction_revision
   (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
    content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
-   opened_at, base_amount, planned_amount, floor_rate, currency, source_payload)
+   opened_at, base_amount, planned_amount, floor_rate, currency, roster_submission_count,
+   lineage_observed)
 overriding system value
 select cmp.attempt_id, cmp.attempt_id, cmp.attempt_id, 990003,
        lpad(to_hex(cmp.attempt_id), 64, '0'),
@@ -94,7 +95,8 @@ select cmp.attempt_id, cmp.attempt_id, cmp.attempt_id, 990003,
        round(cmp.base_amount * 0.99, 2),
        cmp.floor_rate,
        'KRW',
-       jsonb_build_object('source', 'dev-sample-comparison', 'comparisonIndex', cmp.n)
+       null,
+       false
   from dev_comparison_round cmp;
 
 insert into core.auction_organization (auction_revision_id, organization_id, role)

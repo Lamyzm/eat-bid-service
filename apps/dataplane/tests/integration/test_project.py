@@ -124,8 +124,6 @@ def test_repository가_locked_member에_묶이지_않은_factory_output을_거�
         {"source_status": ""},
         {"title": ""},
         {"currency": ""},
-        {"source_payload": []},
-        {"source_payload": {"not_json": object()}},
         {"code_refs": ("bad",)},
         {
             "code_refs": (
@@ -620,9 +618,13 @@ def test_projection이_새_값_생성_없이_revision_범위_bigint_fact를_저�
         cursor.execute(
             """
             select ar.announced_at, ar.deadline_at, ar.opened_at,
-                   ar.base_amount, ar.planned_amount, ar.currency, ar.source_payload
+                   ar.base_amount, ar.planned_amount, ar.currency,
+                   ar.roster_submission_count, ar.lineage_observed,
+                   ar.source_category_label is not distinct from
+                     (n.normalized_payload #>> '{classification,sourceCategoryLabel}')
             from core.auction_revision ar
             join core.auction_attempt aa using (auction_attempt_id)
+            join ingest.normalized_record n using (normalized_record_id)
             where aa.external_bid_id = 'projection-complete'
             """
         )
@@ -635,8 +637,8 @@ def test_projection이_새_값_생성_없이_revision_범위_bigint_fact를_저�
             9990000,
             "KRW",
         )
-        assert revision[6]["contractVersion"] == "eatbid.ingestion.auction.v1"
-        assert revision[6]["identity"]["externalBidId"] == "projection-complete"
+        # v1 해석에는 명단·사슬 블록이 없다. 품목 라벨은 정규화 기록의 값 그대로다(EAT-308).
+        assert revision[6:] == (None, False, True)
         cursor.execute(
             """
             select count(*) from core.code_value v
@@ -909,7 +911,7 @@ def test_database_grain이_동일한_raw의_새_parser_interpretation을_허용�
                    n.normalized_payload, ar.observation_id, ar.content_sha256,
                    ar.display_bid_no, ar.source_status, ar.title, ar.announced_at,
                    ar.deadline_at, ar.opened_at, ar.base_amount, ar.planned_amount,
-                   ar.currency, ar.source_payload
+                   ar.currency, ar.lineage_observed
             from core.auction_revision ar
             join ingest.normalized_record n using (normalized_record_id)
             join core.auction_attempt aa using (auction_attempt_id)
@@ -934,14 +936,13 @@ def test_database_grain이_동일한_raw의_새_parser_interpretation을_허용�
                 auction_attempt_id, normalized_record_id, observation_id,
                 content_sha256, display_bid_no, source_status, title,
                 announced_at, deadline_at, opened_at, base_amount, planned_amount,
-                currency, source_payload
+                currency, lineage_observed
             ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 row[0],
                 second_normalized_id,
-                *row[4:15],
-                psycopg.types.json.Jsonb(row[15]),
+                *row[4:16],
             ),
         )
     pipeline_services.connection.commit()
@@ -1119,8 +1120,8 @@ def test_conflicting_existing_revision이_모든_새_projection_row를_rollback�
             """
             insert into core.auction_revision (
                 auction_attempt_id, normalized_record_id, observation_id,
-                content_sha256, source_status, title, currency, source_payload
-            ) values (%s, %s, %s, %s, 'tampered', 'tampered', 'KRW', '{}'::jsonb)
+                content_sha256, source_status, title, currency, lineage_observed
+            ) values (%s, %s, %s, %s, 'tampered', 'tampered', 'KRW', false)
             """,
             (attempt_id, normalized_record_id, observation_id, content_sha256),
         )

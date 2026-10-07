@@ -167,7 +167,7 @@ def observed_planned_amount(value: MoneyV1 | MoneyV2 | None) -> Decimal | None:
 
     eaT는 추첨 전 공고의 `ELCTRN_BID_PLNPRC`를 빈 값이 아니라 `0`으로 보내고, 개찰이 지나도 명단이 없으면
     끝내 `0`이다(2026-09-17 복원본 전수: 0인 회차 14,506건 전부 낙찰·명단 없음, EAT-74·EAT-199). 관측은
-    raw·normalized·`source_payload`가 보존하고 core 열은 해석이라 null로 앉힌다(AGENTS 3). 0을 값으로 두면
+    raw와 정규화 기록이 보존하고 core 열은 해석이라 null로 앉힌다(AGENTS 3). 0을 값으로 두면
     `is not null`로 거르는 조회가 그것을 금액으로 센다.
     """
     amount = money_decimal(value)
