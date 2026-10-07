@@ -635,6 +635,9 @@ namespace의 Deployment·Pod·PVC 읽기(get·list)를 더했다(`infra/base/wor
 - R2 raw: versioning/retention을 사용하고 content hash로 무결성을 검사한다.
 - PostgreSQL: 매시간 `pg_dump` full backup을 R2 `backup/postgres/`에 둔다(2026-09-10, EAT-127, 절차는
   [`backup-and-restore.md`](../operations/backup-and-restore.md)). WAL/증분은 다중 노드·CloudNativePG 전환과 함께 둔다.
+  덤프는 노드 디스크를 거치지 않고 파이프로 R2에 바로 흘려보낸다. 덤프를 노드에 먼저 쓰면 DB가 커질수록 노드
+  여유가 퇴거 기준 밑으로 내려가 백업이 Postgres를 쫓아낸다(2026-10-01~07, EAT-301). 노드 디스크 자체는 DB 크기를
+  따라 늘려야 하는 별개의 한계다.
 - `app` 사용자 상태는 raw로 재생성할 수 없으므로 최우선 복구 대상이다.
 - `core`는 raw+version으로 재구성 가능하지만 복구시간 단축을 위해 DB backup에도 포함한다.
 - `mart`는 DB 복구 후 재생성 가능하다.

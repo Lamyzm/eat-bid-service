@@ -612,9 +612,11 @@ def test_DB_백업_CronWorkflow는_매시간_소유자로_덤프해_R2에_두고
         _mapping(item)["name"]: _mapping(item)
         for item in _sequence(_mapping(template["containerSet"])["containers"])
     }
-    assert set(containers) == {"dump", "upload"}
+    assert set(containers) == {"prepare", "dump", "upload"}
     assert containers["dump"]["image"] == "postgres:16-alpine"
-    assert containers["upload"]["dependencies"] == ["dump"]
+    # dump와 upload는 파이프 양끝이라 동시에 돈다. upload를 dump 뒤에 두면 읽는 쪽이 없어 dump가 막힌다.
+    assert containers["dump"]["dependencies"] == ["prepare"]
+    assert containers["upload"]["dependencies"] == ["prepare"]
     dump_env = {
         _mapping(item)["name"]: _mapping(item) for item in _sequence(containers["dump"]["env"])
     }
@@ -635,6 +637,44 @@ def test_DB_백업_CronWorkflow는_매시간_소유자로_덤프해_R2에_두고
     upload_script = "".join(str(item) for item in _sequence(containers["upload"]["args"]))
     assert "backup/postgres/hourly" in upload_script and "backup/postgres/daily" in upload_script
     assert "--min-age 48h" in upload_script and "--min-age 720h" in upload_script
+
+
+def test_DB_백업은_덤프를_노드_디스크에_쓰지_않고_성공한_덤프만_hourly에_둔다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 덤프 파일을 emptyDir에 다 쓴 뒤 올리던 때, DB 111GB·덤프 12GB에서 노드 여유가 퇴거 기준 밑으로
+    내려가 쿠버네티스가 백업과 Postgres를 함께 쫓아냈다(2026-10-01~07, Postgres 교체 30회 이상, EAT-301).
+
+    파이프는 실패해도 그냥 닫히고 rclone은 받은 만큼을 올린다. 임시 이름에 올렸다가 dump의 성공 표식을
+    본 뒤에만 hourly로 옮겨야 잘린 객체가 감시에 신선한 백업으로 세어지지 않는다."""
+    backup = manifests.named("CronWorkflow", "eatbid-db-backup")
+    workflow_spec = _mapping(_spec(backup)["workflowSpec"])
+    template = next(
+        _mapping(item) for item in _sequence(workflow_spec["templates"]) if _mapping(item)["name"] == "backup"
+    )
+    # 파이프 양끝이 서로를 기다리다 영원히 막히지 않게 시한이 있다.
+    assert int(template["activeDeadlineSeconds"]) > 0
+    containers = {
+        _mapping(item)["name"]: _mapping(item)
+        for item in _sequence(_mapping(template["containerSet"])["containers"])
+    }
+    script = {name: "".join(str(item) for item in _sequence(c["args"])) for name, c in containers.items()}
+
+    assert "mkfifo /work/dump.pipe" in script["prepare"]
+    assert "--file=/work/dump.pipe" in script["dump"]
+    # 없으면 pg_dump 16이 끝에 파이프를 fsync하다 `Invalid argument`로 실패한다(2026-10-07 실측).
+    assert "--no-sync" in script["dump"]
+    assert "/work/eatbid.dump" not in "".join(script.values())
+    # 표식은 덤프가 끝난 뒤, 성공일 때만 ok다.
+    assert "echo ok > /work/dump.status" in script["dump"]
+
+    upload = script["upload"]
+    assert "rclone rcat \"$incoming\"" in upload and "< /work/dump.pipe" in upload
+    assert "backup/postgres/incoming/" in upload
+    # 표식을 확인하는 자리가 hourly로 옮기는 자리보다 앞이다.
+    assert upload.index('[ "$status" != "ok" ]') < upload.index('rclone moveto "$incoming" "$hourly"')
+    # daily는 hourly 사본이다. 로컬 덤프 파일은 이제 없다.
+    assert 'rclone copyto "$hourly"' in upload
 
 
 def test_WorkflowTemplate은_성공_파드를_즉시_지우고_끝난_Workflow를_TTL로_거둔다(

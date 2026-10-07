@@ -2,7 +2,7 @@
 id: BACKUP-AND-RESTORE
 status: active
 canonical_for: postgres-backup-schedule-and-restore-procedure
-last_reviewed: 2026-09-16
+last_reviewed: 2026-10-07
 review_trigger: backup-schedule-retention-r2-layout-or-postgres-major-change
 ---
 
@@ -24,6 +24,18 @@ WAL 기반 지속 백업(wal-g)은 postgres 이미지 교체가 필요해 다중
 |---|---|---|
 | `backup/postgres/hourly/<UTC stamp>.dump` | 매시 | 2일(48h 지난 객체를 매 실행이 지움) |
 | `backup/postgres/daily/<UTC stamp>.dump` | KST 03시 회차만 | 30일 |
+| `backup/postgres/incoming/<UTC stamp>.dump` | 매시(올리는 동안만) | 덤프 성공 시 hourly로 옮겨짐, 남은 것은 6h 뒤 지움 |
+
+**덤프는 노드 디스크에 쓰지 않는다(2026-10-07, EAT-301).** dump 컨테이너가 emptyDir의 이름 있는 파이프에
+쓰고 upload 컨테이너가 그 파이프를 읽어 `rclone rcat`으로 바로 R2에 올린다. 예전처럼 덤프 파일을 다 쓴 뒤
+올리면 DB 111GB·덤프 12GB에서 노드 여유가 퇴거 기준(7.7GB) 밑으로 내려가, 쿠버네티스가 백업과 Postgres를
+함께 쫓아냈다(10-01~07 Postgres 교체 30회 이상, 일일 재수집 발행 사흘 실패, 백업 26시간 공백).
+
+파이프는 덤프가 실패해도 그냥 닫히고 rclone은 받은 만큼을 올린다. 그래서 먼저 `incoming/`에 올리고, dump가
+끝난 뒤에만 쓰는 성공 표식을 확인한 회차만 `hourly/`로 옮긴다. 감시 `backup-freshness`는 `hourly/`만 보므로
+잘린 객체가 신선한 백업으로 세어지지 않는다. 파이프로 쓴 custom 덤프에는 데이터 위치표가 빠지지만, 받은
+파일에서 `pg_restore -j 4`와 schema 선택 복원이 모두 된다(postgres 16 실측). `pg_dump --no-sync`가 필요하다 —
+없으면 끝에 파이프를 fsync하다 실패한다.
 
 hourly가 2일인 이유: 손실 허용치가 1시간이므로 시간 단위로 되감을 일은 사고 직후 며칠이고, 그보다 오래된
 시점은 daily로 충분하다. 전체 덤프를 매시 쌓으므로 보존이 길면 같은 내용이 그대로 늘어난다. 덤프 1.35GB
