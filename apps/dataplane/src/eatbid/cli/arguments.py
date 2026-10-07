@@ -14,6 +14,7 @@ from pathlib import Path
 from uuid import UUID
 
 from eatbid.core.build_identity import validate_build_sha
+from eatbid.core.revision_column_backfill import DEFAULT_BATCH_REVISIONS
 from eatbid.core.supplier_label_backfill import DEFAULT_TARGET_ROWS
 from eatbid.failures.categories import OPERATOR_CLOSE_CATEGORIES
 from eatbid.mart.models import DEFAULT_REGION_SCHEME, MART_NAMES
@@ -136,6 +137,7 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
             "scan-contract",
             "reap-marts",
             "backfill-supplier-labels",
+            "backfill-revision-columns",
             "build-history-marts",
             "next-replay-target",
             "close-stalled-run",
@@ -258,6 +260,13 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     backfill_labels = commands["backfill-supplier-labels"]
     backfill_labels.add_argument("--target-rows", type=int, default=DEFAULT_TARGET_ROWS)
     backfill_labels.add_argument("--result-dir", type=Path, default=None)
+
+    # 운영자 entrypoint다(EAT-308). revision id 범위로 나눠 빈 열 넷을 그 revision의 jsonb에서 채운다.
+    backfill_revisions = commands["backfill-revision-columns"]
+    backfill_revisions.add_argument(
+        "--batch-revisions", type=int, default=DEFAULT_BATCH_REVISIONS
+    )
+    backfill_revisions.add_argument("--result-dir", type=Path, default=None)
 
     # 예약 entrypoint다(EAT-274). 발행이 실패한 창 중 지금 이미지와 다른 이미지가 실패시킨 것 하나를
     # 고른다. 아무것도 바꾸지 않으며 고를 것이 없으면 그것도 정상이다.

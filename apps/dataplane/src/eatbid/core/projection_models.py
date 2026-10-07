@@ -70,6 +70,8 @@ class SubmissionProjection:
 @dataclass(frozen=True, slots=True)
 class RosterProjection:
     submissions: tuple[SubmissionProjection, ...]
+    # 원본이 말한 명단 크기 관측이다. 받은 줄 수(`len(submissions)`)와 다를 수 있어 따로 싣는다.
+    source_roster_size: int | None
 
 
 @dataclass(frozen=True, slots=True)

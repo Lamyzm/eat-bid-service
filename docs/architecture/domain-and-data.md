@@ -224,6 +224,13 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
   `eatbid:auction-item` 원자 code value를 가리키며, 라벨 한 문자열이 원자 여러 행으로 투영되므로 한 revision에
   같은 role 행이 여럿 선다(EAT-230, 마이그레이션 `20260916114829_auction_revision_code_value_item_role`).
   `packages/db/src/schema/core/procurement.ts`가 DDL의 권위다.
+- **revision의 `source_payload`는 걷어 내는 중이다(EAT-308).** 그 jsonb는 `normalized_record_id`가 이미 가리키는
+  `ingest.normalized_record.normalized_payload`와 같은 사본이다(운영 표본 200/200 일치, 표마다 약 7GB). 읽는 곳이
+  쓰던 경로 넷은 열 `roster_submission_count`(정규화 명단 줄 수, v1은 null)·`source_roster_size`(원본이 말한 명단
+  크기)·`source_category_label`(품목 분류 관측 라벨)·`lineage_observed`(사슬 블록을 가진 계약이었는가, 거짓은
+  "모름")로 옮기고, `{schedule,announcedAt}`은 이미 있는 `announced_at`과 운영 126만 행 모두 같아 그 열을 읽는다.
+  배포 1은 열을 더하고 새 revision에 쓰며 `backfill-revision-columns`가 옛 행을 채운다. 배포 2가 읽는 곳을 옮기고
+  `source_payload`를 지운다. 관측 원문은 R2 raw와 정규화 기록에 남는다(규칙 3).
 - **`AwardDecision`은 revision당 0 또는 1이다.** 근거는 전수 리포트의 `multiple_award_rows = 0`이며,
   위반이 관측되면 두 행을 만드는 것이 아니라 격리한다.
 - **낙찰 행은 명단 행을 FK로 가리키지 않는다.** `awarded_roster_ordinal`은 같은 revision 명단의 관측

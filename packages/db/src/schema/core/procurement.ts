@@ -6,8 +6,10 @@
  */
 import {
   bigint,
+  boolean,
   char,
   check,
+  integer,
   jsonb,
   numeric,
   primaryKey,
@@ -62,6 +64,17 @@ export const auctionRevision = coreSchema.table(
     floorRate: numeric("floor_rate", { precision: 6, scale: 3 }),
     currency: char("currency", { length: 3 }).notNull(),
     sourcePayload: jsonb("source_payload").notNull(),
+    // 아래 넷은 `source_payload` jsonb 경로로 읽던 값을 열로 옮긴 것이다(EAT-308). 이 revision을 낳은 정규화 해석의
+    // 값 그대로이며, 배포 1 동안 옛 행은 비어 있다가 `backfill-revision-columns`가 채운다.
+    // 정규화 명단의 줄 수다. 명단 계약이 없는 v1 해석은 null이고 "명단이 비었다"(0)와 다르다.
+    rosterSubmissionCount: integer("roster_submission_count"),
+    // 원본이 말한 명단 크기(`sourceRosterSize`) 관측이다. 우리가 받은 줄 수와 다를 수 있어 따로 둔다.
+    sourceRosterSize: integer("source_roster_size"),
+    // 품목 분류 관측 라벨이다. 품목 code scheme이 없어 코드로 승격하지 않는다(EAT-44 판정 §4.2).
+    sourceCategoryLabel: text("source_category_label"),
+    // 이 해석이 사슬(`lineage`) 블록을 가진 계약이었는가. 거짓은 "사슬 없음"이 아니라 "모름"이다. null은 배포 1
+    // 이전 행을 아직 채우지 않았다는 뜻이며 배포 2에서 not null로 좁힌다.
+    lineageObserved: boolean("lineage_observed"),
   },
   (table) => [
     unique("auction_revision_normalized_record_key").on(table.normalizedRecordId),

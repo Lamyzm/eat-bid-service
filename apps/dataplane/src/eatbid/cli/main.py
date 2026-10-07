@@ -15,6 +15,7 @@ from eatbid.cli.chunks import CHUNK_COMMANDS, chunk_payload, run_chunk_command
 from eatbid.config import ApplicationSettings
 from eatbid.core.code_release_projection import CodeReleaseProjectionResult
 from eatbid.core.code_vocabulary_projection import CodeVocabularyProjectionResult
+from eatbid.core.revision_column_backfill import RevisionColumnBackfillReport
 from eatbid.core.supplier_label_backfill import SupplierLabelBackfillReport
 from eatbid.failures.categories import (
     CONFIGURATION,
@@ -80,6 +81,7 @@ class CliApplication(Protocol):
     def next_replay_target(self, args: argparse.Namespace) -> object: ...
     def reap_marts(self, args: argparse.Namespace) -> object: ...
     def backfill_supplier_labels(self, args: argparse.Namespace) -> object: ...
+    def backfill_revision_columns(self, args: argparse.Namespace) -> object: ...
 
 
 CommandHandler = Callable[
@@ -197,6 +199,10 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
     if method_name == "backfill_supplier_labels":
         if not isinstance(result, SupplierLabelBackfillReport):
             raise TypeError("backfill-supplier-labels returned an invalid result")
+        return result.to_document()
+    if method_name == "backfill_revision_columns":
+        if not isinstance(result, RevisionColumnBackfillReport):
+            raise TypeError("backfill-revision-columns returned an invalid result")
         return result.to_document()
     if method_name == "capture_reference":
         if not isinstance(result, ReferenceCaptureResult):
@@ -338,6 +344,9 @@ COMMAND_METHODS: Mapping[str, str] = {
     # 운영자 entrypoint다. 업체명을 투찰 행으로 옮기는 일회성 이행의 기존 행 채우기다. 빈 칸만 채우므로 다시
     # 불러도 같은 결과다. 배포 2가 옛 업체명 관측 행을 지울 때 함께 지운다(EAT-310, ADR 0063).
     "backfill-supplier-labels": "backfill_supplier_labels",
+    # 운영자 entrypoint다. revision의 jsonb 경로를 열로 옮기는 일회성 이행의 기존 행 채우기다. 빈 행만 채우므로
+    # 다시 불러도 같은 결과다. 배포 2가 `source_payload`를 지울 때 함께 지운다(EAT-308).
+    "backfill-revision-columns": "backfill_revision_columns",
     # 예약 entrypoint다. 최신 발행을 아직 반영하지 않은 과거 기록 mart만 다시 만든다. 새 발행이 없으면 빈 결과로
     # 성공한다(EAT-300, ADR 0060).
     "build-history-marts": "build_history_marts",

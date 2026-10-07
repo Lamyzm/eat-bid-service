@@ -48,6 +48,7 @@ def test_auction_projection_contract가_필수_lineage_fields을_허용한다() 
         planned_amount=None,
         currency="KRW",
         floor_rate=None,
+        source_category_label=None,
         source_payload={"contractVersion": "eatbid.ingestion.auction.v1"},
     )
 
