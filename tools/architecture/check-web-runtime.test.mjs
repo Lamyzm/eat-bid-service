@@ -14,7 +14,7 @@ const productionDependencies = {
   "@tanstack/react-form": "1.33.5",
   "@tanstack/react-query": "5.102.8",
   "@tanstack/react-query-devtools": "5.102.8",
-  next: "16.3.4",
+  next: "16.3.6",
   react: "19.2.8",
   "react-dom": "19.2.8",
   "server-only": "0.0.1",
@@ -108,13 +108,13 @@ test("검토된 exact Web 런타임 fixture를 허용한다", () => {
 test("기반 의존성의 범위 버전과 잘못된 dependency 위치를 함께 거부한다", () => {
   withFixture({
     mutateWeb(webPackage) {
-      webPackage.dependencies.next = "^16.3.4";
+      webPackage.dependencies.next = "^16.3.6";
       webPackage.dependencies.typescript = webPackage.devDependencies.typescript;
       delete webPackage.devDependencies.typescript;
     },
   }, ({ status, output }) => {
     assert.equal(status, 1);
-    assert.match(output, /next.*16\.3\.4/);
+    assert.match(output, /next.*16\.3\.6/);
     assert.match(output, /typescript.*devDependencies/);
   });
 });

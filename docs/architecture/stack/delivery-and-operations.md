@@ -89,3 +89,13 @@ HIGH/CRITICAL 게이트에서 거부됐다. `esbuild 0.25.12`의 Go 바이너리
 이미지에 build 도구(및 취약한 네이티브 바이너리)를 끌고 올 수 있다. 릴리즈 전
 `pnpm --filter @eatbid/server list <pkg> --prod --depth Infinity`로 실제 프로덕션 그래프를 확인하고,
 필요하면 override로 패치 버전을 고정한다. `.trivyignore`로 스캔을 우회하지 않는다.
+
+### 2026-10-07 — 아흐레 사이 공개된 취약점이 네 이미지를 모두 막았다 (EAT-302)
+
+v0.1.59(9/28) 뒤 첫 릴리스 `release/v0.1.60`이 네 이미지 모두 게이트에서 거부됐다. 코드는 그대로였고 그사이
+공개된 취약점이다 — web `next` 16.3.4(CRITICAL, next/og 원격 코드 실행)·`sharp`·전이 `proxy-addr`·`source-map-js`,
+server·web·migration의 distroless debian13 `libssl3t64`, dataplane `urllib3`. 직접 의존성은 manifest를, 전이 둘은 루트
+`pnpm.overrides`의 하한(`^`)을, 기반 이미지는 고정 digest를 올렸다. 전이 의존성에 `pnpm update --depth Infinity`를
+쓰면 같은 사슬의 빌드 도구(terser·acorn 등)까지 함께 올라가 긴급 수정의 범위가 넓어지므로 override 하한으로 좁혔다.
+교훈: 릴리스가 뜸하면 그 사이 공개분이 한꺼번에 쌓여 급한 수정의 발목을 잡는다. 이번에는 매시간 Postgres가 쫓겨나는
+장애(EAT-301)의 수정이 이것 때문에 운영에 닿지 못했다.

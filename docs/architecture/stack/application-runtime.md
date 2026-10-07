@@ -1,3 +1,11 @@
+---
+id: STACK-APPLICATION-RUNTIME
+status: active
+canonical_for: application-runtime-stack-versions
+last_reviewed: 2026-10-07
+review_trigger: web-server-runtime-dependency-or-security-release
+---
+
 # 애플리케이션 런타임 감사
 
 최종 조사일은 2026-09-01이다. 저장소 선언이 의도를, lockfile이 resolve된 JavaScript/Python 의존성을
@@ -14,11 +22,11 @@ setup action은 아직 3.12 계열만 선택하므로 exact patch binary 증거�
 Server는 exact Nest 12 package(`12.0.0`/`12.0.1`), TypeScript `5.9.3`, `effect@4.0.0-rc.112`를 사용한다.
 Nest CLI/schematics 없이 `tsc`로 build하는 것이 현재 계약이다.
 
-Web manifest와 frozen lock은 Next `16.3.4`, React/React DOM `19.2.8`, TypeScript `5.9.3`, TanStack Query
+Web manifest와 frozen lock은 Next `16.3.6`, React/React DOM `19.2.8`, TypeScript `5.9.3`, TanStack Query
 `5.102.8`, TanStack Form `1.33.5`, Tailwind/PostCSS plugin `4.3.3`, Zod `4.5.4`를 사용한다. `kbar`와 그
 React 16/17 전용 `react-virtual` closure는 제거했고 기존 `cmdk` primitive로 command palette를 교체했다.
 `typedRoutes: true`, deterministic `next typegen && tsc --noEmit`, annotation mode React Compiler와 Web-local
-Happy DOM/Testing Library preload가 적용됐다. Next 16.3.4 production build와 Web 한국어 테스트 47개가 현재
+Happy DOM/Testing Library preload가 적용됐다. Next 16.3.4 production build와 Web 한국어 테스트 47개가 당시
 shell에서 통과했다. build는 `Google Sans Flex` fallback 값을 찾지 못했다는 non-blocking warning 하나를 남겼다.
 
 Web은 `@eatbid/contracts`를 선언했지만 browser-safe resource subpath와 contract validating transport는 다음
@@ -36,7 +44,7 @@ psycopg 3.3.4, pytest 9.1.1, Ruff 0.16.5, Pyright 1.1.411을 resolve한다.
 | pnpm | `packageManager`와 engine exact `10.12.1`, frozen lock | [pnpm package manager field](https://pnpm.io/package_json#packagemanager) | 채택 | 유일한 workspace install/dependency 권위다. frozen install 결과가 lock과 달라지면 즉시 재검토한다. |
 | Turborepo | root exact `2.10.12` | [Turborepo releases](https://github.com/vercel/turbo/releases) | 채택 | task cache 정확성 실패 또는 major upgrade 시 재검토한다. |
 | Bun | root test가 사용하고 CI는 1.2.22 | [Bun releases](https://github.com/oven-sh/bun/releases) | 채택 | test runtime이며 workspace package manager가 아니다. Bun 변경이나 DOM 동작 차이 발생 시 재검토한다. |
-| Next.js | Web exact `16.3.4`, production build 통과 | [August 2026 security release](https://nextjs.org/blog/august-2026-security-release) | 채택 | Active LTS security release를 exact로 유지한다. 보안 release 또는 App Router major마다 재검토한다. |
+| Next.js | Web exact `16.3.6`, production build 통과(2026-10-07) | [GHSA-vcvr-r3jv-pc5j](https://github.com/advisories/GHSA-vcvr-r3jv-pc5j) | 채택 | Active LTS security release를 exact로 유지한다. 보안 release 또는 App Router major마다 재검토한다. |
 | React / React DOM | Web exact `19.2.8` | [React package](https://www.npmjs.com/package/react), [React DOM package](https://www.npmjs.com/package/react-dom) | 채택 | 둘을 함께 올리고 Next peer lane을 검증한다. React major 또는 Next peer 변경 시 재검토한다. |
 | App Router와 RSC | App Router 사용, legacy route-level Client Component 존재 | [Next project structure](https://nextjs.org/docs/app/getting-started/project-structure), [Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components) | 채택 | RSC가 기본이며 상호작용 leaf만 Client Component다. route/layout에 `'use client'`가 필요할 때 재검토한다. |
 | typed route | 최상위 `typedRoutes: true`, deterministic typegen | [typedRoutes](https://nextjs.org/docs/app/api-reference/config/next-config-js/typedRoutes), [Next TypeScript guide](https://nextjs.org/docs/app/api-reference/config/typescript) | 채택 | navigation은 generated `Route`를 사용하고 `as Route`로 우회하지 않는다. route generation 실패 시 재검토한다. |
