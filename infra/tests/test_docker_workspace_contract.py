@@ -40,5 +40,5 @@ def test_workspace_의존성_강제버전은_루트에서_단일관리한다() -
         (ROOT / "apps/web/package.json").read_text(encoding="utf-8")
     )
 
-    assert root_package["pnpm"]["overrides"]["sharp"] == "^0.35.3"
+    assert root_package["pnpm"]["overrides"]["sharp"] == "^0.35.5"
     assert "overrides" not in web_package
