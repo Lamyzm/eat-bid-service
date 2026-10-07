@@ -62,6 +62,9 @@ export const bidSubmission = coreSchema.table(
     observationId: bigint("observation_id", { mode: "bigint" })
       .notNull()
       .references(() => rawObservation.observationId),
+    // 이 행이 관측된 응답의 `SHIPPER_NM` 원문이다. 정체성이 아니라 관측이라 party로 승격하지 않고 조인에
+    // 쓰지 않는다. 이름 관측 표에 행마다 따로 두던 것을 그 관측의 행으로 옮겼다(ADR 0063).
+    supplierLabel: text("supplier_label"),
   },
   (table) => [
     unique("bid_submission_surrogate_key").on(table.bidSubmissionId, table.openedAt).nullsNotDistinct(),

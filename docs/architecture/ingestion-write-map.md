@@ -2,7 +2,7 @@
 id: INGESTION-WRITE-MAP
 status: active
 canonical_for: dataplane-write-targets-and-boundaries
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-07
 review_trigger: dataplane-write-target-or-transaction-boundary-change
 ---
 
@@ -44,6 +44,7 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | `build-marts` | `mart.build`(ledger)·`build_coverage`·`org_round_summary`·`win_rate_distribution_monthly`·`open_auction_snapshot`·`open_auction_snapshot_item`(스냅샷 행의 품목 원자 다리표)·`org_round_summary_item`(회차 요약 행의 품목 원자 다리표)·`build_vocabulary_gap`(어휘 밖 조각과 행 수), 그리고 스냅샷이 가리킬 `core.auction_attempt` 행 보장 | mart마다 build 행을 `for update`로 잡고 채움 → 검증 → 활성화 순서다. 활성화는 같은 mart의 active를 superseded로 바꾸고 verified를 active로 올리는 한 commit이다. Argo mutex `eatbid-mart-build` | 활성 포인터 교체가 원자이고 stale은 정상이다 | ADR 0011, 0034 |
 | `build-history-marts`(예약) | `build-marts`와 같은 저장소·빌더로 회차 요약·품목 다리표·낙찰률 분포와 build별 부속 표를 쓴다. 스냅샷은 쓰지 않는다 | 원장에서 최신 발행과 mart별 활성 build를 한 읽기 transaction으로 본 뒤, 그 발행을 아직 반영하지 않은 mart만 `build-marts`와 같은 채움 → 검증 → 활성화로 만든다. Argo mutex `eatbid-mart-build`(발행 DAG의 스냅샷과 같다) | 새 발행이 없으면 아무것도 쓰지 않고 성공한다. build의 `publication_id`는 반영한 마지막 발행이다 | ADR 0034, 0060 |
 | `reap-marts`(예약) | `mart.org_round_summary`·`win_rate_distribution_monthly`·`open_auction_snapshot`(행 삭제; 스냅샷·회차 요약의 품목 다리표는 FK cascade로 함께), `build_coverage` | build 하나가 transaction 하나다. `retain_until`이 지난 `superseded` build만 고르고 build 원장 행은 남긴다. mutex 없음 — superseded는 종착 상태라 활성화와 같은 행을 다투지 않고, 표의 trigger가 build 상태로 다시 거른다 | ADR 0034가 허용한 유일한 공개 mart 행 삭제다. 회수 여부는 원장 열이 아니라 "행이 없다"로 파생된다 | ADR 0034, EAT-254 |
+| `backfill-supplier-labels`(운영자) | `core.bid_submission.supplier_label`(빈 칸만) | 업체 몇십 곳의 묶음 하나가 transaction 하나다. 묶음 크기는 고친 행 수를 보고 스스로 맞춘다. mutex 없음 — 투영은 새 행에 이름을 직접 넣으므로 겹치는 것은 같은 행의 행 잠금뿐이다. 예약하지 않고 사람이 한 번 제출한다 | 같은 계정·같은 관측의 이름 관측 중 마지막 행(명단 조회와 같은 규칙)만 옮긴다. 다시 돌려도 같은 결과다 | ADR 0063, EAT-310 |
 | `replay` | `run`(replay)·`replay_input`·`publication`, 그 뒤 `normalize`·`validate`·`project`와 같은 표 | 봉인된 release의 얼린 관측 manifest만 받는다. 같은 run 정체성으로 다시 실행하면 저장된 상태를 검증하고 이어 간다 | 재실행이 멱등이다 | ADR 0014, 0015 |
 | `capture-reference` | R2 코드 파일, `run`·`request_unit`·`raw_blob`·`raw_observation`, `source_release`(+`_dataset`·`_run`·`_observation`) | `capture`와 같은 저장 경계이되 파일 하나가 release 하나이며 즉시 봉인한다 | 파일 = release | ADR 0035 |
 | `project-reference` | `core.code_release`·`code_release_member`·`code_value`·`code_label_observation` | 한 transaction. Argo mutex `eatbid-core-publication`(공고 투영과 같은 `code_value`를 두고 경합하지 않게) | 활성 code release는 하나다 | ADR 0035 |
@@ -77,6 +78,7 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | project, replay | `core/postgres_roster_writer.py` | `core.bid_submission`, `core.award_decision` |
 | project, replay | `core/postgres_supplier_writer.py` | `core.source_supplier_account`, `core.supplier_party` |
 | project, replay, project-reference, project-code-vocabulary | `core/postgres_code_values.py` | `core.code_value`, `core.code_label_observation` |
+| backfill-supplier-labels | `core/supplier_label_backfill.py` | `core.bid_submission` (배포 1 이전 행의 빈 업체명을 같은 관측의 이름 관측으로 채우는 일회성 이행. 배포 2에서 함께 지운다, ADR 0063) |
 | project-reference | `core/code_release_projection.py` | `core.code_release`, `core.code_release_member` |
 | project-reference, project-code-vocabulary | `ingest/postgres_run_closure.py` | `ingest.run` (발행 단계가 없는 두 lane의 run을 투영이 끝난 자리에서 published로 닫는다, EAT-234) |
 | project-code-vocabulary | `core/code_vocabulary_projection.py` | `core.code_value`, `core.code_mapping` (소스가 코드목록에서 말한 상위 코드를 parent 관계로. 시군구 → 시도, EAT-260) |

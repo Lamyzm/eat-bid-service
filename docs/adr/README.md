@@ -47,7 +47,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0030](0030-competitor-count-is-the-primary-material.md) | Accepted | 화면의 주인공을 경쟁자 수와 승률 곡선으로 (학교별 추이는 내리지 않고 자리만 뒤로) |
 | [0031](0031-decision-screen-frontend-rendering.md) | Accepted | 결정 화면의 상태 소유(nuqs)·직접 그린 차트·headless 표·측정 후 가상화 |
 | [0032](0032-authentication-and-authorization-boundary.md) | Accepted | 인증·인가 경계: Nest가 Better Auth(Google)를 마운트, principal bigint, 역할 owner\|member, 명시적 계정 초기화, 등록된 사업자는 워크스페이스 안에서만 유일하고 core 연결은 조회가 파생 |
-| [0033](0033-bid-submission-partitioning-and-supplier-core.md) | Accepted | 투찰·낙찰·업체 core 테이블 다섯, `core.bid_submission`의 개찰 연도 range 파티션, `auction.v2` 발행 개방 (§1의 계정→party 영구 링크 전제는 [0049](0049-supplier-identity-is-observed-per-submission.md)가 대체) |
+| [0033](0033-bid-submission-partitioning-and-supplier-core.md) | Accepted | 투찰·낙찰·업체 core 테이블 다섯, `core.bid_submission`의 개찰 연도 range 파티션, `auction.v2` 발행 개방 (§1의 계정→party 영구 링크 전제는 [0049](0049-supplier-identity-is-observed-per-submission.md)가, 업체명을 `code_label_observation`에 두는 문장은 [0063](0063-supplier-label-lives-on-the-submission.md)가 대체) |
 | [0034](0034-mart-build-identity-and-atomic-activation.md) | Accepted | `mart.build` 빌드 원장, partial unique index 활성 포인터와 상태 trigger, mart 단위 전량 재빌드, build 속성으로서의 지역 코드 체계 |
 | [0035](0035-administrative-region-canonical-and-mapping.md) | Accepted | 행정안전부 법정동코드 canonical, 시도·시군구 grain, release별 계층, 별도 표의 좌표, 증거 기반 eaT 매핑 (재선언 ledger는 [0042](0042-legacy-ledger-retirement-and-changed-scope-checks.md)로 철거) |
 | [0036](0036-read-cache-tags-and-invalidation-owner.md) | Accepted | 결정 화면 읽기 캐시의 안정 태그 어휘, dataplane이 부르는 web `/internal/cache/revalidate`, 유계 `cacheLife` (0031 7항 대체) |
@@ -77,6 +77,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0060](0060-history-marts-on-schedule.md) | Accepted | 발행 DAG의 mart 단계는 열린 공고 스냅샷만 만들고, 과거 기록 mart(회차 요약·낙찰률 분포)는 `eatbid-history-marts` 예약이 매일 07:40·12:40·16:40·20:40 KST에 최신 발행까지 한 번에 반영한다 — 같은 mutex, 새 발행이 없으면 아무것도 안 함. "최신 관측 반영 안 됨"은 스냅샷 build에서 읽고, `mart.build`에 채우기 시작·끝(`clock_timestamp()`)을 남긴다. 발행마다 전량 재빌드가 poll-open 한 회차를 36~46분으로 늘려 하루 72회 중 5~24회만 돌았다 (0034의 "빌드는 `marts` 단계에서만" 문장을 대체) |
 | [0061](0061-record-scoped-exclusion.md) | Accepted | 레코드 한 건에 갇힌 위반은 그 정규화 레코드 전체만 발행에서 빼고 `ingest.publication_exclusion` 원장에 적는다 — 창 전체 결함은 여전히 발행을 막고, 허용 수는 `min(50, max(1, floor(1% × N)))`, 등식은 `expected = published + excluded`. 30일 발행 실패 22건이 모두 레코드 단위(최대 5건, 0.039%)였고 창 복구에 5~170시간이 걸렸다 (0053·0056의 부분 발행 기각 항과 0049 결정 6의 수량 등식을 대체) |
 | [0062](0062-recommended-bid-in-scope.md) | Accepted | 추천 투찰가(특정 금액 지목)를 판단 재료로 들인다 — 근거(규칙 버전·검증 기간·예상 승률)와 입찰 시점 관측값만 쓰는 조건은 유지하고 자동 투찰은 계속 밖. 2026-10-07 재검증에서 투찰 위치 규칙이 2026년 봉인과 9월 운영 자료로 재현됐다 (0002 경계 조항의 추천가, 0027 결정 1과 추천가 배제, 0030 "❌ 추천가" 항을 대체) |
+| [0063](0063-supplier-label-lives-on-the-submission.md) | Accepted | 업체명(`SHIPPER_NM`)은 그 이름이 관측된 투찰 행의 `core.bid_submission.supplier_label`에 둔다 — 이름 관측 표의 93%(약 4,750만 행·색인 셋)가 투찰 한 줄마다 이름 한 줄이었고 읽는 곳은 같은 관측으로 다시 만나는 명단 조회 하나였다. 기관·지역 라벨은 그대로이며, 기존 행은 마이그레이션이 아니라 업체 범위로 나눠 커밋하는 `backfill-supplier-labels`가 채운다 (0033 §1의 업체명 자리 문장을 대체) |
 
 ## 새 ADR 형식
 

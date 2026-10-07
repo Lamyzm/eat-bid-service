@@ -90,6 +90,7 @@ describe("명단 행(bid_submission) 계약", () => {
       "draw_numbers",
       "observed_roster_size",
       "observation_id",
+      "supplier_label",
     ]);
     expect(columnNullability(bidSubmission)).toEqual({
       bid_submission_id: true,
@@ -110,6 +111,7 @@ describe("명단 행(bid_submission) 계약", () => {
       draw_numbers: true,
       observed_roster_size: false,
       observation_id: true,
+      supplier_label: false,
     });
   });
 

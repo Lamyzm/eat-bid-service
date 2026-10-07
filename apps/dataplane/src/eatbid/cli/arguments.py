@@ -14,6 +14,7 @@ from pathlib import Path
 from uuid import UUID
 
 from eatbid.core.build_identity import validate_build_sha
+from eatbid.core.supplier_label_backfill import DEFAULT_TARGET_ROWS
 from eatbid.failures.categories import OPERATOR_CLOSE_CATEGORIES
 from eatbid.mart.models import DEFAULT_REGION_SCHEME, MART_NAMES
 from eatbid.pipeline.collection_window import COLLECTION_MODES
@@ -134,6 +135,7 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
             "next-backfill-window",
             "scan-contract",
             "reap-marts",
+            "backfill-supplier-labels",
             "build-history-marts",
             "next-replay-target",
             "close-stalled-run",
@@ -250,6 +252,12 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     reap_marts = commands["reap-marts"]
     reap_marts.add_argument("--as-of", required=True, type=aware_datetime)
     reap_marts.add_argument("--result-dir", type=Path, default=None)
+
+    # 운영자 entrypoint다(EAT-310, ADR 0063). 업체 범위로 나눠 빈 업체명을 채운다. 묶음 크기는 고친 행 수를 보고
+    # 스스로 맞추므로 목표 행 수만 받는다.
+    backfill_labels = commands["backfill-supplier-labels"]
+    backfill_labels.add_argument("--target-rows", type=int, default=DEFAULT_TARGET_ROWS)
+    backfill_labels.add_argument("--result-dir", type=Path, default=None)
 
     # 예약 entrypoint다(EAT-274). 발행이 실패한 창 중 지금 이미지와 다른 이미지가 실패시킨 것 하나를
     # 고른다. 아무것도 바꾸지 않으며 고를 것이 없으면 그것도 정상이다.
