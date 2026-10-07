@@ -19,6 +19,11 @@ metadata:
   namespace: eatbid
 spec:
   replicas: 1
+  # 단일 RWO 볼륨 DB는 옛 Pod가 완전히 내려간 뒤에만 새 Pod를 띄운다. 기본 RollingUpdate(maxSurge 1)는 새 Pod를 먼저
+  # 띄우므로, 2026-10-07 /dev/shm 변경 배포에서 두 postgres가 같은 데이터 디렉터리를 1분간 함께 써 카탈로그 색인이
+  # 상했다(새 쪽은 옛 쪽이 살아 있는데 "not properly shut down"으로 복구를 시작했다, EAT-317). 컨테이너마다 PID·IPC
+  # 이름공간이 달라 postmaster.pid와 공유 메모리 검사가 이 겹침을 막지 못한다. 대가는 재시작마다 몇 초의 중단이다.
+  strategy: { type: Recreate }
   selector: { matchLabels: { app: postgres } }
   template:
     metadata: { labels: { app: postgres } }
