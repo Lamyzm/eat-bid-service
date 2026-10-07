@@ -2,7 +2,7 @@
 id: DOMAIN-AND-DATA
 status: active
 canonical_for: domain-model-ssot-and-code-schemes
-last_reviewed: 2026-09-16
+last_reviewed: 2026-10-07
 review_trigger: authority-schema-identity-or-code-scheme-change
 ---
 
@@ -152,8 +152,12 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
 명시적 reconciliation이다(규칙 3). 레이크 전수 명단 11,080,463행에서 `BIZ_NO` 결측은 0건이지만
 (계산 버전 `eat-v2-r4-eat43`) 소스가 그 필드를 보장하지 않으므로 결측 경로를 없애지 않는다.
 
-업체명(`SHIPPER_NM`)은 기관명과 같은 규칙이다. `language='und'`인 code label 관측으로 남고
-`supplier_party.canonical_name`으로 승격하지 않는다. 이름이 바뀌어도 정체성은 바뀌지 않는다.
+업체명(`SHIPPER_NM`)은 그 이름이 관측된 투찰 행의 `core.bid_submission.supplier_label`이다
+([ADR 0063](../adr/0063-supplier-label-lives-on-the-submission.md)). 계정이 어느 업체였는지를 그 시점의 투찰이
+말하듯(ADR 0049) 이름도 같은 응답 같은 행의 관측이다. 여전히 관측이지 정체성이 아니므로
+`supplier_party.canonical_name`으로 승격하지 않고 조인·식별에 쓰지 않는다. 이름이 바뀌어도 정체성은 바뀌지 않는다.
+기관·지역·참가제한지역·투찰 상태 라벨은 계속 `code_label_observation`에 남는다. 이행 중(배포 1)에는 업체명 관측
+행도 함께 쓰이며 명단 조회가 그것을 읽는다.
 
 #### 워크스페이스가 등록한 사업자
 

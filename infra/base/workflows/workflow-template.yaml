@@ -1379,6 +1379,41 @@ spec:
           - *env-r2-access-key
           - *env-r2-secret-key
 
+    # 운영자 entrypoint다(EAT-310, ADR 0063). 업체명을 그 이름이 관측된 투찰 행으로 옮기는 일회성 이행에서 배포
+    # 1 이전 투찰 행의 빈 업체명을 채운다. 운영 DB 쓰기라 예약하지 않고, 디스크 여유를 확인한 사람이 한 번
+    # 제출한다. entrypoint를 비우면 scheduled-pipeline이 불리므로 반드시 적는다.
+    #   argo submit --from workflowtemplate/eatbid-dataplane -n eatbid --entrypoint backfill-supplier-labels
+    # 업체 묶음마다 커밋하고 빈 칸만 채우므로 중간에 멈춰도 다시 제출하면 남은 것부터 이어 간다. 쥐는 자원이
+    # 없어 멈춘 뒤 풀 자물쇠도 없다. 계산은 PostgreSQL 안에서 돌고 이 pod는 결과를 기다린다.
+    - name: backfill-supplier-labels
+      outputs:
+        parameters:
+          - name: rows-filled
+            valueFrom: { path: /tmp/eatbid/rows_filled }
+          - name: rows-without-label
+            valueFrom: { path: /tmp/eatbid/rows_without_label }
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid backfill-supplier-labels
+            --result-dir "$EATBID_RESULT_DIR"
+        resources:
+          requests:
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        env:
+          - *env-result-dir
+          - *env-database-url
+          # R2는 쓰지 않지만 프로세스 설정은 명령별이 아니라 다섯이 다 있어야 뜬다(next-backfill-window 주석).
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
+
     # 예약 entrypoint다(EAT-300, ADR 0060). 과거 기록 mart(회차 요약·낙찰률 분포)를 최신 발행까지 반영해 다시
     # 만든다. 입력 release·발행은 CLI가 원장에서 고르고, 최신 발행을 이미 반영한 활성 build가 있으면 아무것도 하지
     # 않고 성공한다. 발행 DAG의 marts와 같은 mutex를 잡는다 — 두 build가 같은 mart의 활성 포인터를 동시에 옮기면

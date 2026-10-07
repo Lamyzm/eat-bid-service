@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-09-06
 - Supersedes: 없음. [0029](0029-eat-v2-bid-list-contract.md)가 EAT-43으로 넘긴 후속 결정 넷을 닫는다.
+- 부분 대체: §1의 "업체명(`SHIPPER_NM`)은 `core.code_label_observation`에 남는다"는 [ADR 0063](0063-supplier-label-lives-on-the-submission.md)가
+  대체한다 — 업체명은 그 이름이 관측된 투찰 행의 `supplier_label`이다. 이름을 승격하지 않는다는 결정은 그대로다.
 
 ## Context
 

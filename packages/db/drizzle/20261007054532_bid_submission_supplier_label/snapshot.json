@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "e619ab4a-259e-4903-870f-c52e16a0c0ed",
+  "id": "311f4407-63a7-4bb5-b62a-fc891043f290",
   "prevIds": [
     "d66246a0-9cd1-4f94-8e13-514b00cbeebc"
   ],
@@ -275,12 +275,6 @@
     {
       "isRlsEnabled": false,
       "name": "workspace_filter_combination_sigungu",
-      "entityType": "tables",
-      "schema": "app"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "operator_grant",
       "entityType": "tables",
       "schema": "app"
     },
@@ -3758,6 +3752,19 @@
     {
       "type": "text",
       "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "supplier_label",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
       "default": null,
@@ -4439,93 +4446,6 @@
       "entityType": "columns",
       "schema": "app",
       "table": "workspace_filter_combination_sigungu"
-    },
-    {
-      "type": "bigint",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": {
-        "type": "always",
-        "name": "operator_grant_operator_grant_id_seq",
-        "increment": "1",
-        "startWith": "1",
-        "minValue": "1",
-        "maxValue": "9223372036854775807",
-        "cache": 1,
-        "cycle": false
-      },
-      "name": "operator_grant_id",
-      "entityType": "columns",
-      "schema": "app",
-      "table": "operator_grant"
-    },
-    {
-      "type": "bigint",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "principal_id",
-      "entityType": "columns",
-      "schema": "app",
-      "table": "operator_grant"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "granted_at",
-      "entityType": "columns",
-      "schema": "app",
-      "table": "operator_grant"
-    },
-    {
-      "type": "bigint",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "granted_by_principal_id",
-      "entityType": "columns",
-      "schema": "app",
-      "table": "operator_grant"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "revoked_at",
-      "entityType": "columns",
-      "schema": "app",
-      "table": "operator_grant"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "reason",
-      "entityType": "columns",
-      "schema": "app",
-      "table": "operator_grant"
     },
     {
       "type": "bigint",
@@ -7178,48 +7098,6 @@
       "nameExplicit": true,
       "columns": [
         {
-          "value": "principal_id",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": true,
-      "where": "\"revoked_at\" is null",
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "operator_grant_active_principal_key",
-      "entityType": "indexes",
-      "schema": "app",
-      "table": "operator_grant"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
-          "value": "principal_id",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "operator_grant_principal_idx",
-      "entityType": "indexes",
-      "schema": "app",
-      "table": "operator_grant"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
           "value": "workspace_id",
           "isExpression": false,
           "asc": true,
@@ -8939,40 +8817,6 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
-      "name": "operator_grant_principal_id_principal_principal_id_fkey",
-      "entityType": "fks",
-      "schema": "app",
-      "table": "operator_grant"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "granted_by_principal_id"
-      ],
-      "schemaTo": "app",
-      "tableTo": "principal",
-      "columnsTo": [
-        "principal_id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "operator_grant_granted_by_principal_fkey",
-      "entityType": "fks",
-      "schema": "app",
-      "table": "operator_grant"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "principal_id"
-      ],
-      "schemaTo": "app",
-      "tableTo": "principal",
-      "columnsTo": [
-        "principal_id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
       "name": "identity_subject_principal_id_principal_principal_id_fkey",
       "entityType": "fks",
       "schema": "app",
@@ -10357,16 +10201,6 @@
     },
     {
       "columns": [
-        "operator_grant_id"
-      ],
-      "nameExplicit": false,
-      "name": "operator_grant_pkey",
-      "schema": "app",
-      "table": "operator_grant",
-      "entityType": "pks"
-    },
-    {
-      "columns": [
         "identity_subject_id"
       ],
       "nameExplicit": false,
@@ -11253,20 +11087,6 @@
       "entityType": "checks",
       "schema": "app",
       "table": "workspace_filter_combination"
-    },
-    {
-      "value": "length(btrim(\"reason\")) > 0",
-      "name": "operator_grant_reason_present",
-      "entityType": "checks",
-      "schema": "app",
-      "table": "operator_grant"
-    },
-    {
-      "value": "\"revoked_at\" is null or \"revoked_at\" >= \"granted_at\"",
-      "name": "operator_grant_revoked_after_granted",
-      "entityType": "checks",
-      "schema": "app",
-      "table": "operator_grant"
     },
     {
       "value": "\"business_number\" ~ '^[0-9]{10}$'",
