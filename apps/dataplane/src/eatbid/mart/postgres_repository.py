@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
@@ -35,10 +36,16 @@ _BUILD_SIDE_DELETES: tuple[str, ...] = (
 )
 
 # 물린 build의 행을 얼마나 오래 남기는가. 참여 수 추이가 지난 관측점을 읽는 mart만 길게 잡는다.
-RETENTION_DAYS: Mapping[MartName, int] = {
-    "org_round_summary": 1,
-    "win_rate_distribution_monthly": 1,
-    "open_auction_snapshot": 7,
+#
+# 회차 요약·분포의 물린 build는 아무도 읽지 않는다(지난 build를 읽는 것은 참여 수 추이의 스냅샷뿐이다).
+# 그래도 0이 아닌 이유는 전환 직전에 활성 build id를 읽은 요청이 행을 다 읽을 시간이다. 예전에는 1일이었는데,
+# 정시 수집이 30분마다 build를 물리고 백필로 한 벌이 열 배쯤 커지자(회차 요약 87만 행) 1일치 사본 40여 벌이
+# 55GB를 들고 노드 디스크를 채웠다(2026-10-07, EAT-303). 3시간이면 사본은 대여섯 벌이다.
+DEFAULT_RETENTION = timedelta(days=1)
+RETENTION: Mapping[MartName, timedelta] = {
+    "org_round_summary": timedelta(hours=3),
+    "win_rate_distribution_monthly": timedelta(hours=3),
+    "open_auction_snapshot": timedelta(days=7),
 }
 
 # 맨 `FOR UPDATE`가 맞다. core·ingest가 `FOR NO KEY UPDATE`로 내린 이유(EAT-286)는 mart 행을 넣을 때
@@ -242,14 +249,14 @@ class PsycopgMartBuildRepository:
                 )
 
     def activate_build(self, plan: MartBuildPlan, build_id: int) -> None:
-        retention = RETENTION_DAYS.get(plan.mart_name, 1)
+        retention = RETENTION.get(plan.mart_name, DEFAULT_RETENTION)
         self._require_idle("build activation")
         with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
                 """
                 update mart.build
                    set status = 'superseded', superseded_at = %s,
-                       retain_until = %s + make_interval(days => %s)
+                       retain_until = %s + %s::interval
                  where mart_name = %s and status = 'active'
                 """,
                 (plan.computed_at, plan.computed_at, retention, plan.mart_name),
