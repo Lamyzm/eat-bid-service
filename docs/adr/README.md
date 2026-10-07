@@ -2,7 +2,7 @@
 id: ADR-INDEX
 status: active
 canonical_for: architecture-decision-record-index
-last_reviewed: 2026-09-11
+last_reviewed: 2026-10-07
 review_trigger: adr-status-vocabulary-or-supersession-rule-change
 ---
 
@@ -16,7 +16,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | ADR | 상태 | 결정 |
 |---|---|---|
 | [0001](0001-greenfield-reset.md) | Accepted | 그린필드 재설계와 선택적 자산 보존 |
-| [0002](0002-product-north-star.md) | Accepted | 분석 엔진 + 다사업자 운영 워크스페이스 (경계 조항 중 예측가 항목은 [0027](0027-predicted-win-probability-in-scope.md) 이 뒤집음) |
+| [0002](0002-product-north-star.md) | Accepted | 분석 엔진 + 다사업자 운영 워크스페이스 (경계 조항 중 예측가 항목은 [0027](0027-predicted-win-probability-in-scope.md), 추천가 항목은 [0062](0062-recommended-bid-in-scope.md)가 뒤집음) |
 | [0003](0003-single-monorepo.md) | Accepted | `eat-bid-service` 단일 모노레포 |
 | [0004](0004-data-authority-chain.md) | Accepted | R2 raw → PostgreSQL core/app → mart 권위 사슬 |
 | [0005](0005-postgresql-canonical-store.md) | Accepted | PostgreSQL canonical, canonical Parquet 보류 |
@@ -41,7 +41,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0024](0024-free-github-tag-gated-publication.md) | Accepted | 무료 GitHub tag 기반 publication gate |
 | [0025](0025-source-release-manifest.md) | Accepted | source release manifest와 봉인된 raw membership |
 | [0026](0026-provider-neutral-ai-review-and-canonical-skills.md) | Accepted | provider 중립 AI advisory 리뷰, Claude 구독 폴백, canonical Agent Skill 위치 |
-| [0027](0027-predicted-win-probability-in-scope.md) | Accepted | 예측 승률을 판단 재료로 경계 안에 (추천가·자동 투찰은 밖에 유지) |
+| [0027](0027-predicted-win-probability-in-scope.md) | Accepted | 예측 승률을 판단 재료로 경계 안에 (자동 투찰은 밖에 유지, 추천가 배제는 [0062](0062-recommended-bid-in-scope.md)가 대체) |
 | [0028](0028-cache-components-and-self-hosted-cache.md) | Accepted | Cache Components 조건부 활성화, Suspense 격리, replica 1 in-memory cache와 `use cache` 소유 경계 |
 | [0029](0029-eat-v2-bid-list-contract.md) | Accepted | `eat-v2` 상세 계약에 `ds_bidList` 블록 (`eat-v1` 은 유지) |
 | [0030](0030-competitor-count-is-the-primary-material.md) | Accepted | 화면의 주인공을 경쟁자 수와 승률 곡선으로 (학교별 추이는 내리지 않고 자리만 뒤로) |
@@ -76,6 +76,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0059](0059-dataplane-transaction-ownership.md) | Accepted | dataplane 저장소는 읽기까지 명시적 트랜잭션 블록 안에서만 커서를 얻고 IDLE 연결에서만 시작하며, 실패는 원 연결을 먼저 되감은 뒤 별도 연결로 적는다. 상태 전이는 전이 행 수나 다시 센 값으로 대조하고, 관용구로만 있던 규칙은 정적 검사로 강제한다(EAT-264·273·274의 조용한 롤백 세 번) |
 | [0060](0060-history-marts-on-schedule.md) | Accepted | 발행 DAG의 mart 단계는 열린 공고 스냅샷만 만들고, 과거 기록 mart(회차 요약·낙찰률 분포)는 `eatbid-history-marts` 예약이 매일 07:40·12:40·16:40·20:40 KST에 최신 발행까지 한 번에 반영한다 — 같은 mutex, 새 발행이 없으면 아무것도 안 함. "최신 관측 반영 안 됨"은 스냅샷 build에서 읽고, `mart.build`에 채우기 시작·끝(`clock_timestamp()`)을 남긴다. 발행마다 전량 재빌드가 poll-open 한 회차를 36~46분으로 늘려 하루 72회 중 5~24회만 돌았다 (0034의 "빌드는 `marts` 단계에서만" 문장을 대체) |
 | [0061](0061-record-scoped-exclusion.md) | Accepted | 레코드 한 건에 갇힌 위반은 그 정규화 레코드 전체만 발행에서 빼고 `ingest.publication_exclusion` 원장에 적는다 — 창 전체 결함은 여전히 발행을 막고, 허용 수는 `min(50, max(1, floor(1% × N)))`, 등식은 `expected = published + excluded`. 30일 발행 실패 22건이 모두 레코드 단위(최대 5건, 0.039%)였고 창 복구에 5~170시간이 걸렸다 (0053·0056의 부분 발행 기각 항과 0049 결정 6의 수량 등식을 대체) |
+| [0062](0062-recommended-bid-in-scope.md) | Accepted | 추천 투찰가(특정 금액 지목)를 판단 재료로 들인다 — 근거(규칙 버전·검증 기간·예상 승률)와 입찰 시점 관측값만 쓰는 조건은 유지하고 자동 투찰은 계속 밖. 2026-10-07 재검증에서 투찰 위치 규칙이 2026년 봉인과 9월 운영 자료로 재현됐다 (0002 경계 조항의 추천가, 0027 결정 1과 추천가 배제, 0030 "❌ 추천가" 항을 대체) |
 
 ## 새 ADR 형식
 
