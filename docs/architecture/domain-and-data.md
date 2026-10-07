@@ -199,9 +199,12 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
   `(auction_revision_id, roster_ordinal, opened_at)`이고 `roster_ordinal`은 `ds_bidList`의 관측 순서
   (0-based)이지 소스가 준 번호가 아니다. 소스 정정으로 새 revision이 생기면 명단이 한 벌 더 쌓이며
   현재 뷰는 최신 revision을 고르는 질의가 만든다.
-- **`core.bid_submission`은 `opened_at`으로 range 파티션한다.** 경계는 KST 연도이고 초기 커버리지는
-  2023~2027 다섯 연도 + `DEFAULT`다. 파티션 키는 nullable이며 그래서 이 테이블에는 primary key가 없고
-  `unique nulls not distinct` 둘이 대리키와 발행 grain을 각각 지킨다.
+- **`core.bid_submission`은 `opened_at`으로 range 파티션한다.** 경계는 KST 연도이고 커버리지는 2015~2027
+  열세 연도 + `DEFAULT`다. 처음에는 2023~2027이었는데, 백필 바닥이 2021-09로 내려간 뒤 2021·2022 투찰 약 890만
+  행이 `DEFAULT`에 몰려 2015까지의 6년 백필 전에 연도를 열었다(2026-10-07, EAT-306). **백필 바닥을 연도 파티션보다
+  아래로 내리기 전에 그 해 파티션을 먼저 연다** — `DEFAULT`에 그 해 행이 쌓인 뒤에는 떼고·옮기고·붙여야 한다(ADR 0033
+  §3). 파티션 키는 nullable이며 그래서 이 테이블에는 primary key가 없고 `unique nulls not distinct` 둘이 대리키와
+  발행 grain을 각각 지킨다.
 - **`won boolean`도, 계산된 실효하한도, "무효" 열도 두지 않는다.** 판정 권위는 `BID_STT` 코드
   하나이고 그날 하한은 `mart`의 파생 계산이다(규칙 7·8). 이 금지는 열 목록 테스트가 집행한다.
 - **공고 조건은 `core.auction_revision`에 열과 코드 관계로 있다.** 하한율은
