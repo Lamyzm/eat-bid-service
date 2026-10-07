@@ -23,7 +23,16 @@ spec:
     templates:
       # pg_dump와 R2 업로드는 서로 다른 이미지가 필요하므로 한 파드 안의 두 컨테이너가 emptyDir을 공유한다.
       # 두 파드로 나누면 덤프를 artifact로 옮겨야 하고 artifact repository가 없다.
+      #
+      # **덤프를 노드 디스크에 쓰지 않는다.** emptyDir에는 이름 있는 파이프(FIFO) 하나만 두고, dump가 거기에
+      # 쓰는 동안 upload가 같은 파이프를 읽어 R2로 흘려보낸다. 예전에는 덤프 파일을 다 쓴 뒤 올렸는데,
+      # DB가 111GB·덤프가 12GB로 자라자 노드 여유(14.6GB)가 퇴거 기준(7.7GB) 밑으로 내려가 쿠버네티스가
+      # 백업과 Postgres를 함께 쫓아냈다(2026-10-01~07 Postgres 교체 30회 이상, 일일 재수집 발행 사흘 실패,
+      # 백업 26시간 공백, EAT-301).
       - name: backup
+        # 파이프 양끝은 서로를 기다린다. 한쪽이 열기 전에 죽으면 다른 쪽이 영원히 막히므로 시한을 둔다.
+        # 덤프는 2026-09 기준 40분 남짓이었다. Forbid라 시한을 넘긴 회차는 다음 회차를 한 번 건너뛰게 할 뿐이다.
+        activeDeadlineSeconds: 5400
         volumes:
           - name: work
             emptyDir: {}
@@ -32,7 +41,19 @@ spec:
             - name: work
               mountPath: /work
           containers:
+            - name: prepare
+              image: postgres:16-alpine
+              command: [sh, -c]
+              args:
+                - mkfifo /work/dump.pipe
+              resources:
+                requests:
+                  memory: 16Mi
+                limits:
+                  memory: 32Mi
             - name: dump
+              dependencies:
+                - prepare
               # postgres Deployment와 같은 major. custom format이라 부분 복원(schema 선택)이 가능하다(EAT-130 dev 첫 채움).
               #
               # database 소유자 자격을 쓴다. migrator는 app·core·ingest·mart만 소유하고 레거시 `public`
@@ -40,13 +61,30 @@ spec:
               # (2026-09-10 첫 스케줄 실행이 `permission denied for table account`로 실패, EAT-127).
               # 재해 복구는 database 전체가 대상이므로 읽는 범위를 좁히는 대신 소유자로 읽는다.
               # 덜 강한 전용 백업 역할은 Drizzle이 role을 만들어야 해 후속으로 둔다.
+              #
+              # 파이프는 탐색할 수 없는 출력이라 custom format 안에 데이터 위치표가 빠진다. 받은 파일은 보통 파일이라
+              # `pg_restore`의 schema 선택 복원은 그대로 되고, 위치표가 필요한 것은 병렬 복원(`-j`)의 빠른 길뿐이다.
+              #
+              # 성공 표식을 남긴다. 파이프는 pg_dump가 중간에 죽어도 그냥 닫히고 upload는 받은 만큼을 올리므로,
+              # upload가 이 표식을 보고서야 객체를 진짜 이름으로 옮긴다. 표식은 덤프가 끝난 **뒤에** 쓴다.
+              #
+              # `--no-sync`가 없으면 pg_dump 16은 끝에 출력을 fsync하다 파이프라서 `Invalid argument`로 실패한다
+              # (2026-10-07 postgres:16-alpine 실측). 파이프 너머의 내구성은 R2가 진다.
               image: postgres:16-alpine
               command: [sh, -c]
               args:
                 - |
-                  set -eu
-                  pg_dump --format=custom --no-owner --no-privileges --file=/work/eatbid.dump
-                  ls -l /work/eatbid.dump
+                  set -u
+                  if pg_dump --format=custom --no-owner --no-privileges --no-sync --file=/work/dump.pipe; then
+                    echo ok > /work/dump.status
+                  else
+                    code=$?
+                    echo "failed exit=${code}" > /work/dump.status
+                    # 연결에서 바로 실패하면 pg_dump는 파이프를 열지도 않는다. 그러면 upload가 파이프가 열리길
+                    # 시한까지 기다리므로 한 번 열었다 닫아 깨운다. upload가 이미 끝났으면 열기가 막히니 시간을 건다.
+                    timeout 10 sh -c ': > /work/dump.pipe' || true
+                    exit "$code"
+                  fi
               env:
                 - name: PGHOST
                   value: postgres
@@ -74,19 +112,44 @@ spec:
                   memory: 1Gi
             - name: upload
               image: rclone/rclone:1.68
+              # dump와 **동시에** 돈다. dump 뒤에 두면 파이프를 읽는 쪽이 없어 dump가 열자마자 막힌다.
               dependencies:
-                - dump
+                - prepare
               command: [sh, -c]
               args:
                 - |
                   set -eu
                   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  # 먼저 임시 이름으로 올린다. 감시(backup-freshness)는 hourly/만 보므로 잘린 객체가 신선한
+                  # 백업으로 세어지지 않는다.
+                  incoming="r2:${R2_BUCKET}/backup/postgres/incoming/${stamp}.dump"
                   hourly="r2:${R2_BUCKET}/backup/postgres/hourly/${stamp}.dump"
-                  rclone copyto /work/eatbid.dump "$hourly" --s3-no-check-bucket
+                  discard() {
+                    rclone deletefile "$incoming" --s3-no-check-bucket || true
+                    exit 1
+                  }
+                  # 크기를 모르는 흐름은 정한 조각 크기로만 나뉘고 조각은 1만 개까지다. 기본 5MiB면 48GiB에서
+                  # 막히므로 32MiB(312GiB)로 둔다. 메모리는 조각 × 동시 4개 = 128MiB다.
+                  rclone rcat "$incoming" --s3-chunk-size 32M --s3-no-check-bucket < /work/dump.pipe || discard
+                  # 파이프가 닫힌 것은 dump가 끝났다는 뜻이지 성공했다는 뜻이 아니다. 표식을 기다려 확인한다.
+                  waited=0
+                  while [ ! -s /work/dump.status ] && [ "$waited" -lt 120 ]; do
+                    sleep 1
+                    waited=$((waited + 1))
+                  done
+                  status="$(cat /work/dump.status 2>/dev/null || echo missing)"
+                  if [ "$status" != "ok" ]; then
+                    echo "덤프가 성공하지 않아 올린 것을 버린다: ${status}" >&2
+                    discard
+                  fi
+                  # R2 안에서 옮긴다. 다시 받지 않는다.
+                  rclone moveto "$incoming" "$hourly" --s3-no-check-bucket
                   # 하루 한 번(KST 03시 회차)은 30일 보존 폴더에도 둔다. 시각 판정은 KST 기준이며 컨테이너는 UTC다.
                   if [ "$(TZ=Asia/Seoul date +%H)" = "03" ]; then
-                    rclone copyto /work/eatbid.dump "r2:${R2_BUCKET}/backup/postgres/daily/${stamp}.dump" --s3-no-check-bucket
+                    rclone copyto "$hourly" "r2:${R2_BUCKET}/backup/postgres/daily/${stamp}.dump" --s3-no-check-bucket
                   fi
+                  # 파드째 사라진 회차가 남긴 임시 객체를 거둔다. 도는 회차의 것을 지우지 않게 시한보다 넉넉히 둔다.
+                  rclone delete "r2:${R2_BUCKET}/backup/postgres/incoming" --min-age 6h
                   # hourly는 2일만 둔다. 손실 허용치가 1시간이라 시간 단위 사본이 필요한 구간은 사고 직후 며칠이고,
                   # 그보다 오래된 시점은 daily 30일로 충분하다. 7일이면 덤프가 커질수록 R2에 같은 내용이 쌓인다
                   # (덤프 1.35GB 기준 227GB → 65GB, 5년치 백필 뒤 5GB 가정이면 840GB → 240GB, EAT-127).
