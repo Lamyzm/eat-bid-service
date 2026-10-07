@@ -184,8 +184,8 @@ def _revision을_만든다(
     cursor.execute(
         """
         insert into core.auction_revision (auction_attempt_id, normalized_record_id, observation_id, content_sha256,
-                                           source_status, title, currency, source_payload)
-        values (%s, %s, %s, %s, '진행중', '합성 공고', 'KRW', '{}'::jsonb)
+                                           source_status, title, currency, lineage_observed)
+        values (%s, %s, %s, %s, '진행중', '합성 공고', 'KRW', false)
         returning auction_revision_id
         """,
         (

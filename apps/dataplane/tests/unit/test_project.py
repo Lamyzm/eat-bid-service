@@ -49,7 +49,6 @@ def test_auction_projection_contract가_필수_lineage_fields을_허용한다() 
         currency="KRW",
         floor_rate=None,
         source_category_label=None,
-        source_payload={"contractVersion": "eatbid.ingestion.auction.v1"},
     )
 
     assert projection.normalized_record_id == 1
@@ -128,7 +127,9 @@ def test_projection_factory가_검토된_source_code_reference만_내보낸다()
     assert str(projection.base_amount) == "10000000.10"
     assert projection.announced_at is not None
     assert projection.announced_at.isoformat() == "2025-06-16T15:00:00+00:00"
-    assert projection.source_payload == auction_payload()
+    assert projection.source_category_label == auction_payload()["classification"][
+        "sourceCategoryLabel"
+    ]
     assert [
         (reference.namespace, reference.code, reference.role)
         for reference in projection.code_refs

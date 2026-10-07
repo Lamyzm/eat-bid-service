@@ -76,24 +76,24 @@ const seed = `
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
      content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
-     opened_at, base_amount, planned_amount, currency, source_payload)
+     opened_at, base_amount, planned_amount, currency, roster_submission_count, source_roster_size, lineage_observed)
   overriding system value
   values (5161, 6848, 4161, 3161, '${sha("a1")}', null, 'OPEN', '급식 식재료 구매',
-    '2026-06-04T00:00:00Z', null, '2026-06-11T00:00:00Z', 10000000.00, 9965400.00, 'KRW', '{}'),
+    '2026-06-04T00:00:00Z', null, '2026-06-11T00:00:00Z', 10000000.00, 9965400.00, 'KRW', null, null, false),
          (5162, 6865, 4162, 3161, '${sha("a2")}', null, 'OPEN', '육류 , 가금류 구매',
-    '2026-06-04T00:00:00Z', null, '2026-06-11T00:00:00Z', 9000000.00, 8954000.00, 'KRW', '{}'),
+    '2026-06-04T00:00:00Z', null, '2026-06-11T00:00:00Z', 9000000.00, 8954000.00, 'KRW', null, null, false),
          (5163, 7593, 4163, 3161, '${sha("a3")}', null, 'OPEN', '육류 구매',
-    '2026-06-11T00:00:00Z', null, '2026-06-18T01:00:00Z', 5000000.00, 4941845.00, 'KRW', '{}'),
+    '2026-06-11T00:00:00Z', null, '2026-06-18T01:00:00Z', 5000000.00, 4941845.00, 'KRW', null, null, false),
          (5164, 38599, 4164, 3161, '${sha("a4")}', null, 'OPEN', '급식 식재료 구매',
-    '2026-09-08T00:00:00Z', '2026-09-10T23:00:00Z', null, 3000000.00, null, 'KRW', '{}'),
+    '2026-09-08T00:00:00Z', '2026-09-10T23:00:00Z', null, 3000000.00, null, 'KRW', null, null, false),
          (5165, 38600, 4165, 3161, '${sha("a5")}', null, 'OPEN', '육류 , 가금류 구매',
-    '2026-09-08T00:00:00Z', '2026-09-10T23:00:00Z', null, 3000000.00, null, 'KRW', '{}'),
+    '2026-09-08T00:00:00Z', '2026-09-10T23:00:00Z', null, 3000000.00, null, 'KRW', null, null, false),
          (5166, 10486, 4166, 3161, '${sha("a6")}', null, 'OPEN', '급식 식재료 구매',
-    '2026-09-08T00:00:00Z', '2026-09-11T00:00:00Z', null, 3000000.00, null, 'KRW', '{}'),
+    '2026-09-08T00:00:00Z', '2026-09-11T00:00:00Z', null, 3000000.00, null, 'KRW', null, null, false),
          (5167, 10495, 4167, 3161, '${sha("a7")}', null, 'OPEN', '수산물 구매',
-    '2026-09-08T00:00:00Z', '2026-09-11T00:00:00Z', null, 3000000.00, null, 'KRW', '{}'),
+    '2026-09-08T00:00:00Z', '2026-09-11T00:00:00Z', null, 3000000.00, null, 'KRW', null, null, false),
          (5168, 10505, 4168, 3161, '${sha("a8")}', null, 'OPEN', '육류 구매',
-    '2026-09-08T00:00:00Z', '2026-09-11T00:00:00Z', null, 3000000.00, null, 'KRW', '{}');
+    '2026-09-08T00:00:00Z', '2026-09-11T00:00:00Z', null, 3000000.00, null, 'KRW', null, null, false);
   insert into ingest.source_release (source_release_id, source, release_name, status, as_of)
   values ('00000000-0000-0000-0000-000000000166', 'eat', 'eat-2026-09-10', 'planned',
     '2026-09-10T00:00:00Z');

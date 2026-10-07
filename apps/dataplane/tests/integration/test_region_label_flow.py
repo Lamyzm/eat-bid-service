@@ -274,9 +274,10 @@ def test_라벨_이전_eat_v2_발행물은_그대로_검증되고_eat_v3_replay�
     with pipeline_services.connection.cursor() as cursor:
         cursor.execute(
             """
-            select r.source_payload -> 'location' ? 'eligibilityAreas'
+            select record.normalized_payload -> 'location' ? 'eligibilityAreas'
             from core.auction_revision r
             join core.auction_attempt a using (auction_attempt_id)
+            join ingest.normalized_record record using (normalized_record_id)
             where a.external_bid_id = %s
             order by r.auction_revision_id
             """,

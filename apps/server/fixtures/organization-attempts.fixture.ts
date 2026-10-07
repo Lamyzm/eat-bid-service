@@ -82,20 +82,20 @@ const seed = `
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
      content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
-     opened_at, base_amount, planned_amount, currency, source_payload)
+     opened_at, base_amount, planned_amount, currency, roster_submission_count, source_roster_size, lineage_observed)
   overriding system value
   values (207, 103, 205, 203, '${"d".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-03T00:00:00Z', null, null, 2761700.00, null, 'KRW', '{}'),
+    '2026-09-03T00:00:00Z', null, null, 2761700.00, null, 'KRW', null, null, false),
          (208, 102, 206, 203, '${"e".repeat(64)}', null, 'OPEN', '농산물 구매',
-    '2026-09-02T00:00:00Z', null, '2026-09-04T05:00:00Z', 1000000.00, null, 'KRW', '{}'),
+    '2026-09-02T00:00:00Z', null, '2026-09-04T05:00:00Z', 1000000.00, null, 'KRW', null, null, false),
          (211, 101, 209, 203, '${"f".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-01T00:00:00Z', null, '2026-09-03T05:00:00Z', 500000.00, null, 'KRW', '{}'),
+    '2026-09-01T00:00:00Z', null, '2026-09-03T05:00:00Z', 500000.00, null, 'KRW', null, null, false),
          (212, 104, 210, 203, '${"0".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-05T00:00:00Z', null, null, 900000.00, null, 'KRW', '{}'),
+    '2026-09-05T00:00:00Z', null, null, 900000.00, null, 'KRW', null, null, false),
          (214, 105, 213, 203, '${"1".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-06T00:00:00Z', null, '2026-09-09T05:00:00Z', 700000.00, null, 'KRW', '{}'),
+    '2026-09-06T00:00:00Z', null, '2026-09-09T05:00:00Z', 700000.00, null, 'KRW', null, null, false),
          (216, 106, 215, 203, '${"2".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-01T00:00:00Z', null, '2029-09-03T05:00:00Z', 600000.00, null, 'KRW', '{}');
+    '2026-09-01T00:00:00Z', null, '2029-09-03T05:00:00Z', 600000.00, null, 'KRW', null, null, false);
   insert into core.auction_organization (auction_revision_id, organization_id, role)
   values (207, 41, 'purchaser'), (207, 43, 'supplier-contact');
   insert into core.supplier_party (supplier_party_id, type, canonical_name)

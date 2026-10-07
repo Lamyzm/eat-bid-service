@@ -140,11 +140,11 @@ export const regionFilterSeed = `
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
      content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
-     opened_at, base_amount, planned_amount, currency, source_payload)
+     opened_at, base_amount, planned_amount, currency, roster_submission_count, source_roster_size, lineage_observed)
   overriding system value
   values ${allAttempts
     .map((id) => `(${revisionOf(id)}, ${id}, ${recordOf(id)}, ${OBSERVATION_ID}, '${digest(id)}', null, 'OPEN',
-      '급식 식재료 구매', '2026-06-01T00:00:00Z', '${deadlineOf(id)}', null, 1000000.00, null, 'KRW', '{}')`)
+      '급식 식재료 구매', '2026-06-01T00:00:00Z', '${deadlineOf(id)}', null, 1000000.00, null, 'KRW', null, null, false)`)
     .join(",\n         ")};
   insert into core.auction_revision_code_value (auction_revision_id, code_value_id, role)
   values ${areaLinks};

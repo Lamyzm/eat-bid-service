@@ -7,7 +7,6 @@ DB가 아예 보지 못한다(ADR 0033 §4-라).
 
 from __future__ import annotations
 
-import json
 import re
 from datetime import datetime
 from decimal import Decimal
@@ -57,10 +56,6 @@ REVIEWED_CODE_ROLES = {
 }
 
 
-def canonical_json(value: object) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
 def validate_projection(projection: AuctionProjection) -> None:
     """공고 한 건의 투영이 core 열에 그대로 들어갈 수 있는 값인지 본다."""
     if not isinstance(projection, AuctionProjection):
@@ -107,14 +102,6 @@ def validate_projection(projection: AuctionProjection) -> None:
     ):
         if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None:
             raise ProjectionContractError("projection hashes must be lowercase SHA-256")
-    if not isinstance(projection.source_payload, dict):
-        raise ProjectionContractError("projection source payload must be a JSON object")
-    try:
-        canonical_json(projection.source_payload)
-    except (TypeError, ValueError) as error:
-        raise ProjectionContractError(
-            "projection source payload must be JSON serializable"
-        ) from error
     _validate_code_refs(projection)
     if isinstance(projection, AuctionV2Projection):
         validate_v2_projection(projection)

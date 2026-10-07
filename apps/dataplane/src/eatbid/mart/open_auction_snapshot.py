@@ -112,11 +112,9 @@ update mart.open_auction_snapshot as snapshot
            nullif(btrim(coalesce(revision.display_bid_no, '')), '') as display_bid_no,
            -- 게시일은 목록에 없다. 목록 행은 마감·참여·상태만 주므로 `오늘 열린` 축은 상세에서만
            -- 온다. 없으면 그 탭이 성립하지 않는다(EAT-206).
-           (revision.source_payload #>> '{schedule,announcedAt}')::timestamptz as announced_at,
+           revision.announced_at,
            -- 품목 code scheme이 아직 없다. 관측 라벨을 코드로 승격시키지 않는다(EAT-44 판정 §4.2).
-           nullif(btrim(coalesce(
-             revision.source_payload #>> '{classification,sourceCategoryLabel}', ''
-           )), '') as item_label,
+           nullif(btrim(coalesce(revision.source_category_label, '')), '') as item_label,
            -- 선언한 체계로 번역되지 않는 지역은 null로 남는다. 코드가 있는 척하면 화면이 다른
            -- 체계의 구역을 이 build의 구역으로 읽는다(ADR 0035 결정 7).
            province_axis.region_code_value_id as sido_code_value_id,

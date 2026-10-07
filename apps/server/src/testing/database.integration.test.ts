@@ -80,7 +80,8 @@ const { withDatabase: withDisposableDatabase, expectOwnedContainersCleanedUp } =
       insert into core.auction_revision
         (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
          content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
-         opened_at, base_amount, planned_amount, currency, source_payload)
+         opened_at, base_amount, planned_amount, currency, source_category_label,
+         lineage_observed)
       overriding system value
       values
         (9007199254740995, 9007199254740993, 9007199254740999, 9007199254740997,
@@ -89,7 +90,7 @@ const { withDatabase: withDisposableDatabase, expectOwnedContainersCleanedUp } =
          '${sqlText(normalizedAuctionFixture.schedule.announcedAt!)}',
          '${sqlText(normalizedAuctionFixture.schedule.deadlineAt!)}', null, 1234567890.50,
          null, 'KRW',
-         '${canonicalNormalizedAuctionPayload}');
+         '${sqlText(normalizedAuctionFixture.classification.sourceCategoryLabel!)}', false);
       create table mart.api_read_probe (probe_id bigint primary key);
       insert into mart.api_read_probe values (1);
     `);
@@ -122,14 +123,17 @@ describe("owner 범위 PostgreSQL 경계", () => {
       });
       expect(auction?.announcedAt.toString()).toBe(normalizedAuctionFixture.schedule.announcedAt);
       expect(await owner`
-        select normalized.record_type, normalized.normalized_payload, revision.source_payload
+        select normalized.record_type, normalized.normalized_payload,
+               revision.source_category_label, revision.lineage_observed
         from ingest.normalized_record normalized
         join core.auction_revision revision using (normalized_record_id)
         where normalized.normalized_record_id = 9007199254740999
       `).toEqual([{
         record_type: "auction.v1",
         normalized_payload: normalizedAuctionFixture,
-        source_payload: normalizedAuctionFixture,
+        // revision은 정규화 기록의 사본을 들지 않고 읽는 값만 열로 둔다. v1 계약에는 사슬 블록이 없다(EAT-308).
+        source_category_label: normalizedAuctionFixture.classification.sourceCategoryLabel,
+        lineage_observed: false,
       }]);
       expect(await api`select count(*)::int as count from core.auction_attempt`).toEqual([{ count: 1 }]);
       expect(await api`select * from mart.api_read_probe`).toEqual([{ probe_id: "1" }]);

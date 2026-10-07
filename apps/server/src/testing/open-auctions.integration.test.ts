@@ -94,20 +94,20 @@ const seed = `
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
      content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
-     opened_at, base_amount, planned_amount, currency, source_payload)
+     opened_at, base_amount, planned_amount, currency, roster_submission_count, source_roster_size, lineage_observed)
   overriding system value
   values (505, 101, 405, 303, '${"d".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-01T00:00:00Z', null, '2026-09-03T05:00:00Z', 1000000.00, 990000.00, 'KRW', '{}'),
+    '2026-09-01T00:00:00Z', null, '2026-09-03T05:00:00Z', 1000000.00, 990000.00, 'KRW', null, null, false),
          (506, 102, 406, 303, '${"e".repeat(64)}', null, 'OPEN', '농산물 구매',
-    '2026-09-02T00:00:00Z', null, '2026-09-04T05:00:00Z', 2000000.00, null, 'KRW', '{}'),
+    '2026-09-02T00:00:00Z', null, '2026-09-04T05:00:00Z', 2000000.00, null, 'KRW', null, null, false),
          (507, 103, 407, 303, '${"f".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-03T00:00:00Z', null, null, 500000.00, null, 'KRW', '{}'),
+    '2026-09-03T00:00:00Z', null, null, 500000.00, null, 'KRW', null, null, false),
          (508, 104, 408, 303, '${"0".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-06T00:00:00Z', null, '2026-09-09T05:00:00Z', 700000.00, null, 'KRW', '{}'),
+    '2026-09-06T00:00:00Z', null, '2026-09-09T05:00:00Z', 700000.00, null, 'KRW', null, null, false),
          (509, 201, 409, 303, '${"1".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-05T00:00:00Z', '2026-09-07T05:00:00Z', '2026-09-07T08:00:00Z', 2761700.00, null, 'KRW', '{}'),
+    '2026-09-05T00:00:00Z', '2026-09-07T05:00:00Z', '2026-09-07T08:00:00Z', 2761700.00, null, 'KRW', null, null, false),
          (510, 205, 410, 303, '${"2".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-05T00:00:00Z', '2026-09-10T05:00:00Z', '2026-09-10T08:00:00Z', 43879200.00, null, 'KRW', '{}');
+    '2026-09-05T00:00:00Z', '2026-09-10T05:00:00Z', '2026-09-10T08:00:00Z', 43879200.00, null, 'KRW', null, null, false);
   insert into ingest.source_release (source_release_id, source, release_name, status, as_of)
   values ('00000000-0000-0000-0000-000000000141', 'eat', 'eat-2026-09-07', 'planned',
     '2026-09-07T00:00:00Z');

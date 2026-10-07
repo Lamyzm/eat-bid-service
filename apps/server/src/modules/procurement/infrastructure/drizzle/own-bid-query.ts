@@ -39,8 +39,7 @@ export function ownBidQuery(input: {
              revision.normalized_record_id,
              revision.content_sha256,
              attempt.source_system,
-             case when jsonb_typeof(revision.source_payload #> '{roster,submissions}') = 'array'
-               then jsonb_array_length(revision.source_payload #> '{roster,submissions}') end as expected_count
+             revision.roster_submission_count as expected_count
         from requested
         join mart.org_round_summary summary
           on summary.build_id = ${input.buildId}::bigint

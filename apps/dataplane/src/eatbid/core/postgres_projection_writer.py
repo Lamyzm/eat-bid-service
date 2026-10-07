@@ -12,7 +12,6 @@ from datetime import datetime
 from typing import Any
 
 import psycopg
-from psycopg.types.json import Jsonb
 
 from eatbid.core.models import AuctionProjection
 from eatbid.core.postgres_code_values import resolve_code_value, resolve_label
@@ -23,7 +22,7 @@ from eatbid.core.projection_models import (
     AuctionV2Projection,
     comparable_row,
 )
-from eatbid.core.projection_validation import canonical_json, validate_projection
+from eatbid.core.projection_validation import validate_projection
 from eatbid.core.repository import ProjectionContractError
 from eatbid.source.eat.code_schemes import ORGANIZATION
 
@@ -261,28 +260,24 @@ class CanonicalProjectionWriter:
             projection.planned_amount,
             projection.floor_rate,
             projection.currency,
-            Jsonb(dict(projection.source_payload)),
+            *_payload_columns(projection),
         )
         if allow_insert:
-            # jsonb 경로로 읽던 값 넷을 열로도 넣는다(EAT-308). 배포 1 동안에는 넣기만 하고 아래 검증에서 비교하지
-            # 않는다 — 채우기 도구가 돌기 전의 옛 행은 이 칸이 비어 있어 같은 발행을 다시 투영하면 거짓 충돌이 난다.
-            # 같은 값의 원천인 `source_payload`를 검증이 이미 비교하므로 잃는 검사는 없다. 배포 2에서 검증으로 옮긴다.
-            inserted_values = (*values, *_payload_columns(projection))
             cursor.execute(
                 """
                 insert into core.auction_revision (
                     auction_attempt_id, normalized_record_id, observation_id,
                     content_sha256, display_bid_no, source_status, title,
                     announced_at, deadline_at, opened_at, base_amount,
-                    planned_amount, floor_rate, currency, source_payload,
+                    planned_amount, floor_rate, currency,
                     roster_submission_count, source_roster_size,
                     source_category_label, lineage_observed
-                ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                           %s, %s, %s, %s)
                 on conflict (normalized_record_id) do nothing
                 returning auction_revision_id
                 """,
-                inserted_values,
+                values,
             )
             inserted = cursor.fetchone()
             if inserted is not None:
@@ -292,7 +287,9 @@ class CanonicalProjectionWriter:
             select auction_revision_id, auction_attempt_id, observation_id,
                    content_sha256, display_bid_no, source_status, title,
                    announced_at, deadline_at, opened_at, base_amount,
-                   planned_amount, floor_rate, currency, source_payload
+                   planned_amount, floor_rate, currency,
+                   roster_submission_count, source_roster_size,
+                   source_category_label, lineage_observed
             from core.auction_revision where normalized_record_id = %s for no key update
             """,
             (projection.normalized_record_id,),
@@ -314,12 +311,12 @@ class CanonicalProjectionWriter:
             projection.planned_amount,
             projection.floor_rate,
             projection.currency,
+            *_payload_columns(projection),
         )
-        # 열의 자릿수를 붙여 돌아오는 `numeric`을 값의 차이로 읽으면 멱등한 재발행이 끊긴다.
-        actual = comparable_row(existing[1:14])
-        if actual != comparable_row(expected) or canonical_json(
-            existing[14]
-        ) != canonical_json(projection.source_payload):
+        # 열의 자릿수를 붙여 돌아오는 `numeric`을 값의 차이로 읽으면 멱등한 재발행이 끊긴다. 정규화 기록 자체는
+        # `normalized_record_id`가 유일 키로 묶으므로 그 사본을 여기 다시 두고 비교하지 않는다(EAT-308).
+        actual = comparable_row(existing[1:])
+        if actual != comparable_row(expected):
             raise ProjectionContractError("persisted auction revision conflicts")
         return int(existing[0]), 0
 

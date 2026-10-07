@@ -173,7 +173,7 @@ def test_예정가격_미관측_회차는_그날_하한과_하한_미만_수를_
 ) -> None:
     """왜 0인가: eaT는 추첨 전 공고의 `ELCTRN_BID_PLNPRC`를 빈 값이 아니라 `0`으로 보낸다(EAT-74).
 
-    정규화와 `source_payload`는 그 관측을 보존하고 core의 `planned_amount`는 해석이라 null이다(EAT-199).
+    raw와 정규화 기록은 그 관측을 보존하고 core의 `planned_amount`는 해석이라 null이다(EAT-199).
     하한 미만 행이 있는 명단에 그 0을 얹어, 파생값이 `0.0000`·`0`이라는 거짓 관측이 아니라 null이
     되는지를 고정한다.
     """
@@ -196,16 +196,18 @@ def test_예정가격_미관측_회차는_그날_하한과_하한_미만_수를_
     build_id, _ = build_mart(pipeline_services, plan, fill_org_round_summary)
 
     (row,) = _rows_for(pipeline_services, build_id, external_bid_id)
-    # core 열은 null이고 소스가 0을 보냈다는 사실은 revision의 source_payload에 남는다.
+    # core 열은 null이고 소스가 0을 보냈다는 사실은 revision이 가리키는 정규화 기록에 남는다(EAT-308).
     assert row[0] == Decimal("90.000")
     assert row[2] is None
     assert row[9] == 7
     with pipeline_services.connection.cursor() as cursor:
         cursor.execute(
             """
-            select revision.planned_amount, revision.source_payload #>> '{pricing,plannedAmount,amount}'
+            select revision.planned_amount,
+                   record.normalized_payload #>> '{pricing,plannedAmount,amount}'
               from core.auction_revision as revision
               join core.auction_attempt as attempt using (auction_attempt_id)
+              join ingest.normalized_record as record using (normalized_record_id)
              where attempt.external_bid_id = %s
              order by revision.auction_revision_id desc limit 1
             """,
@@ -260,9 +262,9 @@ def test_한_attempt의_최신_revision만_요약한다(
             insert into core.auction_revision
               (auction_attempt_id, normalized_record_id, observation_id, content_sha256,
                source_status, title, announced_at, opened_at, base_amount, planned_amount,
-               currency, source_payload)
+               currency, lineage_observed)
             values (%s, %s, %s, %s, 'OPEN', '나중 해석', now(), now(), 111.00, 100.00,
-                    'KRW', '{}'::jsonb)
+                    'KRW', false)
             returning auction_revision_id
             """,
             (original[0], later_record[0], original[1], original[2]),
@@ -368,9 +370,9 @@ def test_개찰이_공고보다_45일_넘게_뒤인_회차는_행을_남기되_�
             insert into core.auction_revision
               (auction_attempt_id, normalized_record_id, observation_id, content_sha256,
                source_status, title, announced_at, opened_at, base_amount, planned_amount,
-               currency, source_payload)
+               currency, lineage_observed)
             values (%s, %s, %s, %s, 'OPEN', '개찰이 3년 뒤', now(), now() + interval '1100 days',
-                    111.00, null, 'KRW', '{}'::jsonb)
+                    111.00, null, 'KRW', false)
             returning auction_revision_id
             """,
             (original[0], later_record[0], original[1], original[2]),

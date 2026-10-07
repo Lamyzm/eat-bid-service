@@ -72,18 +72,18 @@ const seed = `
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
      content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
-     opened_at, base_amount, planned_amount, currency, source_payload)
+     opened_at, base_amount, planned_amount, currency, roster_submission_count, source_roster_size, lineage_observed)
   overriding system value
   values (801, 701, 491, 393, '${"1".repeat(64)}', null, 'OPEN', '육류 구매',
-    '2026-09-05T00:00:00Z', '2026-09-07T05:00:00Z', null, 2000000.00, null, 'KRW', '{}'),
+    '2026-09-05T00:00:00Z', '2026-09-07T05:00:00Z', null, 2000000.00, null, 'KRW', null, null, false),
          (802, 702, 492, 393, '${"2".repeat(64)}', null, 'OPEN', '수산물 구매',
-    '2026-09-05T00:00:00Z', '2026-09-08T05:00:00Z', null, 50000000.00, null, 'KRW', '{}'),
+    '2026-09-05T00:00:00Z', '2026-09-08T05:00:00Z', null, 50000000.00, null, 'KRW', null, null, false),
          (803, 703, 493, 393, '${"3".repeat(64)}', null, 'OPEN', '구매',
-    '2026-09-05T00:00:00Z', '2026-09-09T05:00:00Z', null, 3000000.00, null, 'KRW', '{}'),
+    '2026-09-05T00:00:00Z', '2026-09-09T05:00:00Z', null, 3000000.00, null, 'KRW', null, null, false),
          (804, 704, 494, 393, '${"4".repeat(64)}', null, 'OPEN', '육류 구매',
-    '2026-09-05T00:00:00Z', '2026-09-06T05:00:00Z', null, 1000000.00, null, 'KRW', '{}'),
+    '2026-09-05T00:00:00Z', '2026-09-06T05:00:00Z', null, 1000000.00, null, 'KRW', null, null, false),
          (805, 705, 495, 393, '${"5".repeat(64)}', null, 'OPEN', '육류 구매',
-    '2026-09-05T00:00:00Z', '2026-09-10T05:00:00Z', null, 1000000.00, null, 'KRW', '{}');
+    '2026-09-05T00:00:00Z', '2026-09-10T05:00:00Z', null, 1000000.00, null, 'KRW', null, null, false);
   insert into ingest.source_release (source_release_id, source, release_name, status, as_of)
   values ('00000000-0000-0000-0000-000000000191', 'eat', 'eat-2026-09-07', 'planned',
     '2026-09-07T00:00:00Z');

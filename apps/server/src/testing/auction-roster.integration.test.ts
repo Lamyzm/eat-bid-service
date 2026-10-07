@@ -113,23 +113,23 @@ const seed = `
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
      content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
-     opened_at, base_amount, planned_amount, currency, source_payload)
+     opened_at, base_amount, planned_amount, currency, roster_submission_count, source_roster_size, lineage_observed)
   overriding system value
   values (9001, 8001, 5001, 6002, '${"d".repeat(64)}', null, 'OPEN', '농산물 구매',
      '2026-09-01T00:00:00Z', null, '2026-09-05T05:00:00Z', 1000000.00, 990000.00, 'KRW',
-     '{"roster":{"submissions":[{},{}],"sourceRosterSize":2}}'),
+     2, 2, true),
     (9002, 8001, 5002, 6002, '${"e".repeat(64)}', null, 'OPEN', '농산물 구매',
      '2026-09-01T00:00:00Z', null, '2026-09-05T05:00:00Z', 1000000.00, 990000.00, 'KRW',
-     '{"roster":{"submissions":[{},{}],"sourceRosterSize":2}}'),
+     2, 2, true),
     (9003, 8001, 5003, 6003, '${"f".repeat(64)}', null, 'CLOSED', '농산물 구매',
      '2026-09-01T00:00:00Z', null, '2026-09-05T05:00:00Z', 1000000.00, 990000.00, 'KRW',
-     '{"roster":{"submissions":[{},{}],"sourceRosterSize":2}}'),
+     2, 2, true),
     (9004, 8002, 5004, 6004, '${"0".repeat(64)}', null, 'OPEN', '명단 미관측 공고',
-     '2026-09-01T00:00:00Z', null, null, 500000.00, null, 'KRW', '{}'),
+     '2026-09-01T00:00:00Z', null, null, 500000.00, null, 'KRW', null, null, false),
     (9005, 8003, 5005, 6005, '${"1".repeat(64)}', null, 'OPEN', '라벨 없는 기관 공고',
-     '2026-09-01T00:00:00Z', null, null, 500000.00, null, 'KRW', '{}'),
+     '2026-09-01T00:00:00Z', null, null, 500000.00, null, 'KRW', null, null, false),
     (9006, 8004, 5006, 6006, '${"2".repeat(64)}', null, 'OPEN', '모순 관측 공고',
-     '2026-09-01T00:00:00Z', null, null, 500000.00, null, 'KRW', '{}');
+     '2026-09-01T00:00:00Z', null, null, 500000.00, null, 'KRW', null, null, false);
   insert into core.auction_organization (auction_revision_id, organization_id, role)
   values (9001, 9101, 'purchaser'), (9002, 9101, 'purchaser'), (9003, 9101, 'purchaser'),
     (9004, 9102, 'purchaser'), (9005, 9103, 'purchaser'), (9006, 9104, 'purchaser');
