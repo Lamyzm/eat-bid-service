@@ -4,7 +4,11 @@ import { notFound } from 'next/navigation';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { createLoader } from 'nuqs/server';
 import { systemClock } from '@eatbid/domain';
-import { getAuctionFromServer, parseAuctionId } from '@/api/auctions/server';
+import {
+  getAuctionBidPositionFromServer,
+  getAuctionFromServer,
+  parseAuctionId
+} from '@/api/auctions/server';
 import {
   findAnalysisDistributionFromServer,
   findAnalysisTimeSeriesFromServer
@@ -23,6 +27,7 @@ async function AnalysisLoader({ params, searchParams }: Props) {
     readAuction: getAuctionFromServer,
     readTimeSeries: findAnalysisTimeSeriesFromServer,
     readDistribution: findAnalysisDistributionFromServer,
+    readBidPosition: getAuctionBidPositionFromServer,
     now: () => systemClock.now().toString()
   });
   if (!data) notFound();

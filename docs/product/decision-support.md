@@ -2,7 +2,7 @@
 id: PRODUCT-DECISION-SUPPORT
 status: active
 canonical_for: analysis-evidence-cohort-and-candidate-replay-contract
-last_reviewed: 2026-08-31
+last_reviewed: 2026-10-07
 review_trigger: analysis-method-cohort-policy-or-recommendation-boundary-change
 ---
 
@@ -298,8 +298,10 @@ mart aggregate, 추천 또는 순위 입력으로 사용하지 않는다.
 
 금지:
 
-- `추천범위`, `안전구간`, `적정 구간`, `유리한 구간`, `잘 나온 구간`
-- `추천값`, `AI 정답`, `기대낙찰`, `낙찰 가능성`
+- `안전구간`, `적정 구간`, `유리한 구간`, `잘 나온 구간`
+- `AI 정답`, `기대낙찰`, `낙찰 가능성`
+- (2026-10-07 해제) `추천값`·`추천범위`는 [ADR 0062](../adr/0062-recommended-bid-in-scope.md)로 금지에서 뺐다. 추천 투찰가는
+  규칙 버전·검증 기간과 표본·예상 승률과 보정 상태를 함께 낼 때 판단 재료다. 근거 없는 단정은 위 목록이 계속 막는다.
 - `이 값이면 N회 낙찰`
 - 표본·기간·기준시점·버전이 없는 분석 숫자
 - 분석 결과와 붙은 `이 값으로 투찰` CTA

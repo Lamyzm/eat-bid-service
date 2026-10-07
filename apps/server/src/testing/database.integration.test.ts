@@ -251,6 +251,12 @@ describe("owner 범위 PostgreSQL 경계", () => {
           has_update: false,
         },
         {
+          sequence_name: "operator_grant_operator_grant_id_seq",
+          has_usage: false,
+          has_select: false,
+          has_update: false,
+        },
+        {
           sequence_name: "principal_principal_id_seq",
           has_usage: false,
           has_select: false,

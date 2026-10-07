@@ -18,10 +18,12 @@ export const DECISION_VOCABULARY_RULES = Object.freeze([
     pattern: /(?:썼|냈|넣었|했)다면|(?:였|았|었)을\s*(?:회차|경우|때)/u,
     reason: "사용자 값이 주어인 반사실 서술이다. 주어는 과거 회차여야 한다(EAT-236).",
   },
+  // 추천 투찰가·추천값은 근거와 함께 내는 판단 재료로 경계 안에 들어와 여기서 뺐다(ADR 0062). 남은 것은 근거 없이
+  // 자리를 좋다고 단정하거나 확률처럼 들리게 하는 어휘다.
   {
-    rule: "recommendation",
-    pattern: /추천\s*(?:범위|값|가|구간)|안전\s*구간|적정\s*구간|유리한\s*구간|잘\s*나온\s*구간|AI\s*정답|낙찰\s*가능성/u,
-    reason: "추천·안전·적정 구간과 낙찰 가능성은 판단 대행 어휘다(decision-support §9, AGENTS 8).",
+    rule: "unsupported-judgement",
+    pattern: /안전\s*구간|적정\s*구간|유리한\s*구간|잘\s*나온\s*구간|AI\s*정답|낙찰\s*가능성/u,
+    reason: "안전·적정·유리한 구간, AI 정답, 낙찰 가능성은 근거 없는 판단 대행 어휘다(decision-support §9).",
   },
 ]);
 

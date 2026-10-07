@@ -5,6 +5,8 @@ import type { AuctionRosterReader } from "./application/auction-roster-reader";
 import { CachedAuctionRosterReader } from "./infrastructure/caching/cached-auction-roster-reader";
 import { GetAuctionRoster } from "./application/get-auction-roster";
 import { AuctionRosterController } from "./presentation/http/auction-roster.controller";
+import { AuctionBidPositionController } from "./presentation/http/auction-bid-position.controller";
+import { FindAuctionBidPosition } from "./application/find-auction-bid-position";
 import { FindAuction } from "./application/find-auction";
 import { FindAnalysisConditionOptions } from "./application/find-analysis-condition-options";
 import { FindAnalysisHistory } from "./application/find-analysis-history";
@@ -71,6 +73,12 @@ const findAuctionProvider = {
   provide: FindAuction,
   inject: [AUCTION_READER],
   useFactory: (reader: AuctionReader) => new FindAuction(reader),
+};
+
+const findAuctionBidPositionProvider = {
+  provide: FindAuctionBidPosition,
+  inject: [AUCTION_READER],
+  useFactory: (reader: AuctionReader) => new FindAuctionBidPosition(reader),
 };
 
 // 열린 공고의 "열림" 판정은 현재 시각의 함수라 clock을 요구한다. `Temporal.Now` 직접 호출은 금지이며
@@ -145,6 +153,7 @@ const findMyBidObservationsProvider = {
 @Module({
   controllers: [
     AnalysisController,
+    AuctionBidPositionController,
     AuctionController,
     AuctionRosterController,
     EligibilityAreaController,
@@ -154,6 +163,7 @@ const findMyBidObservationsProvider = {
     cachedAuctionRosterReaderProvider,
     getAuctionRosterProvider,
     findAuctionProvider,
+    findAuctionBidPositionProvider,
     findAnalysisTimeSeriesProvider,
     findAnalysisConditionOptionsProvider,
     findAnalysisHistoryProvider,

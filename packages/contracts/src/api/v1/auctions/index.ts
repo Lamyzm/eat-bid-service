@@ -64,4 +64,5 @@ export {
 export { AUCTION_ITEM_ATOMS, auctionItemAtomSchema, type AuctionItemAtom } from "../../../values/auction-item";
 export { auctionV1OperationRegistry, auctionV1Operations } from "./operations";
 export * from "./get-auction-roster.response";
+export * from "./get-auction-bid-position.response";
 export * from "./get-auction-roster.query";

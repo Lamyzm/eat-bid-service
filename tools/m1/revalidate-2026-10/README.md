@@ -19,7 +19,7 @@ kubectl --context eatbid-prod exec -i -n eatbid <postgres pod> -- psql -U eatbid
 
 | 먼저 | 그다음 |
 |---|---|
-| `position/table.py` (→ `winmat.npz`) | `position/curve2.py`, `position/pair2.py` |
+| `position/table.py` (→ `winmat.npz`) | `position/curve2.py`, `position/pair2.py`, `position/triple.py`, `position/ruletable.py` |
 | `position/gaptest.py` (→ `gapfeat.npz`) | `position/gaptest2.py`, `position/instratum.py`, `position/compare.py` |
 | `position/cohort.py` (→ `elite.npy`, `mid.npy`) | `position/compare.py` |
 | `mechanism-null/base.py`는 같은 폴더 스크립트들이 import한다 | — |

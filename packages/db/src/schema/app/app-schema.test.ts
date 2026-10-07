@@ -126,3 +126,32 @@ describe("등록된 사업자와 위치", () => {
       .toContain("registered_business_location_address_present");
   });
 });
+
+describe("운영자 권한", () => {
+  test("운영자 권한은 principal의 boolean이 아니라 부여·회수 이력 표이고 살아 있는 부여는 사람마다 하나다", async () => {
+    const schema = await import("./index");
+    const grant = getTableConfig(schema.operatorGrant);
+    const principal = getTableConfig(schema.principal);
+
+    expect(grant.schema).toBe("app");
+    expect(principal.columns.map((column) => column.name)).not.toContain("is_operator");
+    expect(grant.columns.map((column) => column.name).toSorted()).toEqual([
+      "granted_at",
+      "granted_by_principal_id",
+      "operator_grant_id",
+      "principal_id",
+      "reason",
+      "revoked_at",
+    ]);
+    // 같은 표를 두 번 가리키므로 부여자 FK는 해시 이름이 되지 않게 이름을 고정했다.
+    expect(grant.foreignKeys).toHaveLength(2);
+    expect(grant.foreignKeys.map((key) => key.getName())).toContain("operator_grant_granted_by_principal_fkey");
+    const active = grant.indexes.find((entry) => entry.config.name === "operator_grant_active_principal_key");
+    expect(active?.config.unique).toBe(true);
+    expect(active?.config.where).toBeDefined();
+    expect(grant.checks.map((entry) => entry.name).toSorted()).toEqual([
+      "operator_grant_reason_present",
+      "operator_grant_revoked_after_granted",
+    ]);
+  });
+});

@@ -1,10 +1,11 @@
-/** @module 책임: v1 공고 조회·열린 목록·회차 명단의 semantic route와 상태별 공개 schema 계약을 소유한다. */
+/** @module 책임: v1 공고 조회·열린 목록·회차 명단·추천 투찰가의 semantic route와 상태별 공개 schema 계약을 소유한다. */
 import { z } from "zod";
 
 import { auctionIdPathSchema } from "../../../atoms/identifier";
 import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation, pathParameter } from "../../operation";
 import { auctionV1ResponseSchema } from "./get-auction.response";
+import { auctionBidPositionV1ResponseSchema } from "./get-auction-bid-position.response";
 import { auctionRosterV1ResponseSchema } from "./get-auction-roster.response";
 import { auctionRosterQuerySchema } from "./get-auction-roster.query";
 import { DEFAULT_OPEN_AUCTION_LIMIT, openAuctionListQuerySchema } from "./list-open-auctions.query";
@@ -14,8 +15,8 @@ import { openAuctionSummaryV1ResponseSchema } from "./summarize-open-auctions.re
 
 /**
  * 공고 read는 전부 로그인 뒤에만 열린다. eatbid는 공개 화면이 없는 업무 도구이고, 그 판정의 권위는
- * Nest guard다. 이 세 operation은 요구 수준이 `provider_session`이라 403을 내지 않는다. 세션은 있는데
- * app 계정 초기화가 아직 끝나지 않은 사용자도 공고 판단 재료는 읽을 수 있어야 하기 때문이다(ADR 0032 §5).
+ * Nest guard다. 추천 투찰가를 뺀 operation은 요구 수준이 `provider_session`이라 403을 내지 않는다. 세션은
+ * 있는데 app 계정 초기화가 아직 끝나지 않은 사용자도 공고 판단 재료는 읽을 수 있어야 하기 때문이다(ADR 0032 §5).
  */
 export const auctionV1Operations = {
   roster: defineOperation({
@@ -93,6 +94,34 @@ export const auctionV1Operations = {
       503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
     },
   }),
+  /**
+   * 추천 투찰가는 지금 운영자만 본다(ADR 0062, 노출 범위는 기능마다 정한다). 그래서 이 operation만 요구 수준이
+   * `operator`이고 회수되지 않은 운영자 권한이 없으면 403이다(ADR 0032 §5). 공고 조회와 나누는 이유도 같다 —
+   * 같은 응답에 섞으면 권한에 따라 공고 응답 모양이 갈라진다.
+   */
+  bidPosition: defineOperation({
+    method: "get",
+    versioning: { kind: "uri", prefix: "api", version: "1" },
+    route: { resource: "auctions", segments: [pathParameter("auctionId"), "bid-position"] },
+    operationId: "getAuctionBidPosition",
+    implementationOwner: "server",
+    summary: "공고 회차의 추천 투찰가를 규칙 버전·검증 표본과 함께 조회한다",
+    tags: ["공고와 분석"],
+    pathSchema: z.strictObject({ auctionId: auctionIdPathSchema }),
+    querySchema: z.undefined(),
+    bodySchema: z.undefined(),
+    successResponses: {
+      200: { description: "추천 투찰가 또는 규칙 적용 밖 사유", schema: auctionBidPositionV1ResponseSchema },
+    },
+    problemResponses: {
+      400: { description: "공고 ID가 유효하지 않음", schema: problemDetailsSchema },
+      ...unauthenticatedProblemResponse,
+      403: { description: "운영자 권한이 없음", schema: problemDetailsSchema },
+      404: { description: "공고를 찾을 수 없음", schema: problemDetailsSchema },
+      500: { description: "예상하지 못한 서버 결함", schema: problemDetailsSchema },
+      503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
+    },
+  }),
   find: defineOperation({
     method: "get",
     versioning: { kind: "uri", prefix: "api", version: "1" },
@@ -121,6 +150,7 @@ export const auctionV1Operations = {
 // 먹혀 요약 요청이 "summary라는 id의 공고"를 찾는 요청이 된다.
 export const auctionV1OperationRegistry = createOperationRegistry([
   auctionV1Operations.roster,
+  auctionV1Operations.bidPosition,
   auctionV1Operations.listOpen,
   auctionV1Operations.summarizeOpen,
   auctionV1Operations.find,

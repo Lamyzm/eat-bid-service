@@ -33,6 +33,7 @@ review_trigger: document-authority-location-or-docs-lint-rule-change
 | 비밀은 Infisical의 어느 환경·경로에 있고 어떻게 주입하는가? | [`operations/infisical.md`](operations/infisical.md) |
 | push한 코드가 어떻게 이미지가 되고 클러스터까지 가는가? | [`operations/main-authority-cutover.md`](operations/main-authority-cutover.md) |
 | Google OAuth client 없이 로컬에서 어떻게 실제 로그인을 하는가? | [`operations/local-dev-login.md`](operations/local-dev-login.md) |
+| 운영자 권한을 누구에게 어떻게 주고 거두는가? | [`operations/operator-grant.md`](operations/operator-grant.md) |
 | 로컬에서 어느 개발 환경을 고르고 개발 DB를 어떻게 다시 만드는가? | [`operations/local-dev-environments.md`](operations/local-dev-environments.md) |
 | 분석 우선 제품기획은 어떤 증거와 반증을 거쳤는가? | [`evidence/product-direction/2026-08-31-analysis-first-planning-audit.md`](evidence/product-direction/2026-08-31-analysis-first-planning-audit.md) |
 

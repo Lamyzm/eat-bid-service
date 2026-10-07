@@ -1100,6 +1100,61 @@
         ],
         "type": "object"
       },
+      "AuctionBidPositionV1Response": {
+        "additionalProperties": false,
+        "properties": {
+          "auctionId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "baseAmount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "deadlineAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstantText"
+              }
+            ],
+            "nullable": true
+          },
+          "floorRate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidRate"
+              }
+            ],
+            "nullable": true
+          },
+          "participation": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuctionParticipationObservation"
+              }
+            ],
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/BidPositionResult"
+          },
+          "revisionId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/BidPositionRule"
+          }
+        },
+        "required": [
+          "auctionId",
+          "revisionId",
+          "baseAmount",
+          "floorRate",
+          "participation",
+          "deadlineAt",
+          "rule",
+          "result"
+        ],
+        "type": "object"
+      },
       "AuctionClassification": {
         "additionalProperties": false,
         "description": "Observed source category label of one auction revision; a display fact, not a code or a join key.",
@@ -1616,6 +1671,180 @@
         "pattern": "^(?:0|[1-9][0-9]{0,4})\\.[0-9]{4}$",
         "type": "string"
       },
+      "BidPosition": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "baseRelativeRate": {
+            "$ref": "#/components/schemas/BaseRelativeBidRate"
+          },
+          "cumulativeLotteryWinRate": {
+            "$ref": "#/components/schemas/PercentagePoints"
+          },
+          "cumulativeValidationWins": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "cumulativeWinRate": {
+            "$ref": "#/components/schemas/PercentagePoints"
+          },
+          "order": {
+            "maximum": 3,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "order",
+          "amount",
+          "baseRelativeRate",
+          "cumulativeWinRate",
+          "cumulativeLotteryWinRate",
+          "cumulativeValidationWins"
+        ],
+        "type": "object"
+      },
+      "BidPositionHoldout": {
+        "additionalProperties": false,
+        "properties": {
+          "lotteryExpectedWins": {
+            "$ref": "#/components/schemas/CanonicalDecimalText"
+          },
+          "month": {
+            "$ref": "#/components/schemas/KstMonthText"
+          },
+          "rounds": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "tickets": {
+            "maximum": 3,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "wins": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          }
+        },
+        "required": [
+          "month",
+          "rounds",
+          "tickets",
+          "wins",
+          "lotteryExpectedWins"
+        ],
+        "type": "object"
+      },
+      "BidPositionNotApplicableReason": {
+        "enum": [
+          "floor-rate-unobserved",
+          "floor-rate-outside-rule",
+          "participation-unobserved",
+          "participation-below-rule"
+        ],
+        "type": "string"
+      },
+      "BidPositionResult": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "band": {
+                "enum": [
+                  "40-69",
+                  "70-plus"
+                ],
+                "type": "string"
+              },
+              "holdout": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/BidPositionHoldout"
+                  }
+                ],
+                "nullable": true
+              },
+              "positions": {
+                "items": {
+                  "$ref": "#/components/schemas/BidPosition"
+                },
+                "maxItems": 3,
+                "minItems": 1,
+                "type": "array"
+              },
+              "selection": {
+                "enum": [
+                  "training",
+                  "validation-informed"
+                ],
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "applicable"
+                ],
+                "type": "string"
+              },
+              "validationRounds": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            },
+            "required": [
+              "state",
+              "band",
+              "selection",
+              "validationRounds",
+              "holdout",
+              "positions"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "$ref": "#/components/schemas/BidPositionNotApplicableReason"
+              },
+              "state": {
+                "enum": [
+                  "not-applicable"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "reason"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      },
+      "BidPositionRule": {
+        "additionalProperties": false,
+        "properties": {
+          "trainedThrough": {
+            "$ref": "#/components/schemas/KstMonthText"
+          },
+          "validatedFrom": {
+            "$ref": "#/components/schemas/KstMonthText"
+          },
+          "validatedThrough": {
+            "$ref": "#/components/schemas/KstMonthText"
+          },
+          "version": {
+            "$ref": "#/components/schemas/KstDateText"
+          }
+        },
+        "required": [
+          "version",
+          "trainedThrough",
+          "validatedFrom",
+          "validatedThrough"
+        ],
+        "type": "object"
+      },
       "BidRate": {
         "additionalProperties": false,
         "description": "A bid rate expressed on a 100-point scale with exactly three fractional digits, matching numeric(6,3) mart columns.",
@@ -1648,6 +1877,12 @@
         "maxLength": 10,
         "minLength": 10,
         "pattern": "^[0-9]{10}$",
+        "type": "string"
+      },
+      "CanonicalDecimalText": {
+        "description": "Canonical nonnegative decimal text without sign, exponent, or grouping separators.",
+        "maxLength": 37,
+        "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
         "type": "string"
       },
       "CanonicalMoneyAmount": {
@@ -2706,6 +2941,14 @@
         "maxLength": 10,
         "minLength": 10,
         "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$",
+        "type": "string"
+      },
+      "KstMonthText": {
+        "description": "Canonical KST calendar month text as YYYY-MM; the month boundary is Asia/Seoul.",
+        "example": "2026-09",
+        "maxLength": 7,
+        "minLength": 7,
+        "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])$",
         "type": "string"
       },
       "Latitude": {
@@ -3880,6 +4123,32 @@
           "closingToday"
         ],
         "type": "object"
+      },
+      "PercentagePoints": {
+        "additionalProperties": false,
+        "description": "A rate expressed on a 100-point scale.",
+        "properties": {
+          "unit": {
+            "enum": [
+              "percentage-points"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/PercentagePointsText"
+          }
+        },
+        "required": [
+          "value",
+          "unit"
+        ],
+        "type": "object"
+      },
+      "PercentagePointsText": {
+        "description": "Canonical percentage-points text from 0.000000 through 100.000000.",
+        "maxLength": 10,
+        "pattern": "^(?:(?:0|[1-9][0-9]?)\\.[0-9]{6}|100\\.000000)$",
+        "type": "string"
       },
       "PositiveBigintText": {
         "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
@@ -5703,6 +5972,98 @@
           }
         },
         "summary": "정규화된 공고를 조회한다",
+        "tags": [
+          "공고와 분석"
+        ]
+      }
+    },
+    "/api/v1/auctions/{auctionId}/bid-position": {
+      "get": {
+        "operationId": "getAuctionBidPosition",
+        "parameters": [
+          {
+            "description": "Canonical positive decimal text for an auction ID stored as a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+            "in": "path",
+            "name": "auctionId",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AuctionId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuctionBidPositionV1Response"
+                }
+              }
+            },
+            "description": "추천 투찰가 또는 규칙 적용 밖 사유"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "공고 ID가 유효하지 않음"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "운영자 권한이 없음"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "공고를 찾을 수 없음"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스를 사용할 수 없음"
+          }
+        },
+        "summary": "공고 회차의 추천 투찰가를 규칙 버전·검증 표본과 함께 조회한다",
         "tags": [
           "공고와 분석"
         ]

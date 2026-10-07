@@ -54,7 +54,7 @@ describe('새 상세의 공고 조회와 표시', () => {
         return emptySeries;
       },
       readDistribution: async () => ({ kind: 'read-failed' as const }),
-
+      readBidPosition: async () => ({ kind: 'forbidden' as const }),
       now: () => {
         clocks += 1;
         return fixtureNow;
@@ -81,7 +81,7 @@ describe('새 상세의 공고 조회와 표시', () => {
       readAuction: async () => ({ kind: 'auction', response: openAuctionFixture }),
       readTimeSeries: async () => ({ kind: 'read-failed' }),
       readDistribution: async () => ({ kind: 'read-failed' as const }),
-
+      readBidPosition: async () => ({ kind: 'forbidden' as const }),
       now: () => fixtureNow
     });
     expect(data?.timeSeries).toEqual({ kind: 'read-failed' });
@@ -129,7 +129,7 @@ describe('새 상세의 공고 조회와 표시', () => {
         return emptySeries;
       },
       readDistribution: async () => ({ kind: 'read-failed' as const }),
-
+      readBidPosition: async () => ({ kind: 'forbidden' as const }),
       now: () => fixtureNow
     });
     // 무효 조건으로 보낸 요청은 400 왕복이 되고, 그때 화면이 보여야 할 것은 표본이 아니라 조건 안내다.
@@ -150,13 +150,36 @@ describe('새 상세의 공고 조회와 표시', () => {
       },
       readTimeSeries: async () => emptySeries,
       readDistribution: async () => ({ kind: 'read-failed' as const }),
-
+      readBidPosition: async () => ({ kind: 'forbidden' as const }),
       now: () => fixtureNow
     };
     expect(await loadAnalysisPage('bad', null, dependencies)).toBeNull();
     expect(reads).toBe(0);
     expect(await loadAnalysisPage('99', null, { ...dependencies, parseId: (id) => id })).toBeNull();
     expect(reads).toBe(1);
+  });
+
+  test('운영자가 아니면 추천 투찰가 패널이 없고, 조회 실패는 화면을 지우지 않고 패널 안에서 실패라고 말한다', async () => {
+    const base = {
+      parseId: (id: string) => id,
+      readAuction: async () => ({ kind: 'auction' as const, response: openAuctionFixture }),
+      readTimeSeries: async () => emptySeries,
+      readDistribution: async () => ({ kind: 'read-failed' as const }),
+      now: () => fixtureNow
+    };
+    const hidden = await loadAnalysisPage('5796468', null, {
+      ...base,
+      readBidPosition: async () => ({ kind: 'forbidden' as const })
+    });
+    expect(hidden?.bidPosition).toBeNull();
+    const failed = await loadAnalysisPage('5796468', null, {
+      ...base,
+      readBidPosition: async () => {
+        throw new Error('서버 장애');
+      }
+    });
+    expect(failed?.bidPosition).toEqual({ kind: 'unavailable' });
+    expect(failed?.header.organization).toBe('창원 남산초등학교');
   });
 });
 

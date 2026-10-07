@@ -17,6 +17,7 @@ import { AppModule } from "../app.module";
 import { type Environment, readEnvironment } from "../platform/config/environment";
 import type { DatabaseReadiness } from "../platform/health/health.module";
 import type { AccountRepository } from "../modules/account/application/account-repository";
+import type { OperatorGrantReader } from "../platform/auth/operator-grant-reader";
 import type { RegionPreferenceRepository } from "../modules/account/application/region-preference-repository";
 import { createAuthInstance, type AuthInstance } from "../platform/auth/auth-instance";
 import { createAuthTransportMount } from "../platform/auth/auth-transport";
@@ -63,6 +64,7 @@ export interface CreateAppOptions {
   readonly analysisTimeSeriesReader?: AnalysisTimeSeriesReader;
   readonly codeReader?: CodeReader;
   readonly accountRepository?: AccountRepository;
+  readonly operatorGrantReader?: OperatorGrantReader;
   readonly regionPreferenceRepository?: RegionPreferenceRepository;
   /**
    * 실제 provider 대신 주체만 주입하는 자리다. 테스트가 Google 네트워크를 부르지 않게 하되, production
@@ -188,6 +190,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
         analysisTimeSeriesReader: options.analysisTimeSeriesReader,
         codeReader: options.codeReader,
         accountRepository: options.accountRepository,
+        operatorGrantReader: options.operatorGrantReader,
         regionPreferenceRepository: options.regionPreferenceRepository,
         connection,
         sessionAuthenticator,

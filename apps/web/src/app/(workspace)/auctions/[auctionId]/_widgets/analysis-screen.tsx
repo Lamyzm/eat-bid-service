@@ -1,4 +1,4 @@
-/** @module 책임: 새 상세 전용 공고·공통 조건·분석 준비 영역을 조립하며 이전 상세 화면에는 의존하지 않는다. */
+/** @module 책임: 새 상세 전용 공고·추천 투찰가·공통 조건·분석 준비 영역을 조립하며 이전 상세 화면에는 의존하지 않는다. */
 import type { loadAnalysisPage } from '../_lib/load-analysis-page';
 import { presentAnalysisContext } from '../_features/analysis-filters/model/present-analysis-context';
 import { AnalysisFilters } from '../_features/analysis-filters/ui/analysis-filters';
@@ -6,6 +6,7 @@ import { AnalysisResetButton } from '../_features/analysis-filters/ui/analysis-r
 import { AnalysisResultsGate } from '../_features/analysis-filters/ui/analysis-results-gate';
 import { AnalysisWorkspace } from '../_features/analysis-view/ui/analysis-workspace';
 import { DistributionPanel } from '../_features/distribution/ui/distribution-panel';
+import { BidPositionPanel } from '../_features/bid-position/ui/bid-position-panel';
 import { AnalysisHeader } from './analysis-header';
 import {
   AnalysisRoundInspector,
@@ -43,7 +44,12 @@ export function AnalysisScreen({
   const floorRate = data.applied.state === 'pending' ? data.applied.filter.floorRate.value : null;
   return (
     <AnalysisWorkspace
-      header={<AnalysisHeader header={data.header} />}
+      header={
+        <>
+          <AnalysisHeader header={data.header} />
+          {data.bidPosition === null ? null : <BidPositionPanel view={data.bidPosition} />}
+        </>
+      }
       filters={
         <AnalysisFilters
           key={data.applied.key ?? 'initial'}
