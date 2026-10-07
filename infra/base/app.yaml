@@ -53,13 +53,20 @@ spec:
           # BestEffort인 백필 파드가 먼저 밀려난다 — 그 순서가 우리가 원하는 것이다.
           resources:
             requests: { cpu: 500m, memory: 3Gi }
-          volumeMounts: [{ name: pgdata, mountPath: /var/lib/postgresql/data }]
+          volumeMounts:
+            - { name: pgdata, mountPath: /var/lib/postgresql/data }
+            - { name: dshm, mountPath: /dev/shm }
           readinessProbe:
             exec: { command: ["pg_isready", "-U", "eatbid"] }
             periodSeconds: 3
       volumes:
         - name: pgdata
           persistentVolumeClaim: { claimName: pgdata }
+        # 컨테이너 기본 /dev/shm은 64MB다. 병렬 VACUUM·병렬 조회의 동적 공유 메모리가 거기 잡혀 2026-10-07 VACUUM이
+        # `could not resize shared memory segment`로 실패했다(EAT-304). 메모리 매체라 쓰는 만큼 노드 RAM을 쓰고
+        # 한도는 work_mem·maintenance_work_mem의 병렬 몫보다 넉넉한 1Gi다. 파드 memory limit이 없으므로 이 크기가 상한이다.
+        - name: dshm
+          emptyDir: { medium: Memory, sizeLimit: 1Gi }
 ---
 apiVersion: v1
 kind: Service
