@@ -93,10 +93,6 @@ const seed = `
     (7102, '빈 명단 기관', 'und', '${EMPTY_ROSTER_OBSERVED_AT}', 6004),
     (7104, '모순 관측 기관 가', 'und', '2026-09-02T00:00:00Z', 6006),
     (7104, '모순 관측 기관 나', 'und', '2026-09-02T00:00:01Z', 6006),
-    (7301, '가 업체', 'und', '${REVISION_9002_OBSERVED_AT}', 6002),
-    (7302, '나 업체', 'und', '${REVISION_9002_OBSERVED_AT}', 6002),
-    (7301, '가 업체', 'und', '${REVISION_9003_OBSERVED_AT}', 6003),
-    (7302, '나 업체', 'und', '${REVISION_9003_OBSERVED_AT}', 6003),
     (7201, '낙찰실패', 'und', '${REVISION_9003_OBSERVED_AT}', 6003),
     (7202, '낙찰', 'und', '${REVISION_9003_OBSERVED_AT}', 6003);
   insert into core.supplier_party (supplier_party_id, type, canonical_name)
@@ -136,19 +132,19 @@ const seed = `
   insert into core.bid_submission
     (auction_revision_id, auction_attempt_id, opened_at, roster_ordinal,
      source_supplier_account_id, supplier_party_id, submitted_at, amount, effective_amount,
-     currency, bid_rate, rank, source_status_code_value_id, observation_id)
+     currency, bid_rate, rank, source_status_code_value_id, observation_id, supplier_label)
   values (9001, 8001, '2026-09-05T05:00:00Z', 0, 7801, 7701, null,
-     10000000043768.00, 43120180.00, 'KRW', 89.001, 1, 7201, 6002),
+     10000000043768.00, 43120180.00, 'KRW', 89.001, 1, 7201, 6002, '가 업체'),
     (9001, 8001, '2026-09-05T05:00:00Z', 1, 7802, 7702, null,
-     10000000043769.00, 43120181.00, 'KRW', 89.002, 2, 7201, 6002),
+     10000000043769.00, 43120181.00, 'KRW', 89.002, 2, 7201, 6002, '나 업체'),
     (9002, 8001, '2026-09-05T05:00:00Z', 0, 7801, 7701, null,
-     10000000043768.00, 43120180.00, 'KRW', 89.001, 1, 7201, 6002),
+     10000000043768.00, 43120180.00, 'KRW', 89.001, 1, 7201, 6002, '가 업체'),
     (9002, 8001, '2026-09-05T05:00:00Z', 1, 7802, 7702, null,
-     10000000043769.00, 43120181.00, 'KRW', 89.002, 2, 7201, 6002),
+     10000000043769.00, 43120181.00, 'KRW', 89.002, 2, 7201, 6002, '나 업체'),
     (9003, 8001, '2026-09-05T05:00:00Z', 0, 7801, 7701, null,
-     10000000043768.00, 43120180.00, 'KRW', 89.001, 1, 7202, 6003),
+     10000000043768.00, 43120180.00, 'KRW', 89.001, 1, 7202, 6003, '가 업체'),
     (9003, 8001, '2026-09-05T05:00:00Z', 1, 7802, 7702, null,
-     10000000043769.00, 43120181.00, 'KRW', 89.002, 2, 7201, 6003);
+     10000000043769.00, 43120181.00, 'KRW', 89.002, 2, 7201, 6003, '나 업체');
   insert into core.award_decision
     (auction_revision_id, auction_attempt_id, awarded_roster_ordinal, source_supplier_account_id,
      supplier_party_id, awarded_at, awarded_amount, currency, awarded_rate, runner_up_rate,

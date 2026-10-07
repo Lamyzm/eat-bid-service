@@ -47,8 +47,6 @@ OPERATOR_COMMANDS = (
     "check-expectations",
     "scan-contract",
     "reap-marts",
-    # 업체명을 투찰 행으로 옮기는 일회성 이행의 기존 행 채우기다. 예약하지 않는다(EAT-310, ADR 0063).
-    "backfill-supplier-labels",
     # 과거 기록 mart는 발행 DAG가 아니라 예약이 만든다(EAT-300, ADR 0060).
     "build-history-marts",
 )
@@ -1997,23 +1995,6 @@ def test_mart_회수_cron은_수집이_없는_새벽에_하루_한_번_템플릿
     assert "synchronization" not in reap
     args = " ".join(str(item) for item in _sequence(_mapping(reap["container"])["args"]))
     assert "eatbid reap-marts" in args
-
-
-def test_업체명_채우기는_사람이_한_번_제출하는_entrypoint이고_예약도_mutex도_없다(
-    manifests: ManifestSet,
-) -> None:
-    """왜: 운영 DB 4,550만 행을 고치는 일회성 이행이라 디스크 여유를 본 사람이 시작해야 한다. 예약에 걸리면
-    여유를 보지 않고 돈다. 발행 mutex를 잡으면 몇 시간 동안 수집 발행이 멈춘다(EAT-310, ADR 0063)."""
-    templates = _templates(manifests.workflow_template("eatbid-dataplane"))
-    backfill = templates["backfill-supplier-labels"]
-    assert "synchronization" not in backfill
-    args = " ".join(
-        str(item) for item in _sequence(_mapping(backfill["container"])["args"])
-    )
-    assert "eatbid backfill-supplier-labels" in args
-    for cron in manifests.of_kind("CronWorkflow"):
-        workflow_spec = _mapping(_spec(cron)["workflowSpec"])
-        assert workflow_spec.get("entrypoint") != "backfill-supplier-labels"
 
 
 def test_DAG_task는_부르는_template의_input을_하나도_빠뜨리지_않는다(

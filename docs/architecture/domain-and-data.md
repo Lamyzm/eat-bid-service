@@ -156,8 +156,8 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
 ([ADR 0063](../adr/0063-supplier-label-lives-on-the-submission.md)). 계정이 어느 업체였는지를 그 시점의 투찰이
 말하듯(ADR 0049) 이름도 같은 응답 같은 행의 관측이다. 여전히 관측이지 정체성이 아니므로
 `supplier_party.canonical_name`으로 승격하지 않고 조인·식별에 쓰지 않는다. 이름이 바뀌어도 정체성은 바뀌지 않는다.
-기관·지역·참가제한지역·투찰 상태 라벨은 계속 `code_label_observation`에 남는다. 이행 중(배포 1)에는 업체명 관측
-행도 함께 쓰이며 명단 조회가 그것을 읽는다.
+기관·지역·참가제한지역·투찰 상태 라벨은 계속 `code_label_observation`에 남는다. 업체명 관측 행은 투찰 행을
+채운 뒤 그 표에서 지웠다(EAT-314).
 
 #### 워크스페이스가 등록한 사업자
 

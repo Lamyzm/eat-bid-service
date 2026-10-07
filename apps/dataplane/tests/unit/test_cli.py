@@ -13,7 +13,6 @@ from pydantic import ValidationError
 from eatbid.cli import COMMAND_HANDLERS, build_parser, main
 from eatbid.composition import Application, build_application
 from eatbid.config import ApplicationSettings
-from eatbid.core.supplier_label_backfill import SupplierLabelBackfillReport
 from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.ingest.models import CapturedObservation
 from eatbid.ingest.release_models import FailedSourceRelease
@@ -143,15 +142,6 @@ class _기록애플리케이션:
         self.calls.append(("reap-marts", None))
         return ReapReport(as_of=args.as_of, reaped=())
 
-    def backfill_supplier_labels(self, args: Namespace) -> SupplierLabelBackfillReport:
-        # 업체명 채우기도 release에 매이지 않는다(EAT-310, ADR 0063).
-        if self.error is not None:
-            raise self.error
-        self.calls.append(("backfill-supplier-labels", None))
-        return SupplierLabelBackfillReport(
-            parties=0, batches=0, rows_filled=0, rows_without_label=0
-        )
-
     def close_stalled_run(self, args: Namespace) -> dict[str, object]:
         # 멎은 run을 닫는 것도 release에 매이지 않는다(EAT-234).
         if self.error is not None:
@@ -182,8 +172,6 @@ RELEASE_FREE_COMMANDS = frozenset(
         "next-backfill-window",
         "scan-contract",
         "reap-marts",
-        # 업체명 채우기는 표 전체의 빈 칸만 본다(EAT-310, ADR 0063).
-        "backfill-supplier-labels",
         # 과거 기록 mart 예약은 원장의 최신 발행을 입력으로 스스로 고른다(ADR 0060).
         "build-history-marts",
         "next-replay-target",
@@ -206,8 +194,6 @@ def _명령(command: str) -> list[str]:
         return [command, "--floor-date", "20250901", "--as-of", "2026-09-01T00:06:00Z"]
     if command == "reap-marts":
         return [command, "--as-of", "2026-09-01T00:06:00Z"]
-    if command == "backfill-supplier-labels":
-        return [command]
     if command == "build-history-marts":
         return [
             command,
