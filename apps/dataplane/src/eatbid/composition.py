@@ -25,6 +25,7 @@ from eatbid.cache_revalidation import (
 )
 from eatbid.config import ApplicationSettings
 from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
+from eatbid.core.revision_column_backfill import backfill_revision_columns
 from eatbid.core.supplier_label_backfill import backfill_supplier_labels
 from eatbid.failures.errors import PublicationFailedError
 from eatbid.failures.report import ApplicationConfigurationError
@@ -541,6 +542,22 @@ class Application:
             target_rows=args.target_rows,
             on_progress=lambda progress: print(
                 f"parties={progress.parties_done}/{progress.parties}"
+                f" batches={progress.batches} rows_filled={progress.rows_filled}",
+                flush=True,
+            ),
+        )
+
+    def backfill_revision_columns(self, args: argparse.Namespace) -> Any:
+        """운영자 entrypoint다. 배포 1 이전 revision의 빈 열 넷을 그 revision의 jsonb에서 채운다(EAT-308).
+
+        `eatbid-core-publication` mutex를 잡지 않는다. 투영은 새 revision에 열을 직접 넣으므로 이 명령이 고칠 행과
+        겹치지 않고, 겹치는 것은 옛 revision을 다시 검증하는 투영의 행 잠금뿐이라 범위 커밋 동안 기다리면 된다.
+        """
+        return backfill_revision_columns(
+            self._connection,
+            batch_revisions=args.batch_revisions,
+            on_progress=lambda progress: print(
+                f"revision={progress.next_revision_id}/{progress.last_revision_id}"
                 f" batches={progress.batches} rows_filled={progress.rows_filled}",
                 flush=True,
             ),

@@ -30,6 +30,24 @@ from eatbid.source.eat.code_schemes import ORGANIZATION
 __all__ = ["CanonicalProjectionWriter", "validate_projection"]
 
 
+
+def _payload_columns(
+    projection: AuctionProjection,
+) -> tuple[int | None, int | None, str | None, bool]:
+    """`(명단 줄 수, 원본 명단 크기, 품목 라벨, 사슬 관측 여부)`를 계약 모양에서 읽는다.
+
+    v1 해석에는 명단·사슬 블록이 없다. 그 사실은 "명단이 비었다"(0)나 "사슬이 없다"가 아니라 "이 계약은 그것을
+    말하지 않는다"이므로 줄 수·크기는 null, 사슬 관측은 거짓이다. v2 계약은 `lineage`를 필수로 갖는다.
+    """
+    if isinstance(projection, AuctionV2Projection):
+        return (
+            len(projection.roster.submissions),
+            projection.roster.source_roster_size,
+            projection.source_category_label,
+            True,
+        )
+    return (None, None, projection.source_category_label, False)
+
 class CanonicalProjectionWriter:
     """Insert-or-verify canonical rows within the caller's locked transaction."""
 
@@ -246,18 +264,25 @@ class CanonicalProjectionWriter:
             Jsonb(dict(projection.source_payload)),
         )
         if allow_insert:
+            # jsonb 경로로 읽던 값 넷을 열로도 넣는다(EAT-308). 배포 1 동안에는 넣기만 하고 아래 검증에서 비교하지
+            # 않는다 — 채우기 도구가 돌기 전의 옛 행은 이 칸이 비어 있어 같은 발행을 다시 투영하면 거짓 충돌이 난다.
+            # 같은 값의 원천인 `source_payload`를 검증이 이미 비교하므로 잃는 검사는 없다. 배포 2에서 검증으로 옮긴다.
+            inserted_values = (*values, *_payload_columns(projection))
             cursor.execute(
                 """
                 insert into core.auction_revision (
                     auction_attempt_id, normalized_record_id, observation_id,
                     content_sha256, display_bid_no, source_status, title,
                     announced_at, deadline_at, opened_at, base_amount,
-                    planned_amount, floor_rate, currency, source_payload
-                ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    planned_amount, floor_rate, currency, source_payload,
+                    roster_submission_count, source_roster_size,
+                    source_category_label, lineage_observed
+                ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                          %s, %s, %s, %s)
                 on conflict (normalized_record_id) do nothing
                 returning auction_revision_id
                 """,
-                values,
+                inserted_values,
             )
             inserted = cursor.fetchone()
             if inserted is not None:

@@ -61,6 +61,9 @@ class AuctionProjection:
     # `None`으로 명시하게 만들기 위해서다. 기본값이 있으면 계약이 늘어난 날 조용히 비어 버린다.
     floor_rate: Decimal | None
     currency: str
+    # 품목 분류 관측 라벨이다. v1·v2 계약 모두 `classification`을 갖는다. 품목 code scheme이 없어 라벨
+    # 그대로 둔다(EAT-44 판정 §4.2). 기본값이 없는 이유는 floor_rate와 같다.
+    source_category_label: str | None
     source_payload: dict[str, object]
 
 

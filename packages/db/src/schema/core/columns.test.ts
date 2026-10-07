@@ -139,6 +139,10 @@ describe("canonical column 계약", () => {
       "floor_rate",
       "currency",
       "source_payload",
+      "roster_submission_count",
+      "source_roster_size",
+      "source_category_label",
+      "lineage_observed",
     ]);
     expect(columnNullability(auctionRevision)).toEqual({
       auction_revision_id: true,
@@ -157,6 +161,10 @@ describe("canonical column 계약", () => {
       floor_rate: false,
       currency: true,
       source_payload: true,
+      roster_submission_count: false,
+      source_roster_size: false,
+      source_category_label: false,
+      lineage_observed: false,
     });
     expect(columnNames(auctionOrganization)).toEqual([
       "auction_revision_id",

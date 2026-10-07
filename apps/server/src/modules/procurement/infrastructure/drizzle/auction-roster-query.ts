@@ -67,13 +67,15 @@ export function auctionRosterQuery(query: AuctionRosterQuery) {
       select selected.*, observation.observed_at_count, observation.observed_at,
         case when jsonb_typeof(selected.source_payload #> '{roster,submissions}') = 'array'
           then jsonb_array_length(selected.source_payload #> '{roster,submissions}') end as expected_count,
-        (selected.source_payload #>> '{roster,sourceRosterSize}')::integer as source_roster_size
+        -- revision에 같은 이름의 열이 생겼으므로(EAT-308) 별칭을 다르게 둔다. 같으면 selected.*와 겹쳐 아래
+        -- 참조가 모호해지고 쿼리가 실패한다. 옛 행의 열이 채워지기 전(배포 1)에는 jsonb를 계속 읽는다.
+        (selected.source_payload #>> '{roster,sourceRosterSize}')::integer as payload_roster_size
       from selected
       ${purchaserObservedAtJoin(sql.raw("selected"))}
     )
     select r.auction_attempt_id as auction_id, r.auction_revision_id as revision_id,
       r.observation_id, r.normalized_record_id, r.content_sha256, r.source_system,
-      r.observed_at, r.observed_at_count, r.expected_count, r.source_roster_size,
+      r.observed_at, r.observed_at_count, r.expected_count, r.payload_roster_size as source_roster_size,
       b.bid_submission_id as submission_id, b.roster_ordinal, b.supplier_party_id,
       b.source_supplier_account_id, b.amount, b.effective_amount, b.currency,
       b.bid_rate, b.rank, b.submitted_at, supplier_label.label as supplier_name,

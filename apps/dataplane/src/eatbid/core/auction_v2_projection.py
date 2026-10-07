@@ -128,6 +128,11 @@ def build_eat_auction_v2_projection(
         planned_amount=observed_planned_amount(record.pricing.planned_amount),
         floor_rate=_floor_rate(record),
         currency=_CURRENCY,
+        source_category_label=(
+            record.classification.source_category_label.root
+            if record.classification.source_category_label is not None
+            else None
+        ),
         source_payload=canonical_record_object(record),
         roster=_roster(record),
         award=_award(record),
@@ -261,7 +266,12 @@ def _roster(record: EatbidIngestionAuctionV2) -> RosterProjection:
         submissions=tuple(
             _submission(submission, ordinal)
             for ordinal, submission in enumerate(record.roster.submissions)
-        )
+        ),
+        source_roster_size=(
+            record.roster.source_roster_size.root
+            if record.roster.source_roster_size is not None
+            else None
+        ),
     )
 
 
