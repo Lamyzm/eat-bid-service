@@ -1969,6 +1969,9 @@ def test_mart_회수_cron은_수집이_없는_새벽에_하루_한_번_템플릿
 ) -> None:
     """왜: 1일 보존인 mart가 하루 66번 물리면서 900 build·20GB가 쌓였고 활성은 셋뿐이었다(EAT-254).
     회수는 ADR 0034가 허용한 유일한 공개 mart 행 삭제라 어떤 수집 DAG에도 들지 않고 스케줄 하나가 부른다.
+
+    매시간인 이유: 회차 요약·분포의 보존이 3시간이다. 하루 한 번이면 그 사이 물린 사본이 하루치 쌓여, 백필로
+    커진 한 벌(87만 행)이 40여 벌 겹쳐 55GB가 됐다(2026-10-07, EAT-303).
     """
     cron = next(
         cron
@@ -1976,7 +1979,7 @@ def test_mart_회수_cron은_수집이_없는_새벽에_하루_한_번_템플릿
         if _metadata(cron)["name"] == "eatbid-mart-reap"
     )
     spec = _spec(cron)
-    assert spec["schedules"] == ["30 4 * * *"]
+    assert spec["schedules"] == ["45 * * * *"]
     assert spec["timezone"] == "Asia/Seoul"
     assert spec["suspend"] is False
     assert spec["concurrencyPolicy"] == "Forbid"

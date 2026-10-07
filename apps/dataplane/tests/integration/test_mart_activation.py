@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import psycopg
 import pytest
 
@@ -98,6 +100,9 @@ def test_새_build를_활성화하면_이전_활성_build가_물린다(
     assert state[0] == "superseded"
     assert state[1] is not None
     assert state[2] is not None
+    # 회차 요약의 물린 build는 아무도 읽지 않으므로 3시간만 남긴다. 1일이면 30분마다 물리는 사본이 40여 벌
+    # 쌓여 55GB가 됐다(2026-10-07, EAT-303).
+    assert state[2] - state[1] == timedelta(hours=3)
 
 
 def test_빌드가_실패하면_활성_포인터가_움직이지_않는다(

@@ -529,10 +529,14 @@ argo submit --from workflowtemplate/eatbid-dataplane -n eatbid --entrypoint cont
 ### 4.8 물린 mart build의 행 회수 — `reap-marts` (2026-09-17, EAT-254)
 
 mart는 발행마다 새 build로 통째 다시 만들고 이전 활성 build를 `superseded`로 물린다(ADR 0034). 물린 build의
-행은 `retain_until`(회차 요약·낙찰률 분포 1일, 열린 공고 스냅샷 7일)까지만 필요하다. 2026-09-16 실측은 build
+행은 `retain_until`(회차 요약·낙찰률 분포 3시간, 열린 공고 스냅샷 7일)까지만 필요하다. 2026-09-16 실측은 build
 901개 중 활성 3개, 만료 629개, mart 20GB였다.
 
-- 매일 04:30 KST `eatbid-mart-reap` CronWorkflow가 `reap-marts`를 부른다. 시한이 지난 superseded build의 mart
+회차 요약·분포는 처음에 1일 보존·하루 한 번 회수였다. 백필로 한 벌이 열 배쯤 커지자(회차 요약 87만 행) 30분마다
+물리는 사본 46벌이 55GB를 들고 노드 디스크를 90%까지 채웠다(2026-10-07, EAT-303). 그 물린 build는 아무도 읽지
+않으므로(지난 build를 읽는 것은 참여 수 추이의 스냅샷뿐이다) 3시간으로 줄이고 회수를 매시간으로 바꿨다.
+
+- 매시 45분(KST) `eatbid-mart-reap` CronWorkflow가 `reap-marts`를 부른다. 시한이 지난 superseded build의 mart
   행과 보유율 행을 build마다 한 transaction으로 지우고 원장 `mart.build` 행은 계보로 남긴다. 어떤 수집 DAG에도
   들지 않고 mutex도 잡지 않는다.
 - 결과는 workflow output parameter `reaped-builds`·`deleted-rows`와 stdout이다. 같은 날 다시 불러도 이미 행이
