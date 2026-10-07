@@ -20,6 +20,7 @@ import type { EligibilityAreaReader } from "./modules/procurement/application/el
 import type { AnalysisTimeSeriesReader } from "./modules/procurement/application/analysis-time-series-reader";
 import type { CodeReader } from "./modules/reference/application/code-reader";
 import type { AccountRepository } from "./modules/account/application/account-repository";
+import type { OperatorGrantReader } from "./platform/auth/operator-grant-reader";
 import type { RegionPreferenceRepository } from "./modules/account/application/region-preference-repository";
 import { AccountModule } from "./modules/account/account.module";
 import { ProcurementModule } from "./modules/procurement/procurement.module";
@@ -51,6 +52,7 @@ export class AppModule {
           analysisTimeSeriesReader: runtime.analysisTimeSeriesReader,
           codeReader: runtime.codeReader,
           accountRepository: runtime.accountRepository,
+          operatorGrantReader: runtime.operatorGrantReader,
           regionPreferenceRepository: runtime.regionPreferenceRepository,
         }),
         AuthModule.forRuntime({ sessionAuthenticator: runtime.sessionAuthenticator ?? null }),
@@ -78,6 +80,7 @@ export interface AppModuleRuntime {
   readonly analysisTimeSeriesReader?: AnalysisTimeSeriesReader;
   readonly codeReader?: CodeReader;
   readonly accountRepository?: AccountRepository;
+  readonly operatorGrantReader?: OperatorGrantReader;
   readonly regionPreferenceRepository?: RegionPreferenceRepository;
   readonly connection?: ManagedDatabase;
   readonly sessionAuthenticator?: SessionAuthenticator | null;

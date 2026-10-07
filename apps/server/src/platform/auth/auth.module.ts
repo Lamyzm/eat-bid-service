@@ -1,16 +1,17 @@
 /**
- * @module 책임: 인증 주체 판정 port와 principal 해소 port를 주입 토큰에 연결하는 Nest 조립만 담당한다.
+ * @module 책임: 인증 주체 판정·principal 해소·운영자 권한 port를 주입 토큰에 연결하는 Nest 조립만 담당한다.
  *
  * 실제 provider 인스턴스는 bootstrap이 만들어 넘긴다. 모듈이 직접 만들면 test composition이 Google
  * 네트워크 없이 주체를 주입할 방법이 없어지고, 그 자리를 메우려고 production 코드에 우회 분기가 생긴다.
  */
 import { DynamicModule, Global, Module, type Provider } from "@nestjs/common";
-import { ACCOUNT_REPOSITORY } from "../database/database.tokens";
+import { ACCOUNT_REPOSITORY, OPERATOR_GRANT_READER } from "../database/database.tokens";
 import type { AccountRepository } from "../../modules/account/application/account-repository";
 import { AUTH_TOKENS } from "./auth.tokens";
+import type { OperatorGrantReader } from "./operator-grant-reader";
 import type { PrincipalReader } from "./principal-reader";
 import { unavailableSessionAuthenticator, type SessionAuthenticator } from "./session-authenticator";
-import { PrincipalGuard, ProviderSessionGuard } from "./session.guard";
+import { OperatorGuard, PrincipalGuard, ProviderSessionGuard } from "./session.guard";
 
 export interface AuthModuleRuntime {
   /** 인증을 켜지 않은 배포는 `null`이며, 그때 모든 세션 조회는 의존성 없음으로 끝난다. */
@@ -34,6 +35,12 @@ export class AuthModule {
           findBySubject: (subject) => repository.findPrincipalBySubject(subject),
         }),
       },
+      {
+        provide: AUTH_TOKENS.operatorGrantReader,
+        inject: [OPERATOR_GRANT_READER],
+        useFactory: (reader: OperatorGrantReader): OperatorGrantReader => reader,
+      },
+      OperatorGuard,
       PrincipalGuard,
       ProviderSessionGuard,
     ];
@@ -41,7 +48,14 @@ export class AuthModule {
       global: true,
       module: AuthModule,
       providers,
-      exports: [AUTH_TOKENS.principalReader, AUTH_TOKENS.sessionAuthenticator, PrincipalGuard, ProviderSessionGuard],
+      exports: [
+        AUTH_TOKENS.operatorGrantReader,
+        AUTH_TOKENS.principalReader,
+        AUTH_TOKENS.sessionAuthenticator,
+        OperatorGuard,
+        PrincipalGuard,
+        ProviderSessionGuard,
+      ],
     };
   }
 }

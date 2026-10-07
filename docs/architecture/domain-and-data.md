@@ -317,6 +317,12 @@ API role은 이 application-owned 테이블만 읽고 쓸 수 있으며 schema �
 check로 좁힌다. 애플리케이션 선검사만으로는 서로의 미커밋 행을 보지 못해 막을 수 없다. 상세는
 [ADR 0032](../adr/0032-authentication-and-authorization-boundary.md) §3·§8을 따른다.
 
+**운영자 권한은 `app.operator_grant`의 부여·회수 이력이다.** principal의 boolean 열이 아니라 행마다 대상
+`principal_id`, 부여자 `granted_by_principal_id`, `granted_at`, `reason`, 회수 시각 `revoked_at`을 남기고, 회수는 행을
+지우지 않고 `revoked_at`을 채운다. 살아 있는 부여는 `(principal_id) where revoked_at is null` 부분 unique로 사람마다
+하나다. 이 표를 처음 읽는 것은 추천 투찰가 조회(`getAuctionBidPosition`, [ADR 0062](../adr/0062-recommended-bid-in-scope.md))이며,
+부여 절차는 [운영자 권한 runbook](../operations/operator-grant.md)이 소유한다.
+
 JSON은 bigint를 직접 표현하지 못하므로 HTTP path/response에서는 내부 ID를 선행 0 없는 양의 10진 문자열로
 인코딩하되 PostgreSQL signed bigint 최대값 `9223372036854775807`을 넘지 않는다. presentation boundary가
 이를 bigint로 변환하며 application/domain과 DB 관계는 계속 bigint다. `Number`로 변환하지 않고

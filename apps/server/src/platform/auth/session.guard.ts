@@ -1,5 +1,5 @@
 /**
- * @module 책임: 요청의 provider 세션과 bigint principal 해소를 controller 앞에서 판정하고 그 결과를
+ * @module 책임: 요청의 provider 세션·bigint principal 해소·운영자 권한을 controller 앞에서 판정하고 그 결과를
  * ExecutionContext에 명시적으로 실어 준다.
  *
  * 해소 결과를 요청 전역 store에 숨기지 않는 이유: `RequestContextStore`는 상관관계 ID만 담는다고 이미
@@ -17,6 +17,7 @@ import {
 import type { Request } from "express";
 import type { AuthenticatedSubject } from "./auth-identity";
 import { AUTH_TOKENS } from "./auth.tokens";
+import type { OperatorGrantReader } from "./operator-grant-reader";
 import type { PrincipalReader, ResolvedPrincipal } from "./principal-reader";
 import { webHeadersOf } from "./request-headers";
 import { AuthDependencyUnavailable, type SessionAuthenticator } from "./session-authenticator";
@@ -86,19 +87,55 @@ export class PrincipalGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    await resolvePrincipal(this.authenticator, this.reader, context.switchToHttp().getRequest<AuthenticatedRequest>());
+    return true;
+  }
+}
+
+async function resolvePrincipal(
+  authenticator: SessionAuthenticator,
+  reader: PrincipalReader,
+  request: AuthenticatedRequest,
+): Promise<ResolvedPrincipal> {
+  const subject = await authenticate(authenticator, request);
+  let principal: ResolvedPrincipal | null;
+  try {
+    principal = await reader.findBySubject(subject.subject);
+  } catch (error) {
+    // reader는 driver 오류를 typed failure로 바꾸지 않으므로(같은 port를 쓰는 use case도 catch-all로 감싼다)
+    // 여기서 DB 장애와 reader 결함을 타입으로 가르지 못한다. 대신 원인을 503에 실어 거부 로그의 오류 분류가
+    // 둘을 구분하게 한다. 원인 없는 503은 로그에서 "인증을 켜지 않은 배포"와 구분되지 않는다.
+    throw new ServiceUnavailableException(undefined, { cause: error });
+  }
+  if (principal === null) throw new ForbiddenException();
+  request[principalKey] = principal;
+  return principal;
+}
+
+/**
+ * `operator` 수준의 guard다(ADR 0032 §5). 운영자는 다른 수준의 상위집합이 아니므로 principal 해소까지는
+ * PrincipalGuard와 같고, 그 위에 회수되지 않은 운영자 권한을 따로 묻는다. 권한이 없으면 403이다 — 세션은 유효하니
+ * 401로 재로그인을 권하면 안 된다. 권한 조회 장애는 403으로 뭉개지 않고 503이다. 장애를 "권한 없음"으로 읽으면
+ * 운영자가 자기 권한이 회수됐다고 오해한다.
+ */
+@Injectable()
+export class OperatorGuard implements CanActivate {
+  constructor(
+    @Inject(AUTH_TOKENS.sessionAuthenticator) private readonly authenticator: SessionAuthenticator,
+    @Inject(AUTH_TOKENS.principalReader) private readonly reader: PrincipalReader,
+    @Inject(AUTH_TOKENS.operatorGrantReader) private readonly grants: OperatorGrantReader,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    const subject = await authenticate(this.authenticator, request);
-    let principal: ResolvedPrincipal | null;
+    const principal = await resolvePrincipal(this.authenticator, this.reader, request);
+    let granted: boolean;
     try {
-      principal = await this.reader.findBySubject(subject.subject);
+      granted = await this.grants.hasActiveGrant(principal.principalId);
     } catch (error) {
-      // reader는 driver 오류를 typed failure로 바꾸지 않으므로(같은 port를 쓰는 use case도 catch-all로 감싼다)
-      // 여기서 DB 장애와 reader 결함을 타입으로 가르지 못한다. 대신 원인을 503에 실어 거부 로그의 오류 분류가
-      // 둘을 구분하게 한다. 원인 없는 503은 로그에서 "인증을 켜지 않은 배포"와 구분되지 않는다.
       throw new ServiceUnavailableException(undefined, { cause: error });
     }
-    if (principal === null) throw new ForbiddenException();
-    request[principalKey] = principal;
+    if (!granted) throw new ForbiddenException();
     return true;
   }
 }

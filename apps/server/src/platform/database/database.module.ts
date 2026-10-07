@@ -2,6 +2,8 @@
 import { DynamicModule, Global, Module, type Provider } from "@nestjs/common";
 import type { AccountRepository } from "../../modules/account/application/account-repository";
 import { DrizzleAccountRepository } from "../../modules/account/infrastructure/drizzle/drizzle-account-repository";
+import { DrizzleOperatorGrantReader } from "../../modules/account/infrastructure/drizzle/drizzle-operator-grant-reader";
+import type { OperatorGrantReader } from "../auth/operator-grant-reader";
 import { DrizzleRegisteredBusinessReader } from "../../modules/account/infrastructure/drizzle/drizzle-registered-business-reader";
 import type { RegionPreferenceRepository } from "../../modules/account/application/region-preference-repository";
 import { DrizzleRegionPreferenceRepository } from "../../modules/account/infrastructure/drizzle/drizzle-region-preference-repository";
@@ -36,6 +38,7 @@ import { createDatabaseReadiness } from "./database-readiness";
 import { createManagedDatabase, ManagedDatabase } from "./managed-database";
 import {
   ACCOUNT_REPOSITORY,
+  OPERATOR_GRANT_READER,
   AUCTION_READER,
   AUCTION_ROSTER_READER,
   CODE_READER,
@@ -63,6 +66,7 @@ export interface DatabaseModuleOverrides {
   readonly connection?: ManagedDatabase;
   readonly readiness?: DatabaseReadiness;
   readonly accountRepository?: AccountRepository;
+  readonly operatorGrantReader?: OperatorGrantReader;
   readonly regionPreferenceRepository?: RegionPreferenceRepository;
   readonly filterCombinationRepository?: FilterCombinationRepository;
   readonly openAuctionFilterCountsReader?: OpenAuctionFilterCountsReader;
@@ -190,6 +194,12 @@ export class DatabaseModule {
           overrides.accountRepository ?? new DrizzleAccountRepository(connection.database),
       },
       {
+        provide: OPERATOR_GRANT_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): OperatorGrantReader =>
+          overrides.operatorGrantReader ?? new DrizzleOperatorGrantReader(connection.database),
+      },
+      {
         provide: REGION_PREFERENCE_REPOSITORY,
         inject: [DATABASE_CONNECTION],
         useFactory: (connection: ManagedDatabase): RegionPreferenceRepository =>
@@ -220,6 +230,7 @@ export class DatabaseModule {
       providers,
       exports: [
         ACCOUNT_REPOSITORY,
+        OPERATOR_GRANT_READER,
         REGION_PREFERENCE_REPOSITORY,
         FILTER_COMBINATION_REPOSITORY,
         OPEN_AUCTION_FILTER_COUNTS_READER,

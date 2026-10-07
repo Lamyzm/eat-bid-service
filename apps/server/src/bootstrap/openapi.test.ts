@@ -32,6 +32,8 @@ describe("canonical OpenAPI 산출물", () => {
       "/api/v1/auctions",
       "/api/v1/auctions/summary",
       "/api/v1/auctions/{auctionId}",
+      // 운영자만 보는 추천 투찰가다(ADR 0062). 공고 응답과 권한 수준이 달라 path를 나눴다.
+      "/api/v1/auctions/{auctionId}/bid-position",
       "/api/v1/auctions/{auctionId}/roster",
       // listCodes는 EAT-57이 계약을 소유하고 Nest handler는 아직 없다. registry가 OpenAPI의 단일
       // 출처이므로 계약이 열린 사실이 여기 그대로 드러나야 하고, 구현이 붙는 변경에서 handler와
@@ -69,6 +71,7 @@ describe("canonical OpenAPI 산출물", () => {
         "findAnalysisTimeSeries",
         "findAuction",
         "findMyBidObservations",
+        "getAuctionBidPosition",
         "getAuctionRoster",
         "getCurrentSession",
         "getMyRegionPreference",
