@@ -1,27 +1,9 @@
--- 그린필드 전환 전 레거시 `public` 스키마의 표 18개와 시퀀스 1개(약 2.9GB)를 지운다(EAT-312, AGENTS 12). 보존할 것은 R2
--- `archive/legacy-public/20261007-legacy-public.dump`(custom format, 342,411,249 bytes)에 따로 보관했다.
--- 2026-10-07 운영 실측에서 다른 스키마가 참조하는 FK·함수가 없고, Postgres 재시작 이후 넣기·고치기·색인 조회가
--- 0건이며 읽은 것은 백업(pg_dump)뿐이었다.
+-- 이 마이그레이션은 아무것도 바꾸지 않는다(EAT-316). 처음에는 레거시 `public` 표 18개를 지우는 문장이었지만
+-- (EAT-312) 2026-10-07 운영 배포에서 실패했다. 그 표들의 소유자는 database 소유자 `eatbid`이고 마이그레이션
+-- 역할 `eatbid_migrator`는 core·app·ingest·mart만 소유하므로 DROP 권한이 없다. Drizzle이 대기 마이그레이션을
+-- 한 트랜잭션으로 적용해 함께 대기하던 넷이 모두 되감겼다.
 --
--- IF EXISTS인 이유: Drizzle이 이 표들을 만든 적이 없어 처음부터 마이그레이션한 DB(CI·dev)에는 없다. 백업이 도는
--- 동안에는 pg_dump가 잡은 ACCESS SHARE 때문에 lock_timeout(5초)에 걸리므로 백업이 끝난 뒤 동기화한다.
-DROP TABLE IF EXISTS
-  "public"."account",
-  "public"."events",
-  "public"."firm_bids",
-  "public"."firms",
-  "public"."market_regions",
-  "public"."open_auctions",
-  "public"."run_log",
-  "public"."school_auctions",
-  "public"."school_roster",
-  "public"."school_roster_cat",
-  "public"."schools",
-  "public"."session",
-  "public"."user",
-  "public"."user_biz",
-  "public"."user_mark",
-  "public"."user_region",
-  "public"."verification",
-  "public"."workspace_biz";--> statement-breakpoint
-DROP SEQUENCE IF EXISTS "public"."events_id_seq";
+-- 폴더를 지우지 않고 내용만 비운 이유: 표가 없는 DB(CI·dev)에는 원래 문장이 이미 아무 일 없이 적용됐을 수 있고,
+-- 폴더를 지우면 그런 DB의 마이그레이션 사슬이 끊긴다. 레거시 표 제거는 소유권을 마이그레이션 역할로 넘긴 뒤
+-- 새 마이그레이션으로 한다. 보관본은 R2 `archive/legacy-public/20261007-legacy-public.dump`에 있다.
+SELECT 1;
