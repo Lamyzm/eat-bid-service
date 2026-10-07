@@ -37,3 +37,11 @@ def test_postgres는_dev_shm을_메모리_매체로_1Gi까지_쓴다(manifests: 
     }
     assert mounts["/dev/shm"] == "dshm"
     assert mounts["/var/lib/postgresql/data"] == "pgdata"
+
+
+def test_postgres는_옛_Pod가_내려간_뒤에만_새_Pod를_띄운다(manifests: ManifestSet) -> None:
+    """왜: 기본 RollingUpdate는 새 Pod를 먼저 띄워 두 postgres가 같은 데이터 디렉터리를 함께 쓴다. 2026-10-07
+    /dev/shm 변경 배포에서 그렇게 1분간 겹쳐 카탈로그 색인이 상했다(EAT-317)."""
+    spec = _mapping(manifests.named("Deployment", "postgres")["spec"])
+    assert _mapping(spec["strategy"]) == {"type": "Recreate"}
+    assert spec["replicas"] == 1
