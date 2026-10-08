@@ -79,8 +79,12 @@ spec:
       # 6,121만 행을 지우고 VACUUM FULL로 파일을 돌려받아 mart 20GB → 2.9GB, DB 34GB → 19GB, 볼륨 여유
       # 84GB → 93GB가 됐다. 추가 2년은 약 20GB라 여유 안에 든다. 실패한 창은 바닥과 무관하게 남으므로
       # replay로 따로 닫는다(ADR 0053).
+      # 2026-10-07 사용자 결정으로 6년을 더 내려 2015-09로 민다(EAT-315). 먼저 DB 구조를 고쳤다 — 투찰 연도
+      # 파티션 2015~2020(EAT-306), 업체명을 투찰 행에(EAT-310·314, ADR 0063), revision의 jsonb 사본 제거
+      # (EAT-308·313), 레거시 public 제거(EAT-312). 그래야 72개월이 옛 구조로 쌓이지 않는다. 진도는 시간당
+      # 달 하나라 사흘쯤이고, 디스크는 연치당 약 6GB로 추정한다(실측 아님, 진행 중 여유를 본다).
       - name: backfill-floor-date
-        value: "20210901"
+        value: "20150901"
   templates:
     - name: scheduled-pipeline
       dag:
