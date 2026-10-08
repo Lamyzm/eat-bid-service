@@ -2,7 +2,7 @@
 id: RUNTIME-AND-DEPLOYMENT
 status: active
 canonical_for: argo-runtime-execution-and-deployment-topology
-last_reviewed: 2026-09-16
+last_reviewed: 2026-10-08
 review_trigger: argo-cd-or-workflows-topology-cluster-move-or-release-path-change
 ---
 
@@ -438,6 +438,23 @@ main 병합
   회차가 실패로 끝난 2분 뒤에 태그됐다(main은 9월 11일부터 빨간 채로 v0.1.33~36이 나갔다). 그래서
   `workflow:tag`는 `origin/main` HEAD 커밋의 `validate.yml` 회차가 `success`일 때만 태그를 만든다. 장애를 고치는
   배포까지 막으면 안 되므로 `--hotfix "<사유>"`를 주면 통과하되, 사유가 annotated tag 메시지에 남는다(EAT-242).
+- **마이그레이션이 든 릴리스는 동기화 시점을 고르고 미리 돌려 본다(2026-10-07, EAT-316·317).** v0.1.64~66에서
+  세 번 막혔다.
+  - migration Job은 `lock_timeout` 5초다. 백업(pg_dump, 매시 :05부터 약 31분)이 모든 표에 ACCESS SHARE를 쥐는
+    동안 ALTER는 실패하고, Drizzle이 대기 마이그레이션을 한 트랜잭션으로 적용하므로 같이 대기하던 것까지 모두
+    되감긴다. 그래서 태그 전에 auto-sync를 끄고(빌드가 끝나는 순간 자동 동기화되지 않게) 백업·history marts
+    (07·12·16·20시 :40)·poll-open(평일 08~19시) 사이 빈틈에 수동 동기화한 뒤 다시 켠다. 밤 :37~:59가 가장 넓다.
+    CronWorkflow를 kubectl로 suspend해도 수동 동기화가 git 값(`suspend: false`)으로 되돌리므로 예약 멈춤에 기대지
+    않는다. 동기화 직전 `pg_locks`로 대상 표의 잠금이 비었는지 본다.
+  - 태그 전에 대기 마이그레이션 SQL을 운영 DB에서 `begin; set local lock_timeout = '5s'; set local role
+    eatbid_migrator; …; rollback;`으로 돌려 본다. CI의 일회용 DB는 운영의 소유자·크기·잠금을 재현하지 못한다 —
+    레거시 public 표는 소유자가 database 소유자 `eatbid`라 migrator가 지울 수 없었고 CI에는 그 표가 없었다.
+  - 적용 순서는 wave 0(WorkflowTemplate·postgres 등) → 1(migration) → 2(db-provisioning) → 3(server·web)이다.
+    새 dataplane 이미지는 마이그레이션보다 먼저 서고 옛 server는 새 schema를 잠깐 본다. 열을 더할 때는 그 이름이
+    기존 쿼리의 `t.*`와 같은 이름 별칭과 겹치지 않는지 확인한다(겹치면 모호성 오류).
+  - postgres Deployment는 `Recreate`다. RollingUpdate는 새 Pod를 먼저 띄워 두 인스턴스가 같은 데이터 디렉터리를
+    1분간 함께 썼고 카탈로그 색인이 상했다(`REINDEX SYSTEM`으로 복구). 컨테이너마다 PID·IPC 이름공간이 달라
+    postmaster.pid 검사가 이 겹침을 막지 못한다.
 - **코드 권위는 `main`, 발행 권위는 tag다.** `main`은 서버가 보호하며 직접 push를 받지 않고 CI가 초록인
   pull request로만 움직인다([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md)). tag가 발행
   권위인 이유는 이제 branch를 못 막아서가 아니라 prod가 매 병합마다 움직이면 안 되기 때문이다. 불변
