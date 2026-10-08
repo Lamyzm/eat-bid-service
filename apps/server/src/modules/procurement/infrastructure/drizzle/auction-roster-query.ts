@@ -75,7 +75,7 @@ export function auctionRosterQuery(query: AuctionRosterQuery) {
       r.observed_at, r.observed_at_count, r.expected_count, r.source_roster_size,
       b.bid_submission_id as submission_id, b.roster_ordinal, b.supplier_party_id,
       b.source_supplier_account_id, b.amount, b.effective_amount, b.currency,
-      b.bid_rate, b.rank, b.submitted_at, supplier_label.label as supplier_name,
+      b.bid_rate, b.rank, b.submitted_at, b.supplier_label as supplier_name,
       status.code_value_id as status_id, status.code as status_code,
       status_scheme.namespace as status_scheme, status_label.label as status_label,
       withdrawal.code_value_id as withdrawal_id, withdrawal.code as withdrawal_code,
@@ -85,12 +85,6 @@ export function auctionRosterQuery(query: AuctionRosterQuery) {
     from chosen r
     left join core.bid_submission b on b.auction_revision_id = r.auction_revision_id
       and b.auction_attempt_id = r.auction_attempt_id and b.opened_at is not distinct from r.opened_at
-    left join core.source_supplier_account account on account.source_supplier_account_id = b.source_supplier_account_id
-    left join lateral (
-      select label from core.code_label_observation
-      where code_value_id = account.account_code_value_id and observation_id = b.observation_id
-      order by code_label_observation_id desc limit 1
-    ) supplier_label on true
     left join core.code_value status on status.code_value_id = b.source_status_code_value_id
     left join core.code_scheme status_scheme on status_scheme.code_scheme_id = status.code_scheme_id
     left join lateral (

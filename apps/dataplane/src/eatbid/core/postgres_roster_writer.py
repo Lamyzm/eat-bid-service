@@ -30,13 +30,9 @@ _SUBMISSION_COLUMNS = (
     "auction_revision_id, auction_attempt_id, opened_at, roster_ordinal, "
     "source_supplier_account_id, supplier_party_id, submitted_at, amount, "
     "effective_amount, currency, bid_rate, rank, source_status_code_value_id, "
-    "withdrawal_code_value_id, draw_numbers, observed_roster_size, observation_id"
+    "withdrawal_code_value_id, draw_numbers, observed_roster_size, observation_id, "
+    "supplier_label"
 )
-# 업체명은 그 이름이 관측된 투찰 행의 열이다(ADR 0063). 배포 1 동안에는 넣기만 하고 검증하지 않는다 —
-# 채우기 도구가 돌기 전의 옛 행은 이 칸이 비어 있어 같은 발행을 다시 투영하면 거짓 충돌이 난다. 지금도
-# 다른 이름이 오면 이름 관측 행이 하나 더 생길 뿐 검증에 걸리지 않으므로 잃는 검사는 없다. 배포 2에서
-# 이 열을 `_SUBMISSION_COLUMNS`로 합친다.
-_SUBMISSION_INSERT_COLUMNS = f"{_SUBMISSION_COLUMNS}, supplier_label"
 _AWARD_COLUMNS = (
     "auction_revision_id, auction_attempt_id, awarded_roster_ordinal, "
     "source_supplier_account_id, supplier_party_id, awarded_at, awarded_amount, "
@@ -67,7 +63,6 @@ class RosterProjectionWriter:
                 cursor,
                 submission.supplier,
                 observation_id=projection.observation_id,
-                observed_at=observed_at,
                 allow_insert=allow_insert,
             )
             suppliers[submission.roster_ordinal] = supplier
@@ -143,19 +138,20 @@ class RosterProjectionWriter:
             list(submission.draw_numbers),
             submission.observed_roster_size,
             projection.observation_id,
+            # 업체명은 그 이름이 관측된 이 행의 열이다. 다른 이름이 오면 같은 관측의 다른 사실이므로 충돌이다(ADR 0063).
+            submission.supplier.account.label,
         )
         base = AppliedProjectionCounts(code_values=code_values, code_labels=code_labels)
         if allow_insert:
-            inserted_values = (*values, submission.supplier.account.label)
             cursor.execute(
                 f"""
-                insert into core.bid_submission ({_SUBMISSION_INSERT_COLUMNS})
-                values ({", ".join("%s" for _ in inserted_values)})
+                insert into core.bid_submission ({_SUBMISSION_COLUMNS})
+                values ({", ".join("%s" for _ in values)})
                 on conflict (auction_revision_id, roster_ordinal, opened_at)
                 do nothing
                 returning bid_submission_id
                 """,
-                inserted_values,
+                values,
             )
             if cursor.fetchone() is not None:
                 return base + AppliedProjectionCounts(bid_submissions=1)

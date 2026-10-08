@@ -8,12 +8,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
 import psycopg
 
-from eatbid.core.postgres_code_values import resolve_code_value, resolve_observation
+from eatbid.core.postgres_code_values import resolve_code_value
 from eatbid.core.projection_models import (
     AppliedProjectionCounts,
     SupplierAccountProjection,
@@ -41,14 +40,14 @@ class SupplierProjectionWriter:
         supplier: SupplierAccountProjection,
         *,
         observation_id: int,
-        observed_at: datetime,
         allow_insert: bool,
     ) -> tuple[ResolvedSupplier, AppliedProjectionCounts]:
-        account_code_value_id, code_values, code_labels = resolve_observation(
+        # 계정 코드만 앉힌다. 업체명(`SHIPPER_NM`)은 이름 관측 표가 아니라 그 이름이 관측된 투찰 행의 열이다
+        # (ADR 0063) — 관측 1건마다 명단 길이만큼 쌓이던 이름 관측 행이 그 표의 93%였다.
+        account_code_value_id, code_values = resolve_code_value(
             cursor,
-            supplier.account,
-            observation_id=observation_id,
-            observed_at=observed_at,
+            namespace=supplier.account.namespace,
+            code=supplier.account.code,
             allow_insert=allow_insert,
         )
         business_number_code_value_id: int | None = None
@@ -73,7 +72,6 @@ class SupplierProjectionWriter:
             resolved = self._verify_existing(existing, supplier=supplier)
             return resolved, AppliedProjectionCounts(
                 code_values=code_values,
-                code_labels=code_labels,
                 supplier_parties=parties_inserted,
             )
         if not allow_insert:
@@ -103,7 +101,6 @@ class SupplierProjectionWriter:
             ),
             AppliedProjectionCounts(
                 code_values=code_values,
-                code_labels=code_labels,
                 supplier_parties=parties_inserted,
                 supplier_accounts=1,
             ),
