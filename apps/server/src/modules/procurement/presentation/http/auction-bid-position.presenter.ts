@@ -27,10 +27,19 @@ export function toAuctionBidPositionResponse(record: AuctionBidPositionRecord): 
       validatedThrough: record.rule.validatedThrough,
     },
     result: result.state === "not-applicable"
-      ? { state: "not-applicable", reason: result.reason }
+      ? { state: "not-applicable", reasons: [...result.reasons] }
       : {
         state: "applicable",
-        band: result.band,
+        band: { minBidCount: result.band.minBidCount, maxBidCount: result.band.maxBidCount },
+        bidCountBasis: result.bidCountBasis.kind === "observed"
+          ? { kind: "observed", bidCount: result.bidCountBasis.bidCount }
+          : {
+            kind: "estimated",
+            observedBidCount: result.bidCountBasis.observedBidCount,
+            hoursBeforeDeadline: result.bidCountBasis.hoursBeforeDeadline,
+            estimatedBidCount: result.bidCountBasis.estimatedBidCount,
+          },
+        evidence: result.evidence,
         selection: result.selection,
         validationRounds: result.validationRounds,
         holdout: result.holdout === null ? null : {

@@ -20,6 +20,8 @@ kubectl --context eatbid-prod exec -i -n eatbid <postgres pod> -- psql -U eatbid
 | 먼저 | 그다음 |
 |---|---|
 | `position/table.py` (→ `winmat.npz`) | `position/curve2.py`, `position/pair2.py`, `position/triple.py`, `position/ruletable.py`, `position/reselect.py`, `position/asofh.py` |
+| `position/winmat_floor.py <하한율>` (→ `winmat90.npz`·`winmat88.npz`) | `position/reselect3.py <하한율> auto` (→ `rule<하한율>_fair.json`) → `position/ruletable2.py` (→ `rule-2026-10-10.json`); `position/fairbase.py`, `position/asofh3.py`, `position/bysize.py` |
+| `position/growth2.py` (→ `growth2.json`) | `position/asofh3.py` |
 | `position/dadtiming.py` | `position/dadcompare.py`, `position/growth.py`는 독립 |
 | `position/gaptest.py` (→ `gapfeat.npz`) | `position/gaptest2.py`, `position/instratum.py`, `position/compare.py` |
 | `position/cohort.py` (→ `elite.npy`, `mid.npy`) | `position/compare.py` |

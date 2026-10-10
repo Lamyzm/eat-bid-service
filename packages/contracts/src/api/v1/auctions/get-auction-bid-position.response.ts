@@ -50,8 +50,8 @@ export const bidPositionHoldoutSchema = z.strictObject({
 }).meta({ id: "BidPositionHoldout" });
 
 /**
- * 규칙이 검증된 조건 밖에서는 숫자를 내지 않는다. 같은 비율을 참여 40곳 미만에 쓰면 운보다 나빠졌고(0.29배),
- * 하한율이 다르면 축 자체가 다르다. 이유를 enum으로 내 화면이 "왜 없는지"를 말하게 한다.
+ * 규칙이 검증된 조건 밖에서는 숫자를 내지 않는다. 표에 없는 하한율은 축 자체가 다르고, 참여 2곳 미만은 대역이 없다.
+ * 실패한 조건을 모두 내 화면이 "왜 없는지"를 한 번에 말하게 한다.
  */
 export const bidPositionNotApplicableReasonSchema = z.enum([
   "floor-rate-unobserved",
@@ -60,10 +60,28 @@ export const bidPositionNotApplicableReasonSchema = z.enum([
   "participation-below-rule",
 ]).meta({ id: "BidPositionNotApplicableReason" });
 
+/**
+ * 대역을 고른 참여 수의 출처다. 규칙은 마감 1시간 전 참여 수로 대역을 정의했으므로, 그보다 이른 관측은 보정표로 옮긴
+ * 추정값으로 고른다. 관측값과 추정값을 한 숫자로 합치면 화면이 추정을 관측처럼 보인다(AGENTS 3).
+ */
+export const bidCountBasisSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("observed"), bidCount: nonNegativeCountSchema }),
+  z.strictObject({
+    kind: z.literal("estimated"),
+    observedBidCount: nonNegativeCountSchema,
+    hoursBeforeDeadline: nonNegativeCountSchema,
+    estimatedBidCount: nonNegativeCountSchema,
+  }),
+]).meta({ id: "BidCountBasis" });
+
 export const bidPositionResultSchema = z.discriminatedUnion("state", [
   z.strictObject({
     state: z.literal("applicable"),
-    band: z.enum(["40-69", "70-plus"]),
+    band: z.strictObject({ minBidCount: nonNegativeCountSchema, maxBidCount: nonNegativeCountSchema.nullable() }),
+    bidCountBasis: bidCountBasisSchema,
+    // 표본 밖 두 채점(검증 기간·봉인 달)을 합친 두 장 배수의 95% 하한이 1 이하면 `weak`다. 그 대역의 금액은 운과
+    // 구별되지 않을 수 있다는 뜻이며 화면이 그대로 말해야 한다.
+    evidence: z.enum(["clear", "weak"]),
     // `training`이면 검증 기간 수치가 선택에 쓰이지 않은 표본 밖 결과이고, `validation-informed`면 학습 상위 후보 중
     // 검증 성적으로 골라 낙관적이다. 이 구분이 AGENTS 8의 "보정 상태"다.
     selection: z.enum(["training", "validation-informed"]),
@@ -73,13 +91,13 @@ export const bidPositionResultSchema = z.discriminatedUnion("state", [
   }),
   z.strictObject({
     state: z.literal("not-applicable"),
-    reason: bidPositionNotApplicableReasonSchema,
+    reasons: z.array(bidPositionNotApplicableReasonSchema).min(1).max(4),
   }),
 ]).meta({ id: "BidPositionResult" });
 
 /**
- * 계산에 쓴 입력을 결과와 함께 되돌린다. 참여 수는 관측 시각과 짝이며, 규칙의 조건은 "마감 1시간 전 참여 수"라
- * 그보다 이른 관측이면 대역이 바뀔 수 있다는 것을 화면이 마감 시각과 견줘 말할 수 있어야 한다.
+ * 계산에 쓴 입력을 결과와 함께 되돌린다. 참여 수는 관측 시각과 짝이고, 대역을 고른 수가 그 관측인지 추정인지는
+ * `result.bidCountBasis`가 말한다.
  */
 export const auctionBidPositionV1ResponseSchema = z.strictObject({
   auctionId: positiveBigintTextSchema,
@@ -95,3 +113,4 @@ export const auctionBidPositionV1ResponseSchema = z.strictObject({
 export type AuctionBidPositionV1Response = z.infer<typeof auctionBidPositionV1ResponseSchema>;
 export type BidPositionWire = z.infer<typeof bidPositionSchema>;
 export type BidPositionNotApplicableReason = z.infer<typeof bidPositionNotApplicableReasonSchema>;
+export type BidCountBasisWire = z.infer<typeof bidCountBasisSchema>;
