@@ -31,7 +31,7 @@ function AmountRow({ row }: { readonly row: MarketPickRow }) {
     <>
       <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
         <span className='text-sm text-muted-foreground'>{row.label}</span>
-        <span className='text-lg font-bold tabular-nums md:text-xl'>{row.amount}</span>
+        <span className='text-xl font-bold tabular-nums'>{row.amount}</span>
       </div>
       <p className='mt-0.5 text-xs text-muted-foreground tabular-nums'>{row.baseRelative}</p>
     </>
@@ -46,7 +46,7 @@ function MarketPickSection({ view }: { readonly view: MarketPickView }) {
         {view.title}
       </h3>
       {view.kind === 'not-applicable' ? (
-        <p className='mt-2 text-sm text-muted-foreground'>{view.reason}</p>
+        <p className='mt-2 text-sm'>{view.reason}</p>
       ) : (
         <>
           <p className='mt-1 text-xs leading-relaxed text-muted-foreground'>{view.basis}</p>
