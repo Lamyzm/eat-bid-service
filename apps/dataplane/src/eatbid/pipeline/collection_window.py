@@ -17,7 +17,7 @@ _EAT_DATE_WIRE = "%Y%m%d"
 # 이틀의 여유를 둔다. 표본은 8월 하순 한 주뿐이므로 다른 학기 구간의 꼬리는 재검토 대상이다.
 DAILY_RECONCILE_LOOKBACK = timedelta(days=6)
 
-ScheduledMode = Literal["poll-open", "daily-reconcile"]
+ScheduledMode = Literal["poll-open", "daily-reconcile", "poll-results"]
 COLLECTION_MODES: tuple[CollectionRunMode, ...] = get_args(CollectionRunMode)
 
 
@@ -54,7 +54,8 @@ def resolve_collection_window(
         raise ValueError(f"{mode} derives its window from --as-of; do not pass dates")
     # eaT 날짜는 서울 달력 날짜이므로 UTC instant를 서울로 옮긴 뒤 날짜를 취한다.
     today = as_of.astimezone(_SEOUL_TIME).date()
-    if mode == "poll-open":
+    # 결과 줄은 정시 수집과 같은 목록 행 집합을 봐야 상태가 바뀐 공고를 같은 기준으로 가려낸다(ADR 0064).
+    if mode in ("poll-open", "poll-results"):
         start = today
     else:
         start = today - DAILY_RECONCILE_LOOKBACK

@@ -74,6 +74,7 @@ unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 | mode | 목적 | 초기 예약 |
 |---|---|---|
 | `poll-open` | 열린 공고·변경을 업무시간에 짧은 지연으로 반영. 상세는 목록 신호가 바뀐 공고만 다시 부른다(§2.4) | 평일 08:00~19:50 KST 10분 간격(§2.5). 신규 공고 노출 SLO 15분 |
+| `poll-results` | 평일 오전 개찰 결과(명단)를 공개 뒤 몇 분 안에 core에 앉힘. 목록은 다 읽고 상세는 상태 라벨이 바뀐 공고만 부른다(§2.7, [ADR 0064](../adr/0064-results-only-collection-lane.md)) | 평일 09:00~12:25 KST 5분 간격 |
 | `daily-reconcile` | 전체 상태·변경·개찰·낙찰을 재대조. 창 안 공고 전부의 상세를 부르는 강제 재호출이다 | 일 1회 |
 | `backfill` | 날짜×지역×상태 범위를 채움. 창을 고르는 판단은 사람이 아니라 예약이 하고 사람은 floor date를 선언한다([ADR 0052](../adr/0052-backfill-progress-recovery-and-advance.md)) | 전진 CronWorkflow |
 | `replay` | 기존 raw를 새 parser/projector version으로 재해석 | ad hoc |
@@ -100,6 +101,7 @@ semaphore key 분리다 — 스케줄 수집은 `eatbid-source-live`, backfill�
 | mode | `--start-date`/`--end-date` | 출처 |
 |---|---|---|
 | `poll-open` | 오늘 하루 | CLI가 `--as-of`에서 번역, 인자로 주면 거부 |
+| `poll-results` | 오늘 하루 | poll-open과 같다. CLI가 `--as-of`에서 번역, 인자로 주면 거부 |
 | `daily-reconcile` | 오늘-6일 ~ 오늘 | CLI가 `--as-of`에서 번역, 인자로 주면 거부 |
 | `backfill` | 사람이 지정 | `argo submit --from workflowtemplate/eatbid-dataplane --entrypoint backfill-pipeline -p mode=backfill -p start-date=YYYYMMDD -p end-date=YYYYMMDD` |
 
@@ -242,8 +244,24 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
   하루 진도는 평일 24창에서 20창으로 준다. 재처리 전진(replay-advance)은 소스를 부르지 않아 이 변경에서
   그대로 두지만 발행 mutex를 함께 쓰므로, 08:25 회차가 poll-open 발행을 늦추는지는 아래 실측 항목에 넣는다.
 - 효과는 `refetch-reasons`(workflow output)의 `post-deadline-window` 몫, 회차 실행 시간과 그 안의 발행 mutex
-  대기로 다음 성수기(10월 하순)에 잰다. 회차가 주기의 절반 안에 끝나지 않으면 결과 전용 차선(낙찰 상태만 목록으로 받아 상세를
-  부르는 별도 모드·semaphore key)을 다음 결정으로 검토한다.
+  대기로 다음 성수기(10월 하순)에 잰다. 결과 전용 차선은 §2.7로 들였다(2026-10-11).
+
+### 2.7 개찰 결과 전용 수집 줄 (2026-10-11, EAT-335, ADR 0064)
+
+**`poll-results`는 평일 09:00~12:25 KST에 5분마다 목록을 다 읽고, 상태 라벨이 바뀐 공고의 상세만 다시 부른다.** 명단은 낙찰
+전이 때 처음 공개되므로(§2.6) 이 줄은 정시 수집 회차 크기와 무관하게 공개 뒤 몇 분 안에 명단을 core에 앉힌다.
+
+- 진입점 `results-pipeline`은 discover·capture만 결과 전용 key `eatbid-source-results`(1)를 쓰는 변형이고 normalize·validate·
+  project는 scheduled-pipeline과 같다. marts는 잇지 않는다 — 스냅샷 활성화가 마지막 build 승리라 오래된 poll-open build와 앞뒤가
+  뒤집힌다. 목록 스냅샷은 poll-open이 다음 회차에 맞춘다.
+- 기준 release는 모드별이다(`refetch_baseline.baseline_run_modes`). poll-open·daily-reconcile은 그 둘의 봉인 release만, 결과 줄은
+  그 둘에 자기 release를 더해 고른다. 결과 줄 release가 정시 수집 기준이 되면 투찰 수만 바뀐 공고를 정시 수집이 놓친다.
+- 새 공고·투찰 수·마감·정정·마감 뒤 창은 poll-open 몫이다. 기준이 없으면 결과 줄은 아무것도 부르지 않는다.
+- 효과는 예정 개찰 → 명단 첫 관측의 시간대별 가운데값과 30·45·60분 안 비율로 잰다. 2026-10-12(월)이 v0.1.69 기준선이다.
+  결과 줄 project가 `eatbid-core-publication`을 기다린 시간과 결과 줄 시간대의 `SOURCE_THROTTLED`·보류 횟수도 함께 본다 — 보류가
+  한 번이라도 걸리면 결과 줄을 멈춘다(ADR 0064 중단 조건).
+- 공고 상세·명단 조회가 최신 개정본을 관측 순으로 고르기 전(EAT-333)에는 결과 줄을 배포하지 않는다. 투영 순으로 고르면 늦게
+  끝난 정시 수집 회차가 결과 줄이 앉힌 낙찰을 화면에서 잠시 되돌린다.
 
 ## 3. 실행 안전장치
 
@@ -723,7 +741,7 @@ namespace의 Deployment·Pod·PVC 읽기(get·list)를 더했다(`infra/base/wor
 `eatbid` CLI의 command 표(`eatbid/cli/main.py`의 `COMMAND_METHODS`)에 있는 모든 command가 production
 composition root에 연결되어 있고, product WorkflowTemplate `eatbid-dataplane`은 그 표의 command만 호출한다.
 `infra/tests`가 WorkflowTemplate이 부르는 command와 이 표를 대조하므로 한쪽에만 있는 command는 gate에서
-드러난다. 수집 schedule은 CronWorkflow 세 개뿐이며 `poll-open`·`daily-reconcile`은 활성이고
+드러난다. 수집 schedule은 CronWorkflow 네 개뿐이며 `poll-open`·`poll-results`·`daily-reconcile`은 활성이고
 `reference-refresh`는 `spec.suspend: true`다. 수집이 아닌 예약(백필·재처리 전진, 과거 기록 mart, 회수, 백업, 감시)도
 같은 CronWorkflow이며 별도 스케줄러를 두지 않는다. 레거시 Kubernetes CronJob과 수기 `schema.sql`은 base
 manifest에서 제거했고, 같은 `infra/tests`가 base·product 렌더 양쪽에서 native CronJob 0을 강제한다

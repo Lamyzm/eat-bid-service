@@ -209,6 +209,28 @@ spec:
           - *task-project
           - *task-marts
 
+    # 개찰 결과 전용 DAG다(2026-10-11, EAT-335, ADR 0064). 평일 오전 5분마다 목록을 다 읽고 상태 라벨이 바뀐
+    # 공고의 상세만 다시 불러 명단을 core에 앉힌다. discover·capture만 결과 전용 semaphore key를 쓰는 변형으로
+    # 바꾼다 — 재대조를 나눈 것과 같은 이유다.
+    #
+    # marts를 잇지 않는다. open_auction_snapshot의 활성화는 마지막으로 활성화한 build가 이기는데, 결과 줄이
+    # 5분마다 새 목록으로 build를 올리면 몇 시간 걸린 poll-open 회차가 그보다 오래된 목록의 build를 나중에
+    # 올려 화면이 뒤로 간다. 명단은 core에 앉으면 맞춤 금액과 공고 상세가 읽고, 목록 스냅샷은 poll-open이
+    # 다음 회차에 맞춘다. core 투영 뒤 캐시 무효화는 project 단계가 한다.
+    #
+    # mode는 CronWorkflow가 poll-results로 넘긴다. entrypoint를 비우면 scheduled-pipeline이 불려 live key를
+    # 잡으므로 poll-results.yaml이 entrypoint를 명시한다.
+    - name: results-pipeline
+      dag:
+        tasks:
+          - <<: *task-discover
+            template: discover-results
+          - <<: *task-capture
+            template: capture-results
+          - *task-normalize
+          - *task-validate
+          - *task-project
+
     # 스스로 전진하는 백필이다(2026-09-14, EAT-209, ADR 0052 결정 4).
     #
     # 왜 새 진입점인가. backfill-pipeline은 창을 workflow 파라미터로 받는다 — 사람이 정해 주는 모양이다.
@@ -577,6 +599,16 @@ spec:
               name: eatbid-workflow-limits
               key: eatbid-source-reconcile
 
+    # discover와 같은 container·outputs를 anchor로 물려받고 semaphore key만 결과 전용으로 바꾼 변형이다.
+    # results-pipeline만 이 template을 부른다. 나눈 이유는 그 DAG 주석을 본다.
+    - <<: *tmpl-discover
+      name: discover-results
+      synchronization:
+        semaphores:
+          - configMapKeyRef:
+              name: eatbid-workflow-limits
+              key: eatbid-source-results
+
     - &tmpl-capture
       name: capture
       inputs:
@@ -766,6 +798,16 @@ spec:
           - configMapKeyRef:
               name: eatbid-workflow-limits
               key: eatbid-source-reconcile
+
+    # capture와 같은 inputs·outputs·container를 anchor로 물려받고 semaphore key만 결과 전용으로 바꾼
+    # 변형이다. results-pipeline만 이 template을 부른다.
+    - <<: *tmpl-capture
+      name: capture-results
+      synchronization:
+        semaphores:
+          - configMapKeyRef:
+              name: eatbid-workflow-limits
+              key: eatbid-source-results
 
     - name: normalize
       inputs:

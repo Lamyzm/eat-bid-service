@@ -18,7 +18,9 @@ from eatbid.source.client import SourceResponse
 from eatbid.storage.object_store import StoredRawObject
 
 # eaT 목록 조회의 날짜 창으로 번역되는 모드다. `discover --mode`가 받는 값이 정확히 이 셋이다.
-CollectionRunMode = Literal["poll-open", "daily-reconcile", "backfill"]
+# `poll-results`는 평일 오전 개찰 결과만 빨리 받는 정시 실행이다(ADR 0064). 목록은 poll-open과 같은 창으로 다 읽고 상세는
+# 상태가 바뀐 공고만 부른다.
+CollectionRunMode = Literal["poll-open", "daily-reconcile", "backfill", "poll-results"]
 # `reference`는 창이 없는 실행이다. 정부 공개 파일 한 벌이 곧 관측 하나여서 번역할 기간이 없다.
 # run 정체성·실패 분류·관측 보존 규칙은 수집과 같으므로 run mode 목록에는 함께 두되, 창을 만드는
 # 목록과는 분리한다. 하나로 두면 `discover --mode reference`가 받아들여지고 창이 비어 버린다.
@@ -31,7 +33,7 @@ CodeVocabularyRunMode = Literal["code-vocabulary"]
 # 아니라 Literal 타입들을 돌려주어 값 검사가 조용히 통과한다. 넷이 어긋나지 않는지는
 # `tests/unit/test_run_modes.py`가 고정한다.
 CaptureRunMode = Literal[
-    "poll-open", "daily-reconcile", "backfill", "reference", "code-vocabulary"
+    "poll-open", "daily-reconcile", "backfill", "poll-results", "reference", "code-vocabulary"
 ]
 
 

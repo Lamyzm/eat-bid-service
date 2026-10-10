@@ -67,5 +67,12 @@ data:
   # 두 개가 동시에 돌아 그 시간이 줄고, poll-open은 자기 key라 영향받지 않는다. 늘리고 줄이는 비용이
   # 이 줄 하나이며 소스 동시 호출은 backfill 8을 이미 견디고 있다.
   eatbid-source-reconcile: "2"
+  # 개찰 결과 전용 key다(2026-10-11, EAT-335, ADR 0064). 결과 줄이 live를 함께 쓰면 성수기에 몇 시간짜리
+  # poll-open 회차 뒤에 줄 서서 "공개 뒤 몇 분 안"이라는 존재 이유가 사라진다. 재대조를 나눈 것과 같은
+  # 이유이며 같은 방법이다.
+  #
+  # 1이다. 회차마다 목록 page 한두 장과 상태가 바뀐 공고의 상세 수십 건뿐이라 직렬로 5분 안에 끝나고,
+  # 소스 동시 호출은 live 1 + reconcile 2 + backfill 8을 이미 견디고 있다(평일 08~11시는 backfill이 비킨다).
+  eatbid-source-results: "1"
   eatbid-source-backfill: "8"
   eatbid-source-limit: "1"
