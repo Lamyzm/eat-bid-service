@@ -17,7 +17,7 @@
 
 - 목표 모듈 경계와 의존 방향은 [ADR 0023](../../docs/adr/0023-nextjs-web-modular-boundaries.md)과
   [Frontend application foundation](../../docs/architecture/frontend-application-foundation.md)을 따른다.
-- 현재 manifest와 frozen lock은 Next.js `16.3.6`, React/React DOM `19.2.8`, TypeScript `5.9.3`,
+- 현재 manifest와 frozen lock은 Next.js `16.3.8`, React/React DOM `19.2.8`, TypeScript `5.9.3`,
   TanStack Query `5.102.8`, TanStack Form `1.33.5`, Tailwind CSS `4.3.3`을 사용한다. Tailwind v5를
   가정하지 않고 stable v4 lane을 유지한다.
 - `typedRoutes: true`와 `next typegen && tsc --noEmit`을 사용한다. route 오류를 `as Route`, `as any` 또는
