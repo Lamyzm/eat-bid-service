@@ -4,6 +4,7 @@
  */
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { connection } from 'next/server';
 import { Suspense } from 'react';
 
 import { getCurrentSessionFromServer } from '@/api/account/server';
@@ -51,6 +52,9 @@ async function WorkspaceSessionGate() {
  * 아무것도 그리지 않는다 — 권한의 권위는 operation guard라서 늦게 나타나는 것은 정확성 문제가 아니다.
  */
 async function OperatorNavSlot() {
+  // 계정 슬롯과 같은 이유로 요청에 닿았음을 먼저 알린다. 없으면 prerender가 API_URL 없는 origin 해석에서 throw해
+  // 빌드가 멈춘다(EAT-163, account-hub-slot.tsx).
+  await connection();
   const group = operatorNavGroup(await getCurrentSessionFromServer());
   return group === null ? null : <NavGroupMenus groups={[group]} />;
 }
