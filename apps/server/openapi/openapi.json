@@ -1671,6 +1671,57 @@
         "pattern": "^(?:0|[1-9][0-9]{0,4})\\.[0-9]{4}$",
         "type": "string"
       },
+      "BidCountBasis": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "bidCount": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              },
+              "kind": {
+                "enum": [
+                  "observed"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "bidCount"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "estimatedBidCount": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              },
+              "hoursBeforeDeadline": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              },
+              "kind": {
+                "enum": [
+                  "estimated"
+                ],
+                "type": "string"
+              },
+              "observedBidCount": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            },
+            "required": [
+              "kind",
+              "observedBidCount",
+              "hoursBeforeDeadline",
+              "estimatedBidCount"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      },
       "BidPosition": {
         "additionalProperties": false,
         "properties": {
@@ -1750,9 +1801,33 @@
             "additionalProperties": false,
             "properties": {
               "band": {
+                "additionalProperties": false,
+                "properties": {
+                  "maxBidCount": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/NonNegativeCount"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "minBidCount": {
+                    "$ref": "#/components/schemas/NonNegativeCount"
+                  }
+                },
+                "required": [
+                  "minBidCount",
+                  "maxBidCount"
+                ],
+                "type": "object"
+              },
+              "bidCountBasis": {
+                "$ref": "#/components/schemas/BidCountBasis"
+              },
+              "evidence": {
                 "enum": [
-                  "40-69",
-                  "70-plus"
+                  "clear",
+                  "weak"
                 ],
                 "type": "string"
               },
@@ -1792,6 +1867,8 @@
             "required": [
               "state",
               "band",
+              "bidCountBasis",
+              "evidence",
               "selection",
               "validationRounds",
               "holdout",
@@ -1802,8 +1879,13 @@
           {
             "additionalProperties": false,
             "properties": {
-              "reason": {
-                "$ref": "#/components/schemas/BidPositionNotApplicableReason"
+              "reasons": {
+                "items": {
+                  "$ref": "#/components/schemas/BidPositionNotApplicableReason"
+                },
+                "maxItems": 4,
+                "minItems": 1,
+                "type": "array"
               },
               "state": {
                 "enum": [
@@ -1814,7 +1896,7 @@
             },
             "required": [
               "state",
-              "reason"
+              "reasons"
             ],
             "type": "object"
           }

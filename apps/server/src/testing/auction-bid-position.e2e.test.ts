@@ -88,21 +88,18 @@ describe("추천 투찰가 HTTP 경계", () => {
       expect(asked).toEqual([11n]);
       expect(response.body.auctionId).toBe("9007199254740993");
       expect(response.body.rule).toEqual({
-        version: "2026-10-07", trainedThrough: "2025-12", validatedFrom: "2026-01", validatedThrough: "2026-08",
+        version: "2026-10-10", trainedThrough: "2025-12", validatedFrom: "2026-01", validatedThrough: "2026-08",
       });
       expect(response.body.result.state).toBe("applicable");
-      expect(response.body.result.band).toBe("40-69");
-      expect(response.body.result.selection).toBe("validation-informed");
-      expect(response.body.result.holdout).toEqual({
-        month: "2026-09", rounds: 869, tickets: 2, wins: 41, lotteryExpectedWins: "33.7",
-      });
-      expect(response.body.result.positions[0]).toEqual({
+      expect(response.body.result.band).toEqual({ minBidCount: 40, maxBidCount: 69 });
+      expect(response.body.result.bidCountBasis).toEqual({ kind: "observed", bidCount: 52 });
+      expect(response.body.result.selection).toBe("training");
+      expect(response.body.result.evidence).toBe("clear");
+      expect(response.body.result.holdout).toMatchObject({ month: "2026-09", tickets: 2 });
+      expect(response.body.result.positions[0]).toMatchObject({
         order: 1,
-        amount: { amount: "15219619.00", currency: "KRW" },
-        baseRelativeRate: { value: "88.6950", unit: "percentage-points" },
-        cumulativeWinRate: { value: "2.260870", unit: "percentage-points" },
-        cumulativeLotteryWinRate: { value: "1.787757", unit: "percentage-points" },
-        cumulativeValidationWins: 78,
+        amount: { amount: "15227341.00", currency: "KRW" },
+        baseRelativeRate: { value: "88.7400", unit: "percentage-points" },
       });
       expect(response.body.participation).toEqual({ bidCount: 52, observedAt: "2026-10-07T01:00:00Z" });
     });
@@ -129,15 +126,25 @@ describe("추천 투찰가 HTTP 경계", () => {
     });
   });
 
-  test("참여 40곳 미만이면 금액 없이 사유만 낸다", async () => {
-    const few: AuctionRecord = {
+  test("표에 없는 하한율이면 금액 없이 사유만 내고, 마감 전 관측은 추정 근거를 함께 낸다", async () => {
+    const outside: AuctionRecord = {
       ...auction,
-      participation: { latest: { bidCount: 39, observedAt: Temporal.Instant.from("2026-10-07T01:00:00Z") }, dayEarlier: null },
+      terms: { floorRate: bidRate(canonicalDecimal("82.995", 3)), awardMethod: null },
     };
-    await withServer({ grants: granted, reader: { findById: async () => few } }, async (server) => {
+    await withServer({ grants: granted, reader: { findById: async () => outside } }, async (server) => {
       const response = await request(server).get(path);
       expect(response.status).toBe(200);
-      expect(response.body.result).toEqual({ state: "not-applicable", reason: "participation-below-rule" });
+      expect(response.body.result).toEqual({ state: "not-applicable", reasons: ["floor-rate-outside-rule"] });
+    });
+    const early: AuctionRecord = {
+      ...auction,
+      participation: { latest: { bidCount: 36, observedAt: Temporal.Instant.from("2026-10-06T14:00:00Z") }, dayEarlier: null },
+    };
+    await withServer({ grants: granted, reader: { findById: async () => early } }, async (server) => {
+      const response = await request(server).get(path);
+      expect(response.body.result.bidCountBasis).toEqual({
+        kind: "estimated", observedBidCount: 36, hoursBeforeDeadline: 12, estimatedBidCount: 49,
+      });
     });
   });
 
