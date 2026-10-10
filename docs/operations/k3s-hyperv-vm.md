@@ -2,7 +2,7 @@
 id: K3S-HYPERV-VM
 status: active
 canonical_for: always-on-single-node-cluster-host
-last_reviewed: 2026-09-05
+last_reviewed: 2026-10-10
 review_trigger: cluster-host-or-k3s-version-change
 ---
 
@@ -20,10 +20,10 @@ VM은 호스트 부팅 시 자동 시작되고 k3s는 systemd 서비스라 로�
 
 | 항목 | 값 |
 | -- | -- |
-| VM | `eatbid-k3s`, Gen2, 4 vCPU, 12GB 고정, 100GB 동적 VHDX |
+| VM | `eatbid-k3s`, Gen2, 12 vCPU, 24GB 고정, 300GB 동적 VHDX(2026-10-10 RAM 32GB 호스트로 옮기며 키움, EAT-322). 스크립트 기본값은 4 vCPU·12GB·100GB이므로 `-Cpu`·`-MemoryBytes`·`-DiskBytes`로 준다 |
 | 네트워크 | 내부 스위치 `eatbid-vm` + 호스트 NAT `eatbid-vm-nat`(172.30.0.0/24), VM 고정 IP 172.30.0.10, 게이트웨이 172.30.0.1 |
 | k3s | `v1.35.5+k3s1`(k3d와 동일), traefik·servicelb 기본값 유지, tls-san 172.30.0.10 |
-| 접속 | `ssh -i ~/.ssh/eatbid-vm eatbid@172.30.0.10`, kubectl context `eatbid-vm` |
+| 접속 | 호스트에서 `ssh -i ~/.ssh/eatbid-vm eatbid@172.30.0.10`, 다른 PC에서는 §2.1의 portproxy. kubectl context `eatbid-prod` |
 | 산출물 위치 | `C:\VMs\eatbid\`(cloud 이미지, VHDX, seed ISO, 덤프) |
 
 ## 2. 만들기 (관리자 PowerShell, 저장소 루트에서)
@@ -72,6 +72,20 @@ PC의 것을 써야 그 PC에서 VM에 ssh가 된다. Docker Desktop이 깔려�
 eatbid-prod`로 진행한다. VM에 직접 ssh는 `ssh -p 2222 -i ~/.ssh/eatbid-vm eatbid@<호스트 IP>`이며 키는 VM을
 만들 때 넣은 공개키의 짝이어야 한다.
 
+2026-10-10 RAM 32GB 호스트로 옮길 때(EAT-322) 드러난 것:
+
+- 호스트의 스크립트는 PowerShell 7(`pwsh`, `winget install Microsoft.PowerShell`)로 돌린다. Windows PowerShell
+  5.1은 BOM 없는 UTF-8 스크립트의 한글을 ANSI로 읽어 구문을 깨뜨린다. 그리고 `Bootstrap-EatbidCluster.ps1`의
+  Secret 존재 검사(`kubectl get secret ... 2>$null`)가 내는 "not found"를 오류로 던져 첫 Secret에서 멈춘다.
+- `-ArtifactsOnly`도 관리자 검사와 `Resize-VHD`를 거치므로 관리자 권한이 없는 개발 PC에서는 돌지 않는다. 그때는
+  스크립트의 `qemu-img`·`genisoimage` docker 명령을 그대로 실행해 VHDX·seed ISO만 만들어 보낸다. 그다음 새 호스트에서
+  `Resize-VHD -SizeBytes <DiskBytes>`로 먼저 키우고 `New-EatbidVm.ps1`을 실행한다. 이미 있는 디스크는 재사용만 하고
+  키우지 않는다.
+- 부트스트랩은 새 호스트에서 돌렸다. 호스트에 kubectl(`winget install Kubernetes.kubectl`)을 깔고, 옛 운영
+  context와 새 클러스터 context(서버 주소는 VM IP)를 함께 담은 kubeconfig를 둔다. 수동 Secret을 옛 클러스터에서
+  복사하기 때문이다. 이전 기간에는 새 클러스터를 `eatbid-next`로 부르고, cutover 뒤 `eatbid-prod`로 바꾼다.
+- 운영 호스트에서 Docker Desktop의 자동 시작(`HKCU\...\Run`의 `Docker Desktop`)을 지운다. VM에 줄 메모리를 차지한다.
+
 Windows 기본 OpenSSH 서버가 구버전이라 동작하지 않는 기기가 있었다(2026-09-10 운영 PC). 그 경우
 winget의 최신 OpenSSH나 다른 sshd를 쓰고 기본 기능은 다시 켜지 않는다. Tailscale은 `--unattended`로 붙여
 로그인 없이도 터널이 살아 있게 한다.
@@ -80,7 +94,7 @@ winget의 최신 OpenSSH나 다른 sshd를 쓰고 기본 기능은 다시 켜지
 
 ```powershell
 .\infra\vm\Bootstrap-EatbidCluster.ps1 -RepoRoot (Get-Location).Path
-kubectl --context eatbid-vm get application -n argocd
+kubectl --context <새 context> get application -n argocd
 ```
 
 Argo CD `v3.5.1`을 upstream manifest로 설치하고, Argo가 스스로 만들 수 없는 수동 Secret 다섯
@@ -111,27 +125,67 @@ postgres는 Infisical `prod:/runtime/postgres`(`POSTGRES_USER`·`POSTGRES_PASSWO
 ## 4. 데이터 이전
 
 ```powershell
-.\infra\vm\Migrate-EatbidPostgres.ps1
+# 두 호스트가 같은 LAN이면 새 호스트에서 실행한다. 덤프가 실행 PC를 거치기 때문이다.
+pwsh -File .\infra\vm\Migrate-EatbidPostgres.ps1 -SourceContext eatbid-prod -TargetContext eatbid-next
 ```
 
-`pg_dumpall --clean --if-exists`로 역할과 비밀번호까지 옮기고 두 쪽의 행 수를 나란히 찍는다. 원본
-레이크는 R2가 권위라 옮기지 않는다. 덤프에 실린 권한은 이제 참고값일 뿐이고, 복원 뒤 첫 sync에서
-provisioning Job이 저장소의 상태로 다시 세운다.
+먼저 옛 클러스터의 자동 sync를 풀고 CronWorkflow를 suspend한 뒤, 실행 중이던 workflow가 끝나기를 기다린다(§5의
+4번 명령). 스크립트도 실행 중 workflow가 있으면 멈춘다. 진행 중인 run을 덤프하면 새 클러스터에서 아무도 닫지 않는
+run으로 남기 때문이다.
+
+역할과 비밀번호는 `pg_dumpall --globals-only`로 옮긴다. 데이터베이스 단위 권한(datacl)은 원본에서 읽어 그대로 다시
+준다. 이 권한은 globals에도 스키마 덤프에도 실리지 않는다. 2026-10-10에는 이것이 빠져 migration Job이
+`CREATE SCHEMA IF NOT EXISTS "drizzle"`에서 권한 거부로 멈췄고, 사이트가 12분 동안 503이었다.
+
+데이터는 우리 스키마 여섯(core·ingest·mart·app·monitoring·drizzle)만 원본 파드 안에서 `pg_dump -Fc` 파일로 만든다.
+대상까지의 경로는 다음과 같다.
+
+- 원본 파드에서 호스트로는 `kubectl exec ... cat` 출력으로 받는다. 7GB가 sha256까지 맞았다.
+- 호스트에서 VM으로는 scp로 보낸다. 같은 PC 안의 가상 스위치라 7GB에 41초가 걸렸다.
+- VM에서는 같은 파일시스템인 pgdata 볼륨 디렉터리로 `mv`하고, 대상 파드가 그 경로를 읽는다.
+
+대상 쪽을 `kubectl exec -i` 입력으로 넣지 않는 이유가 있다. 새 클러스터(k3s v1.35.5)에서 1MB 이상 입력이 종료
+코드 0인 채 다른 내용으로 도착했다. 호스트의 Windows kubectl도, VM 안의 리눅스 kubectl도 같았다. 이 경로에는
+호스트에서 VM으로 비밀번호 없는 ssh 키가 필요하다. 호스트에서 `ssh-keygen -N ''`로 만들고(`pwsh`에서 `-N '""'`는
+`""` 두 글자가 암호가 된다) 공개키를 VM의 `authorized_keys`에 더한다.
+
+그다음 `pg_restore -j 8`로 병렬 복원하고 ANALYZE한 뒤, 표마다 정확한 행 수를 두 쪽에서 대조한다. 2026-10-10 실측은
+덤프 7.2GB에 16분, 복원에 23분이었다. 2026-09-10까지 쓰던 평문 `pg_dumpall`은 DB가 커지자 색인을 하나씩 다시
+만드느라 너무 느려 바꿨다(EAT-322).
+
+레거시 `public` 표는 R2에 보관돼 있고 의존이 없어 옮기지 않는다. 원본 레이크도 R2가 권위라 옮기지 않는다. 덤프에
+실린 권한은 참고값이다. 복원 뒤 첫 sync에서 provisioning Job이 저장소의 상태로 다시 세운다.
+
+덤프 뒤에도 사이트는 옛 클러스터에서 계속 응답하므로, 가입·설정 같은 사용자 작성 상태가 그 사이 옛 DB에 쌓인다.
+그래서 cutover에서 옛 cloudflared를 0으로 내린 직후 `-Schemas app -ReplaceSchemas -SkipGlobals`로 `app`만 다시
+맞춘다(§5). 수집은 suspend돼 있으므로 나머지 스키마는 변하지 않는다.
 
 ## 5. cutover (사용자 확인 뒤)
 
 cloudflared는 같은 터널 자격증명으로 두 클러스터에서 동시에 붙을 수 있다. 그래서 순서는 "겹쳐 켜고 →
 확인하고 → 옛 것을 끈다"이며 중단 창이 없다.
 
+2026-10-10(EAT-322)에는 순서가 달랐다. 덤프 전에 옛 클러스터의 자동 sync를 풀고 CronWorkflow 아홉 개를 모두
+suspend해 수집 쓰기를 먼저 멈췄다. 그래서 겹쳐 켜기 대신 다음 순서를 따랐다.
+
+1. 옛 cloudflared를 0으로 내린다.
+2. `app`만 다시 맞춘다(§4).
+3. 새 클러스터에 automated Application을 적용한다.
+4. server·web·cloudflared가 Ready이고 eatbid.net이 200인지 확인한다.
+
+중단은 12분이었는데, 그중 11분은 데이터베이스 권한이 빠진 탓이었다(§4). 권한까지 옮겼다면 중단 창은 migration·
+provisioning·이미지 기동에 드는 몇 분이다. 사용자 작성 상태가 갈라지지 않으므로, 중단 창이 짧은 지금은 이 순서가
+겹쳐 켜기보다 안전하다.
+
 0. 4절 이전이 끝난 뒤에야 새 클러스터의 자동 sync를 켠다. 부트스트랩은 `eatbid` Application을 syncPolicy 없이
-   적용해 두므로 여기서 원본을 다시 적용한다: `kubectl --context <새 context> apply -f infra/argocd/application.yaml`.
+   적용해 두므로 여기서 원본을 다시 적용한다: `kubectl --context <새 context> apply -f infra/argocd/prod.application.yaml`.
    순서를 바꿔 automated로 먼저 적용하면 cloudflared가 server·web보다 먼저 떠서 같은 터널의 요청 일부가 빈
    클러스터로 가 503이 난다(2026-09-10 실측, EAT-129).
-1. VM의 `cloudflared`·`server`·`web`이 Ready인지 확인한다: `kubectl --context eatbid-vm get pods -n eatbid`.
+1. VM의 `cloudflared`·`server`·`web`이 Ready인지 확인한다: `kubectl --context <새 context> get pods -n eatbid`.
 2. eatbid.net을 몇 번 호출해 두 클러스터가 번갈아 응답하는지, 오류가 없는지 본다.
 3. 마지막 덤프·복원을 한 번 더 돌린다(4절). 이 시점부터 옛 클러스터에는 쓰지 않는다.
-4. 옛 클러스터를 내린다. 순서는 자동 sync 해제 → 수집 CronWorkflow suspend → 실행 중 Workflow 종료 →
-   cloudflared 0이다. 수집을 먼저 멈추지 않으면 겹쳐 켜진 동안 두 DB가 갈린다(2026-09-10 실측: 18:30 회차 직전).
+4. 옛 클러스터를 내린다. 순서는 자동 sync 해제 → 모든 CronWorkflow suspend(2026-10 기준 아홉 개. 백필·재처리·
+   mart·백업도 DB에 쓴다) → 실행 중 Workflow가 끝나기를 기다리기(종료하면 진행 중 run이 남는다) → cloudflared 0이다. 수집을 먼저 멈추지 않으면 겹쳐 켜진 동안 두 DB가 갈린다(2026-09-10 실측: 18:30 회차 직전).
    ```powershell
    kubectl --context <옛> -n argocd patch application eatbid --type merge -p '{"spec":{"syncPolicy":null}}'
    kubectl --context <옛> -n eatbid patch cronwf eatbid-poll-open --type merge -p '{"spec":{"suspend":true}}'
