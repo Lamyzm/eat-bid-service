@@ -1675,6 +1675,302 @@
         "pattern": "^(?:0|[1-9][0-9]{0,4})\\.[0-9]{4}$",
         "type": "string"
       },
+      "BidBoardMarketCell": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "positions": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "$ref": "#/components/schemas/Money"
+                    },
+                    "baseRelativeRate": {
+                      "$ref": "#/components/schemas/BaseRelativeBidRate"
+                    },
+                    "order": {
+                      "maximum": 3,
+                      "minimum": 1,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "order",
+                    "amount",
+                    "baseRelativeRate"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 2,
+                "minItems": 1,
+                "type": "array"
+              },
+              "single": {
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "$ref": "#/components/schemas/Money"
+                  },
+                  "baseRelativeRate": {
+                    "$ref": "#/components/schemas/BaseRelativeBidRate"
+                  },
+                  "order": {
+                    "maximum": 3,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "order",
+                  "amount",
+                  "baseRelativeRate"
+                ],
+                "type": "object"
+              },
+              "spares": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "$ref": "#/components/schemas/Money"
+                    },
+                    "baseRelativeRate": {
+                      "$ref": "#/components/schemas/BaseRelativeBidRate"
+                    },
+                    "order": {
+                      "maximum": 5,
+                      "minimum": 3,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "baseRelativeRate",
+                    "order"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              "state": {
+                "enum": [
+                  "applicable"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "positions",
+              "single",
+              "spares"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "reasons": {
+                "items": {
+                  "$ref": "#/components/schemas/BidPositionMarketPickReason"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "type": "array"
+              },
+              "state": {
+                "enum": [
+                  "not-applicable"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "reasons"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      },
+      "BidBoardMarketPick": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/BidPositionMarketEvidence"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "linkedBusinesses": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "marketRounds": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            ],
+            "nullable": true
+          },
+          "minimumRounds": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/BidPositionMarketPickReason"
+            },
+            "maxItems": 5,
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "picked",
+              "not-applicable"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "$ref": "#/components/schemas/KstDateText"
+          },
+          "window": {
+            "additionalProperties": false,
+            "properties": {
+              "fromMonth": {
+                "$ref": "#/components/schemas/KstMonthText"
+              },
+              "throughMonth": {
+                "$ref": "#/components/schemas/KstMonthText"
+              }
+            },
+            "required": [
+              "fromMonth",
+              "throughMonth"
+            ],
+            "type": "object"
+          },
+          "windowMonths": {
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "windowMonths",
+          "minimumRounds",
+          "window",
+          "state",
+          "reasons",
+          "marketRounds",
+          "linkedBusinesses",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "BidBoardRow": {
+        "additionalProperties": false,
+        "properties": {
+          "auctionId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "baseAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              }
+            ],
+            "nullable": true
+          },
+          "bidCount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            ],
+            "nullable": true
+          },
+          "closesAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstantText"
+              }
+            ],
+            "nullable": true
+          },
+          "displayBidNo": {
+            "maxLength": 64,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "floorRate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidRate"
+              }
+            ],
+            "nullable": true
+          },
+          "itemLabel": {
+            "maxLength": 200,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "market": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidBoardMarketCell"
+              }
+            ],
+            "nullable": true
+          },
+          "observedAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "organizationLabel": {
+            "maxLength": 200,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "rule": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidPositionResult"
+              }
+            ],
+            "nullable": true
+          },
+          "title": {
+            "maxLength": 500,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "auctionId",
+          "closesAt",
+          "organizationLabel",
+          "title",
+          "itemLabel",
+          "displayBidNo",
+          "baseAmount",
+          "floorRate",
+          "bidCount",
+          "observedAt",
+          "rule",
+          "market"
+        ],
+        "type": "object"
+      },
       "BidCountBasis": {
         "oneOf": [
           {
@@ -3421,6 +3717,77 @@
           "attemptId",
           "revisionId",
           "result"
+        ],
+        "type": "object"
+      },
+      "MyBidBoardV1Response": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "asOf": {
+                "$ref": "#/components/schemas/InstantText"
+              },
+              "closesBeforeDate": {
+                "$ref": "#/components/schemas/KstDateText"
+              },
+              "marketPick": {
+                "$ref": "#/components/schemas/BidBoardMarketPick"
+              },
+              "regionPreference": {
+                "enum": [
+                  "confirmed"
+                ],
+                "type": "string"
+              },
+              "rows": {
+                "items": {
+                  "$ref": "#/components/schemas/BidBoardRow"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              "rule": {
+                "$ref": "#/components/schemas/BidPositionRule"
+              }
+            },
+            "required": [
+              "regionPreference",
+              "asOf",
+              "closesBeforeDate",
+              "rule",
+              "marketPick",
+              "rows"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "asOf": {
+                "$ref": "#/components/schemas/InstantText"
+              },
+              "regionPreference": {
+                "enum": [
+                  "unconfirmed"
+                ],
+                "type": "string"
+              },
+              "rows": {
+                "items": {
+                  "$ref": "#/components/schemas/BidBoardRow"
+                },
+                "maxItems": 0,
+                "type": "array"
+              }
+            },
+            "required": [
+              "regionPreference",
+              "asOf",
+              "rows"
+            ],
+            "type": "object"
+          }
         ],
         "type": "object"
       },
@@ -6845,6 +7212,101 @@
         "summary": "지역 선택 하나가 오늘 몇 건을 잡고 지난 90일 중 몰리는 날 최대 몇 건이었는지를 실제 조회로 답한다. 저장하지 않은 선택으로도 물을 수 있다.",
         "tags": [
           "코드 사전"
+        ]
+      }
+    },
+    "/api/v1/me/bid-board": {
+      "get": {
+        "operationId": "getMyBidBoard",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "items",
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/AuctionItemAtom"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "itemUnknown",
+            "schema": {
+              "enum": [
+                "include"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyBidBoardV1Response"
+                }
+              }
+            },
+            "description": "오늘 투찰 조회 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "query가 유효하지 않음"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "운영자 권한 없음, 신뢰하지 않는 Origin 또는 계정 초기화 미완료"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "관심 지역의 내일 자정 전 마감 하한율 90·88 공고마다 이번 달 맞춤과 전국 공식 금액을 한 번에 낸다. 운영자 전용이다.",
+        "tags": [
+          "내 계정과 조건"
         ]
       }
     },

@@ -8,6 +8,9 @@ import { AuctionRosterController } from "./presentation/http/auction-roster.cont
 import { AuctionBidPositionController } from "./presentation/http/auction-bid-position.controller";
 import { DecideMarketPick } from "./application/decide-market-pick";
 import { FindAuctionBidPosition } from "./application/find-auction-bid-position";
+import { GetMyBidBoard } from "./application/get-my-bid-board";
+import { MyBidBoardController } from "./presentation/http/my-bid-board.controller";
+import type { RegionPreferenceRepository } from "../account/application/region-preference-repository";
 import { FindAuction } from "./application/find-auction";
 import { FindAnalysisConditionOptions } from "./application/find-analysis-condition-options";
 import { FindAnalysisHistory } from "./application/find-analysis-history";
@@ -45,6 +48,7 @@ import {
   OWN_BID_READER,
   MARKET_ROUND_READER,
   READ_SNAPSHOT,
+  REGION_PREFERENCE_REPOSITORY,
   REGISTERED_BUSINESS_READER,
 } from "../../platform/database/database.tokens";
 import type { Clock } from "@eatbid/domain";
@@ -147,6 +151,14 @@ const previewRegionCoverageProvider = {
   useFactory: (reader: EligibilityAreaReader, clock: Clock) => new PreviewRegionCoverage(reader, clock),
 };
 
+// 오늘 투찰은 관심 지역을 query가 아니라 저장소에서 읽고(조합 건수와 같은 이유), 맞춤 배수는 공고 상세와 같은 결정 하나를 쓴다.
+const getMyBidBoardProvider = {
+  provide: GetMyBidBoard,
+  inject: [OPEN_AUCTION_READER, REGION_PREFERENCE_REPOSITORY, DecideMarketPick, CLOCK],
+  useFactory: (reader: OpenAuctionReader, regions: RegionPreferenceRepository, decideMarketPick: DecideMarketPick, clock: Clock) =>
+    new GetMyBidBoard(reader, regions, decideMarketPick, clock),
+};
+
 const listOpenAuctionsProvider = {
   provide: ListOpenAuctions,
   inject: [OPEN_AUCTION_READER, CLOCK],
@@ -174,6 +186,7 @@ const findMyBidObservationsProvider = {
     AuctionController,
     AuctionRosterController,
     EligibilityAreaController,
+    MyBidBoardController,
     MyBidObservationsController,
   ],
   providers: [
@@ -182,6 +195,7 @@ const findMyBidObservationsProvider = {
     findAuctionProvider,
     decideMarketPickProvider,
     findAuctionBidPositionProvider,
+    getMyBidBoardProvider,
     findAnalysisTimeSeriesProvider,
     findAnalysisConditionOptionsProvider,
     findAnalysisHistoryProvider,
