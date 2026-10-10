@@ -6,6 +6,7 @@ import { CachedAuctionRosterReader } from "./infrastructure/caching/cached-aucti
 import { GetAuctionRoster } from "./application/get-auction-roster";
 import { AuctionRosterController } from "./presentation/http/auction-roster.controller";
 import { AuctionBidPositionController } from "./presentation/http/auction-bid-position.controller";
+import { DecideMarketPick } from "./application/decide-market-pick";
 import { FindAuctionBidPosition } from "./application/find-auction-bid-position";
 import { FindAuction } from "./application/find-auction";
 import { FindAnalysisConditionOptions } from "./application/find-analysis-condition-options";
@@ -77,17 +78,24 @@ const findAuctionProvider = {
   useFactory: (reader: AuctionReader) => new FindAuction(reader),
 };
 
-// 내 시장 맞춤 금액은 등록 판정과 시장 조회를 한 읽기 스냅샷에서 하고, 창의 양끝을 주입된 clock으로 정한다(AGENTS 17).
-const findAuctionBidPositionProvider = {
-  provide: FindAuctionBidPosition,
-  inject: [AUCTION_READER, READ_SNAPSHOT, REGISTERED_BUSINESS_READER, MARKET_ROUND_READER, CLOCK],
+// 내 시장 맞춤 배수는 등록 판정과 시장 조회를 한 읽기 스냅샷에서 하고, 창의 양끝을 주입된 clock으로 정한다(AGENTS 17).
+// 공고 상세와 오늘 투찰이 같은 결정 하나를 쓴다.
+const decideMarketPickProvider = {
+  provide: DecideMarketPick,
+  inject: [READ_SNAPSHOT, REGISTERED_BUSINESS_READER, MARKET_ROUND_READER, CLOCK],
   useFactory: (
-    reader: AuctionReader,
     snapshot: UnitOfWork,
     businesses: RegisteredBusinessReader,
     marketRounds: MarketRoundReader,
     clock: Clock,
-  ) => new FindAuctionBidPosition(reader, snapshot, businesses, marketRounds, clock),
+  ) => new DecideMarketPick(snapshot, businesses, marketRounds, clock),
+};
+
+const findAuctionBidPositionProvider = {
+  provide: FindAuctionBidPosition,
+  inject: [AUCTION_READER, DecideMarketPick],
+  useFactory: (reader: AuctionReader, decideMarketPick: DecideMarketPick) =>
+    new FindAuctionBidPosition(reader, decideMarketPick),
 };
 
 // 열린 공고의 "열림" 판정은 현재 시각의 함수라 clock을 요구한다. `Temporal.Now` 직접 호출은 금지이며
@@ -172,6 +180,7 @@ const findMyBidObservationsProvider = {
     cachedAuctionRosterReaderProvider,
     getAuctionRosterProvider,
     findAuctionProvider,
+    decideMarketPickProvider,
     findAuctionBidPositionProvider,
     findAnalysisTimeSeriesProvider,
     findAnalysisConditionOptionsProvider,

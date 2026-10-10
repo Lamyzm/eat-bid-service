@@ -8,6 +8,7 @@ import { auctionId } from "../domain/auction-id";
 import { MARKET_PICK_FIXTURE } from "../domain/__fixtures__/market-position-pick";
 import { floorRelativeRatio, type MarketRound } from "../domain/market-position-pick";
 import type { AuctionRecord } from "./auction-reader";
+import { DecideMarketPick } from "./decide-market-pick";
 import { FindAuctionBidPosition } from "./find-auction-bid-position";
 import type { MarketRoundQuery, MarketRoundReader } from "./market-round-reader";
 
@@ -65,10 +66,7 @@ function useCase(options: {
   };
   return new FindAuctionBidPosition(
     { findById: async () => record },
-    snapshot,
-    reader,
-    market,
-    fixedClock(Temporal.Instant.from("2026-10-12T03:00:00Z")),
+    new DecideMarketPick(snapshot, reader, market, fixedClock(Temporal.Instant.from("2026-10-12T03:00:00Z"))),
   );
 }
 
