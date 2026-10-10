@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Server } from "node:http";
 import request from "supertest";
-import { myBidBoardV1Operations, myBidBoardV1ResponseSchema } from "@eatbid/contracts";
+import { myBidBoardV1Operations, myBidBoardV1ResponseSchema, sessionV1Operations } from "@eatbid/contracts";
 import { bidRate, canonicalDecimal, fixedClock, krw, Temporal } from "@eatbid/domain";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
@@ -134,6 +134,26 @@ describe("오늘 투찰 HTTP 경계", () => {
     await withServer({ grants: granted }, async (server) => {
       const response = await request(server).get(`${path}?items=${encodeURIComponent("축산")}`);
       expect(response.status).toBe(400);
+    });
+  });
+});
+
+describe("세션의 운영자 표시(배포 중 옛 web 보호)", () => {
+  const sessionPath = sessionV1Operations.getCurrentSession.buildPath({ path: undefined });
+
+  test("요청하지 않으면 운영자 여부를 묻지도 싣지도 않고, include=operator일 때만 싣는다", async () => {
+    // 옛 web은 query 없이 세션을 읽고 모르는 key가 있으면 응답을 통째로 거부한다. 그 요청에는 새 key가 없어야 한다.
+    let asked = 0;
+    await withServer({ grants: { hasActiveGrant: async () => { asked++; return true; } } }, async (server) => {
+      const plain = await request(server).get(sessionPath);
+      expect(plain.status).toBe(200);
+      expect(plain.body.state).toBe("active");
+      expect("operator" in plain.body).toBe(false);
+      expect(asked).toBe(0);
+      const opted = await request(server).get(`${sessionPath}?include=operator`);
+      expect(opted.status).toBe(200);
+      expect(opted.body).toMatchObject({ state: "active", operator: true });
+      expect((await request(server).get(`${sessionPath}?include=everything`)).status).toBe(400);
     });
   });
 });

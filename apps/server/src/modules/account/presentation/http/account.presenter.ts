@@ -94,7 +94,7 @@ export function toCurrentSessionResponse(record: CurrentSessionRecord): CurrentS
     account,
     principalId: bigintText(record.principal.principalId),
     workspace: toWorkspaceSummary(record.principal.workspace),
-    operator: record.operator,
+    ...(record.operator === null ? {} : { operator: record.operator }),
   };
 }
 

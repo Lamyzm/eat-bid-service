@@ -25,8 +25,11 @@ export type CurrentSessionRecord =
     readonly state: "active";
     readonly subject: AuthenticatedSubject;
     readonly principal: ResolvedPrincipal;
-    /** 화면이 운영자 전용 메뉴를 그릴지 정하는 표시다. 권한 판정 자체는 각 operation의 guard가 다시 한다. */
-    readonly operator: boolean;
+    /**
+     * 화면이 운영자 전용 메뉴를 그릴지 정하는 표시다. 권한 판정 자체는 각 operation의 guard가 다시 한다. 요청하지 않았으면
+     * null이다 — 묻지 않은 권한을 읽지도, 응답에 싣지도 않는다(배포 중 옛 web 보호).
+     */
+    readonly operator: boolean | null;
   };
 
 export class GetCurrentSession {
@@ -36,7 +39,7 @@ export class GetCurrentSession {
     private readonly grants: OperatorGrantReader,
   ) {}
 
-  execute(headers: Headers): Effect.Effect<
+  execute(headers: Headers, options: { readonly includeOperator: boolean }): Effect.Effect<
     CurrentSessionRecord,
     AuthDependencyUnavailable | AccountDependencyUnavailable
   > {
@@ -55,7 +58,7 @@ export class GetCurrentSession {
           catch: (cause) => new AccountDependencyUnavailable(cause),
         }).pipe(Effect.flatMap((principal) => principal === null
           ? Effect.succeed<CurrentSessionRecord>({ state: "uninitialized", subject })
-          : Effect.promise(() => this.isOperator(principal.principalId))
+          : Effect.promise(() => (options.includeOperator ? this.isOperator(principal.principalId) : Promise.resolve(null)))
             .pipe(Effect.map((operator): CurrentSessionRecord => ({ state: "active", subject, principal, operator })))));
       }),
     );

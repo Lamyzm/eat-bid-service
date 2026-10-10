@@ -2580,8 +2580,7 @@
               "state",
               "account",
               "principalId",
-              "workspace",
-              "operator"
+              "workspace"
             ],
             "type": "object"
           }
@@ -8327,6 +8326,18 @@
     "/api/v1/session": {
       "get": {
         "operationId": "getCurrentSession",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "enum": [
+                "operator"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -8337,6 +8348,16 @@
               }
             },
             "description": "세션 상태 조회 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "query가 유효하지 않음"
           },
           "500": {
             "content": {

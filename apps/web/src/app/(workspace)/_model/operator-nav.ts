@@ -8,7 +8,8 @@ import type { CurrentSessionRead } from '@/api/account/server';
 import type { NavGroup } from '@/shell/layout/nav-config';
 
 export function operatorNavGroup(read: CurrentSessionRead): NavGroup | null {
-  if (read.kind !== 'session' || read.response.state !== 'active' || !read.response.operator) return null;
+  // 값이 없으면(옛 server, 배포 중) 운영자가 아니라고 읽는다.
+  if (read.kind !== 'session' || read.response.state !== 'active' || read.response.operator !== true) return null;
   return {
     label: '내 투찰',
     items: [{ title: '오늘 투찰', url: '/work', icon: 'post', isActive: false, items: [] }]

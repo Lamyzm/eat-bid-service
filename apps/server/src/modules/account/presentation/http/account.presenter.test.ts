@@ -61,6 +61,8 @@ describe("계정 presenter", () => {
       operator: false,
     });
     expect(operator).toMatchObject({ state: "active", operator: true });
+    // 요청하지 않은 운영자 여부는 key째 싣지 않는다. 옛 web의 엄격한 schema가 모르는 key로 세션을 거부하지 않게 한다.
+    expect("operator" in toCurrentSessionResponse({ state: "active", subject, principal, operator: null })).toBe(false);
     expect(toAccountInitializationResponse(principal)).toEqual({
       principalId: "9007199254740993",
       workspace: { workspaceId: "9007199254740995", name: "내 워크스페이스", role: "owner" },

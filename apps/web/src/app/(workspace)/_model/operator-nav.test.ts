@@ -21,6 +21,9 @@ describe('운영자 탐색 묶음', () => {
 
   test('운영자가 아니거나 세션이 활성이 아니면 묶음이 없다', () => {
     expect(operatorNavGroup({ kind: 'session', response: active(false) })).toBeNull();
+    // 옛 server는 운영자 여부를 싣지 않는다. 배포가 섞인 동안에는 묶음을 그리지 않는다.
+    const { operator: _omitted, ...withoutOperator } = active(true) as Extract<CurrentSessionV1Response, { state: 'active' }>;
+    expect(operatorNavGroup({ kind: 'session', response: withoutOperator })).toBeNull();
     expect(operatorNavGroup({ kind: 'session', response: { state: 'unauthenticated' } })).toBeNull();
     expect(operatorNavGroup({ kind: 'auth-unavailable' })).toBeNull();
   });

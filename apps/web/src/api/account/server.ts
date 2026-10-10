@@ -46,7 +46,7 @@ export type CurrentSessionRead =
 export const getCurrentSessionFromServer = cache(
   async function getCurrentSessionFromServer(): Promise<CurrentSessionRead> {
     try {
-      return { kind: 'session', response: await getCurrentSessionWith(privateServerRequest) };
+      return { kind: 'session', response: await getCurrentSessionWith(privateServerRequest, { includeOperator: true }) };
     } catch (error) {
       if (isAccountDependencyUnavailableError(error)) return { kind: 'auth-unavailable' };
       throw error;

@@ -18,7 +18,8 @@ function session(options: { readonly signedIn?: boolean; readonly grants: Operat
   return new GetCurrentSession(authenticator, reader, options.grants);
 }
 
-const run = (subjectUseCase: GetCurrentSession) => new EffectRunner().run(subjectUseCase.execute(new Headers()));
+const run = (subjectUseCase: GetCurrentSession, includeOperator = true) =>
+  new EffectRunner().run(subjectUseCase.execute(new Headers(), { includeOperator }));
 
 describe("현재 세션 판정", () => {
   test("운영자 권한이 있는 활성 세션은 운영자라고 싣는다", async () => {
@@ -32,6 +33,14 @@ describe("현재 세션 판정", () => {
     expect(await run(session({ grants: { hasActiveGrant: async () => false } }))).toMatchObject({ state: "active", operator: false });
     const broken = await run(session({ grants: { hasActiveGrant: async () => { throw new Error("private grant failure"); } } }));
     expect(broken).toMatchObject({ state: "active", operator: false });
+  });
+
+  test("운영자 여부를 요청하지 않으면 권한을 묻지 않고 싣지도 않는다", async () => {
+    // 옛 web은 이 값을 모르는 엄격한 schema로 세션을 읽는다. 요청하지 않은 값을 실으면 배포 중 옛 화면이 통째로 깨진다.
+    let asked = 0;
+    const result = await run(session({ grants: { hasActiveGrant: async () => { asked++; return true; } } }), false);
+    expect(result).toMatchObject({ state: "active", operator: null });
+    expect(asked).toBe(0);
   });
 
   test("로그인하지 않았으면 권한을 묻지 않는다", async () => {
