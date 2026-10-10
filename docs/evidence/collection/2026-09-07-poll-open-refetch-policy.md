@@ -2,7 +2,7 @@
 id: EVIDENCE-COLLECTION-POLL-REFETCH-2026-09-07
 status: active
 canonical_for: poll-open-detail-refetch-request-count
-last_reviewed: 2026-09-07
+last_reviewed: 2026-10-10
 review_trigger: poll-open-schedule-or-refetch-policy-change
 ---
 
@@ -70,4 +70,65 @@ review_trigger: poll-open-schedule-or-refetch-policy-change
 $wf = kubectl --context eatbid-vm -n eatbid get wf eatbid-poll-open-<unix> -o json | ConvertFrom-Json
 $discover = $wf.status.nodes.PSObject.Properties.Value | Where-Object { $_.displayName -eq "discover" -and $_.type -eq "Pod" }
 $discover.outputs.parameters | Where-Object { $_.name -in "discovered-count","detail-count","refetch-reasons" }
+```
+
+## 5. 10분 주기·성수기 회차 실측 (2026-09, EAT-329)
+
+운영 DB(`ingest.run`, mode `poll-open`)를 읽기 전용으로 셌다. 주기가 10분이 된 뒤(runtime §2.5) 성수기
+오전에는 회차 하나가 두세 시간을 넘겼다. 회차 사이의 tick은 `concurrencyPolicy: Forbid`로 만들어지지 않으므로
+그동안 낙찰된 공고의 명단은 다음 회차까지 기다린다.
+
+| 날짜(KST) | 회차 | 회차 시간 | 계획 상세 수 |
+|---|---|---|---|
+| 09-15(화, 평시) | 오전 | 4~15분 간격으로 연달아 | — |
+| 09-21(월, 성수기) | 4 | 190 · 193 · 162 · 141분 | 5,774 ~ 7,139 |
+| 09-22(화) | 5 | 104 ~ 155분 | — |
+
+상세 한 건 응답은 평시 0.65초, 성수기 1.6초였다(같은 시간에 전진 백필 capture 8개가 소스를 함께 썼다).
+회차별 이유 집계(`refetch-reasons`)는 workflow status에만 남고 옛 클러스터의 workflow는 TTL로 지워져,
+`post-deadline-window`가 그 회차들의 몇 할이었는지는 재지 못했다. 30분 칸 규칙(ADR 0037 후속) 뒤의 몫은
+다음 성수기 회차의 `refetch-reasons`로 §3과 같은 표에 채운다.
+
+```sql
+-- 성수기 poll-open 회차 시간과 계획 상세 수
+select to_char(started_at at time zone 'Asia/Seoul','MM-DD HH24:MI') as st,
+       round(extract(epoch from ended_at - started_at)/60) as min, status, expected_count
+  from ingest.run where mode = 'poll-open' and expected_count > 10
+   and started_at >= timestamptz '2026-09-21 07:00+09' and started_at < timestamptz '2026-09-24 00:00+09'
+ order by started_at;
+```
+
+## 6. 명단이 처음 보이는 상태 (2026-09-01~21 평일 08~12시 개찰, 하한율 90)
+
+§3의 "확인할 것" 둘째 항목에 대한 첫 실측이다. 회차의 개정본마다 관측 시각과 명단 행 수를 보고 명단이
+처음 붙은 개정본의 상태를 셌다.
+
+- 명단이 처음 보인 개정본 3,086건은 모두 상태 `낙찰`이었다. `개찰` 상태 개정본에 명단이 있던 회차는 0건이다.
+- 예정 개찰 → 명단 첫 관측: 가운데값 159분, 40분 안 180건(5.8%), 90분 안 21.7%(전부 낙찰방식 003).
+- 9-15 표본 72건 중 69건은 예정 개찰 뒤 52분 동안 상세를 여섯 번 불러도 명단이 비어 있었다.
+
+즉 명단은 상태 전이(`signal-changed`)와 함께 처음 들어오고, 마감 뒤 창의 회차마다 재호출은 그 시간대에
+빈 응답을 반복했다. 창을 30분 칸으로 줄이고 없애지 않은 이유(낙찰 라벨과 명단 채움 사이의 경합 미측정)는
+ADR 0037 후속 결정에 있다.
+
+```sql
+-- 회차별 첫 명단 개정본의 상태(관측 시각 순)
+with a as (
+  select distinct on (auction_attempt_id) auction_attempt_id, opened_at
+    from core.auction_revision
+   where opened_at >= timestamptz '2026-09-01 00:00+09' and opened_at < timestamptz '2026-09-22 00:00+09'
+     and floor_rate = 90
+     and extract(isodow from opened_at at time zone 'Asia/Seoul') between 1 and 5
+     and extract(hour from opened_at at time zone 'Asia/Seoul') between 8 and 12
+   order by auction_attempt_id, observation_id desc),
+rv as (
+  select rv.auction_attempt_id, rv.source_status, o.fetched_at,
+         (select count(*) from core.bid_submission b where b.auction_revision_id = rv.auction_revision_id) as roster
+    from core.auction_revision rv join a using (auction_attempt_id)
+    join ingest.raw_observation o on o.observation_id = rv.observation_id)
+select coalesce(status_at_first_roster, '(명단 없음)'), count(*)
+  from (select auction_attempt_id,
+               (array_agg(source_status order by fetched_at) filter (where roster > 0))[1] as status_at_first_roster
+          from rv group by auction_attempt_id) per
+ group by 1;
 ```

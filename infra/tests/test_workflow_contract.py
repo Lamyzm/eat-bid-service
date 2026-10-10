@@ -420,12 +420,13 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     expected_schedules = {
         # 10분은 신규 공고 노출 SLO 15분(주기 10 + 회차 실행 최대 5, runtime §2.5, EAT-151)의 항이다.
         # 주기를 바꾸는 커밋은 manifest·이 단언·SLO 문서를 함께 바꾼다.
-        "eatbid-poll-open": "*/10 8-19 * * 1-5",
-        "eatbid-daily-reconcile": "0 7 * * *",
-        "eatbid-reference-refresh": "0 5 1 * *",
+        "eatbid-poll-open": ["*/10 8-19 * * 1-5"],
+        "eatbid-daily-reconcile": ["0 7 * * *"],
+        "eatbid-reference-refresh": ["0 5 1 * *"],
         # 창 하나가 실측 15분이라 시간당 한 번이면 넉넉하다. Forbid가 겹침을 막으므로 도는 중의
-        # 회차는 아무것도 하지 않는다(EAT-209).
-        "eatbid-backfill-advance": "0 * * * *",
+        # 회차는 아무것도 하지 않는다(EAT-209). 평일 08~11시 정각은 개찰 결과가 들어오는 시간이라
+        # poll-open에 소스를 비켜 준다(runtime §2.6, EAT-329). 주말은 poll-open이 없어 매시다.
+        "eatbid-backfill-advance": ["0 0-7,12-23 * * 1-5", "0 * * * 0,6"],
     }
     expected_modes = {
         "eatbid-poll-open": "poll-open",
@@ -453,7 +454,7 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
         name = str(_metadata(cron)["name"])
         spec = _spec(cron)
         assert "schedule" not in spec
-        assert spec["schedules"] == [expected_schedules[name]]
+        assert spec["schedules"] == expected_schedules[name]
         assert spec["timezone"] == "Asia/Seoul"
         # 2026-09-05 수집 cutover(EAT-51): 항상 켜진 VM 클러스터에서 스케줄을 켠다. 다시 멈추는 결정은
         # manifest와 이 단언을 같은 커밋에서 바꾼다.
@@ -1578,9 +1579,12 @@ def test_mart_실행_시각은_다른_예약과_같은_분에_겹치지_않는�
     단일 노드 DB를 함께 누른다. 감시는 읽기뿐이지만 같은 분에 두면 그 회차가 부하를 위반으로 오판한다."""
     minutes: dict[str, set[str]] = {}
     for cron in manifests.of_kind("CronWorkflow"):
-        (schedule,) = _sequence(_spec(cron)["schedules"])
-        minute = str(schedule).split()[0]
-        minutes[str(_metadata(cron)["name"])] = set(minute.split(","))
+        # 요일·시간대마다 스케줄을 나눈 예약(전진 백필, EAT-329)도 있으므로 모든 스케줄의 분을 모은다.
+        minutes[str(_metadata(cron)["name"])] = {
+            minute
+            for schedule in _sequence(_spec(cron)["schedules"])
+            for minute in str(schedule).split()[0].split(",")
+        }
     history = minutes.pop("eatbid-history-marts")
     # 정시 수집은 10분 간격이라 어느 분과도 같은 10분 칸에 든다. 겹침은 그 회차의 스냅샷 단계가 mutex를 한 번
     # 기다리는 것으로 받아들였다(history-marts.yaml 주석).

@@ -10,6 +10,7 @@ from hypothesis import strategies as st
 
 from eatbid.generated.ingestion_v1 import InstantText
 from eatbid.pipeline.refetch_policy import (
+    POST_DEADLINE_REFETCH_INTERVAL,
     POST_DEADLINE_REFETCH_WINDOW,
     DetailSelection,
     ListSignal,
@@ -119,7 +120,7 @@ def test_기준_관측_뒤_마감이_지났으면_신호가_같아도_부른다(
     assert selection.reasons == {"1": "deadline-passed"}
 
 
-def test_마감_뒤_창_안에서는_신호가_같아도_회차마다_부른다() -> None:
+def test_마감_뒤_창_안에서는_신호가_같아도_새_30분_칸에_들어선_회차에_부른다() -> None:
     deadline = BASELINE_AT - timedelta(hours=1)
     row = _행("1", deadline_at=deadline)
 
@@ -132,6 +133,63 @@ def test_마감_뒤_창_안에서는_신호가_같아도_회차마다_부른다(
 
     assert inside.reasons == {"1": "post-deadline-window"}
     assert outside.external_bid_ids == ()
+
+
+def test_마감_뒤_창_안이라도_기준이_같은_30분_칸이면_다시_부르지_않는다() -> None:
+    deadline = DEADLINE
+    row = _행("1", deadline_at=deadline)
+    baseline = _기준(row, observed_at=deadline + timedelta(minutes=35))
+
+    same_slot = _선택((row,), baseline, as_of=deadline + timedelta(minutes=55))
+    next_slot = _선택((row,), baseline, as_of=deadline + POST_DEADLINE_REFETCH_INTERVAL * 2)
+
+    assert same_slot.external_bid_ids == ()
+    assert same_slot.unchanged_count == 1
+    # 칸 경계(마감 + 60분) 바로 그 시각부터 새 칸이다.
+    assert next_slot.reasons == {"1": "post-deadline-window"}
+
+
+def test_상태가_바뀌면_같은_30분_칸이어도_곧바로_부른다() -> None:
+    deadline = DEADLINE
+    before = _행("1", deadline_at=deadline, status_name="개찰")
+    after = _행("1", deadline_at=deadline, status_name="낙찰")
+    baseline = _기준(before, observed_at=deadline + timedelta(minutes=35))
+
+    selection = _선택((after,), baseline, as_of=deadline + timedelta(minutes=45))
+
+    assert selection.reasons == {"1": "signal-changed"}
+
+
+@pytest.mark.parametrize("cycle_minutes", [5, 10, 15, 30])
+def test_주기와_무관하게_마감_뒤_창에서는_마감_전이_한_번과_30분_칸_네_번만_부른다(
+    cycle_minutes: int,
+) -> None:
+    # 회차가 모두 봉인되면 다음 회차의 기준 관측 시각은 직전 회차다. 30분 주기 시절의 설계(창 안 네 회차)가
+    # 10분 주기에서도 그대로 지켜져야 한다(ADR 0037 후속, EAT-329).
+    deadline = DEADLINE
+    row = _행("1", deadline_at=deadline)
+    cycle = timedelta(minutes=cycle_minutes)
+    previous = deadline - cycle
+    reasons: list[str] = []
+    while previous + cycle <= deadline + POST_DEADLINE_REFETCH_WINDOW + cycle:
+        as_of = previous + cycle
+        selection = _선택((row,), _기준(row, observed_at=previous), as_of=as_of)
+        reasons.extend(selection.reasons.values())
+        previous = as_of
+
+    assert reasons.count("deadline-passed") == 1
+    assert reasons.count("post-deadline-window") == 4
+
+
+def test_봉인되지_못한_회차가_건너뛴_칸은_다음_회차가_다시_부른다() -> None:
+    # 마감 + 35분 회차가 상세 캡처에 실패해 봉인되지 않으면 기준은 마감 + 25분에 머문다.
+    deadline = DEADLINE
+    row = _행("1", deadline_at=deadline)
+    stale_baseline = _기준(row, observed_at=deadline + timedelta(minutes=25))
+
+    selection = _선택((row,), stale_baseline, as_of=deadline + timedelta(minutes=45))
+
+    assert selection.reasons == {"1": "post-deadline-window"}
 
 
 def test_마감이_아직_오지_않은_공고는_마감_규칙에_걸리지_않는다() -> None:
