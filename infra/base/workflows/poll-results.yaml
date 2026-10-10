@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: eatbid-poll-results
+  namespace: eatbid
+spec:
+  schedules:
+    # 평일 09:00~12:25 KST 5분마다(2026-10-11, EAT-335, ADR 0064). 오전 마감이 9~11시에 몰리고(runtime §2.6)
+    # eaT는 개찰 뒤 21~24분에 명단을 공개하므로 11시대 마감분은 12시 25분까지 공개된다. 오후 개찰은 poll-open이 맡는다.
+    - "*/5 9-11 * * 1-5"
+    - "0-25/5 12 * * 1-5"
+  timezone: Asia/Seoul
+  suspend: false
+  concurrencyPolicy: Forbid
+  # 주기와 같은 300초다. 회차가 5분을 넘기면 그 사이 tick은 만들어지지 않고 끝난 뒤 하나만 늦게 만들어진다(poll-open.yaml).
+  startingDeadlineSeconds: 300
+  workflowSpec:
+    workflowTemplateRef:
+      name: eatbid-dataplane
+    # 결과 전용 DAG다. 비우면 scheduled-pipeline이 불려 live key를 잡는다(workflow-template.yaml).
+    entrypoint: results-pipeline
+    priority: 100
+    arguments:
+      parameters:
+        - name: mode
+          value: poll-results

@@ -1,17 +1,31 @@
-"""모듈 책임: 마지막으로 봉인된 정기 수집 release의 목록 관측을 R2에서 다시 읽어 재호출 기준으로 만든다."""
+"""모듈 책임: 모드별로 고른 마지막 봉인 정기 수집 release의 목록 관측을 R2에서 다시 읽어 재호출 기준으로 만든다(ADR 0037·0064)."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Protocol
 
+from eatbid.ingest.repository import CollectionRunMode
 from eatbid.pipeline.refetch_policy import ListSignal, RefetchBaseline
 from eatbid.source.eat.bid_list import parse_bid_list_page
 from eatbid.storage.object_store import RawObjectStore
 
 LIST_ENDPOINT = "bid-list"
 # 기준이 될 수 있는 모드다. backfill은 과거 창이라 오늘 열린 공고를 담고 있다고 볼 수 없다.
-BASELINE_RUN_MODES: tuple[str, ...] = ("poll-open", "daily-reconcile")
+_SCHEDULED_BASELINE_MODES: tuple[str, ...] = ("poll-open", "daily-reconcile")
+
+
+def baseline_run_modes(mode: CollectionRunMode) -> tuple[str, ...]:
+    """이 모드가 비교 기준으로 삼을 봉인 release의 모드다(ADR 0064).
+
+    결과 줄 release는 목록을 다 담지만 상세는 상태가 바뀐 공고만 불렀다. 그 신호가 정시 수집의 기준이 되면 투찰 수만
+    바뀐 공고를 다음 정시 수집이 unchanged로 보고 놓친다 — 그래서 정시 수집 기준에는 넣지 않는다. 결과 줄 자신은
+    자기 release까지 기준으로 삼는다. 빼면 정시 수집이 새 기준을 봉인하기 전까지(성수기 몇 시간) 이미 받은 낙찰
+    공고를 5분마다 다시 부른다.
+    """
+    if mode == "poll-results":
+        return (*_SCHEDULED_BASELINE_MODES, "poll-results")
+    return _SCHEDULED_BASELINE_MODES
 
 # 가장 최근에 관측된(as_of) 봉인 release 하나다. sealed_at이 아니라 as_of로 고르는 이유는 기준의
 # 의미가 "언제 봉인했나"가 아니라 "언제 본 목록인가"이기 때문이다. 같은 as_of면 늦게 봉인된 쪽이다.
@@ -45,7 +59,7 @@ select observation.fetched_at, blob.object_key
 
 
 class RefetchBaselineReader(Protocol):
-    def load(self, *, parser_version: str) -> RefetchBaseline | None: ...
+    def load(self, *, parser_version: str, modes: tuple[str, ...]) -> RefetchBaseline | None: ...
 
 
 class PsycopgRefetchBaselineReader:
@@ -57,12 +71,12 @@ class PsycopgRefetchBaselineReader:
         self._connection = connection
         self._store = store
 
-    def load(self, *, parser_version: str) -> RefetchBaseline | None:
+    def load(self, *, parser_version: str, modes: tuple[str, ...]) -> RefetchBaseline | None:
         # 읽기도 transaction 블록 안에서 한다. 밖에서 열린 암묵 transaction은 뒤따르는 발견 기록을
         # savepoint로 감싸 버려 프로세스 종료 때 통째로 되돌아간다.
         with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
-                _LATEST_SEALED_RELEASE_SQL, {"modes": list(BASELINE_RUN_MODES)}
+                _LATEST_SEALED_RELEASE_SQL, {"modes": list(modes)}
             )
             release = cursor.fetchone()
             if release is None:

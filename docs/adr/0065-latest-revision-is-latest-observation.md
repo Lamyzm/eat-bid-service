@@ -4,7 +4,7 @@
 - Date: 2026-10-11
 - Supersedes: [domain-and-data.md](../architecture/domain-and-data.md)의 "`최신`은 `auction_revision_id` 최대값이며 replay가
   관측 시각을 되돌려도 append 순서는 단조롭다" 문장(열린 공고 스냅샷 절). 다른 ADR의 결정은 바꾸지 않는다.
-- 관련 작업: EAT-333, EAT-335(ADR 0064 개찰 결과 줄, PR #176의 배포 선행 조건)
+- 관련 작업: EAT-333, EAT-335([ADR 0064](0064-results-only-collection-lane.md)의 배포 선행 조건)
 - 승인: 총괄 Tech Lead 결정(사용자 위임, 2026-10-11)
 
 ## Context

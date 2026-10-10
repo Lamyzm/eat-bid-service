@@ -12,7 +12,7 @@ from eatbid.ingest.release_repository import SourceReleaseRepository
 from eatbid.ingest.repository import IngestRepository
 from eatbid.pipeline.capture import capture_response
 from eatbid.pipeline.discover import DiscoveryPlan
-from eatbid.pipeline.refetch_baseline import RefetchBaselineReader
+from eatbid.pipeline.refetch_baseline import RefetchBaselineReader, baseline_run_modes
 from eatbid.pipeline.refetch_policy import RefetchBaseline
 from eatbid.source.client import SourceResponse
 from eatbid.source.eat.registry import require
@@ -102,7 +102,9 @@ class RawFirstDiscoveryPersistence:
         )
 
     def load_refetch_baseline(self, plan: DiscoveryPlan) -> RefetchBaseline | None:
-        return self._baseline_reader.load(parser_version=plan.parser_version)
+        return self._baseline_reader.load(
+            parser_version=plan.parser_version, modes=baseline_run_modes(plan.mode)
+        )
 
     def plan_release(self, plan: SourceReleasePlan) -> None:
         self._release.plan_release(plan)
