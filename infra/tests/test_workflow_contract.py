@@ -434,7 +434,8 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
         # 주기를 바꾸는 커밋은 manifest·이 단언·SLO 문서를 함께 바꾼다.
         "eatbid-poll-open": ["*/10 8-19 * * 1-5"],
         # 오전 마감이 9~11시에 몰리고 명단은 개찰 뒤 21~24분에 공개된다. 5분이면 공개 뒤 몇 분 안에 받는다(ADR 0064).
-        "eatbid-poll-results": ["*/5 9-11 * * 1-5"],
+        # 11시대 마감분의 명단은 12시 25분까지 공개된다.
+        "eatbid-poll-results": ["*/5 9-11 * * 1-5", "0-25/5 12 * * 1-5"],
         "eatbid-daily-reconcile": ["0 7 * * *"],
         "eatbid-reference-refresh": ["0 5 1 * *"],
         # 창 하나가 실측 15분이라 시간당 한 번이면 넉넉하다. Forbid가 겹침을 막으므로 도는 중의

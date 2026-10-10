@@ -5,9 +5,10 @@ metadata:
   namespace: eatbid
 spec:
   schedules:
-    # 평일 09:00~11:55 KST 5분마다(2026-10-11, EAT-335, ADR 0064). 오전 마감이 9~11시에 몰리고(runtime §2.6)
-    # eaT는 개찰 뒤 21~24분에 명단을 공개하므로 11시 개찰분까지 이 창 안에서 받는다. 오후 개찰은 poll-open이 맡는다.
+    # 평일 09:00~12:25 KST 5분마다(2026-10-11, EAT-335, ADR 0064). 오전 마감이 9~11시에 몰리고(runtime §2.6)
+    # eaT는 개찰 뒤 21~24분에 명단을 공개하므로 11시대 마감분은 12시 25분까지 공개된다. 오후 개찰은 poll-open이 맡는다.
     - "*/5 9-11 * * 1-5"
+    - "0-25/5 12 * * 1-5"
   timezone: Asia/Seoul
   suspend: false
   concurrencyPolicy: Forbid

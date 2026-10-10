@@ -43,7 +43,7 @@ def test_dev는_소스를_부르지_않는다(dev_manifests: ManifestSet) -> Non
 
 
 def test_prod는_예약_수집을_멈추지_않는다(prod_manifests: ManifestSet) -> None:
-    수집 = {"eatbid-poll-open", "eatbid-daily-reconcile", "eatbid-backfill-advance"}
+    수집 = {"eatbid-poll-open", "eatbid-poll-results", "eatbid-daily-reconcile", "eatbid-backfill-advance"}
     켜진것 = {
         str(cron["metadata"]["name"])  # type: ignore[index]
         for cron in prod_manifests.of_kind("CronWorkflow")

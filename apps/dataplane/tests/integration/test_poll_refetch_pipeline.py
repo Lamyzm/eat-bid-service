@@ -263,7 +263,7 @@ def test_결과_줄은_상태가_바뀐_공고만_부르고_정시_수집의_기
     )
     assert awarded != listed and awarded_with_bid != awarded
     # 같은 DB를 쓰는 다른 시험의 release보다 늦은 관측 시각이어야 "가장 최근 봉인 기준"이 이 시험의 회차가 된다.
-    t1 = T0 + timedelta(days=2)
+    t1 = T0 + timedelta(days=365)
 
     # 회차 1: 정시 수집 기준. 목록 전부의 상세를 부르고 봉인한다.
     base = _발견(pipeline_services, round_number=11, mode="daily-reconcile", list_body=listed, as_of=t1)
