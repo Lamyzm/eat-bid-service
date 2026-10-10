@@ -7,6 +7,8 @@
 - 관계: [0029](0029-eat-v2-bid-list-contract.md)가 상세에 들인 명단(`ds_bidList`)이 이 정책이 놓치면
   안 되는 값이다. [0034](0034-mart-build-identity-and-atomic-activation.md)의 열린 공고 스냅샷은 목록
   관측만으로 만들어지므로 이 정책의 영향을 받지 않는다.
+- 보충: [0064](0064-results-only-collection-lane.md)가 개찰 결과 전용 모드 `poll-results`를 더하고 기준 release 선택을
+  모드별로 나눴다. poll-open·daily-reconcile의 기준은 이 문서 그대로다.
 - 수용 근거: 신호 필드 넷이 검토된 목록 계약의 필수 column이라는 것과 `LAST_CHG_DT`가 투찰 도착을
   반영하지 않는다는 것이 실측으로 닫혀 있고([2026-09-06 실측](../evidence/source-boundary/2026-09-06-list-open-questions.md) §3·§4.1),
   구현·단위 테스트·PostgreSQL 통합 테스트(빈 회차 봉인·발행 포함)가 같은 변경에 있으며, 놓친 변화를

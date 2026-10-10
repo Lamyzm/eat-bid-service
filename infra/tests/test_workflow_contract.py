@@ -174,7 +174,8 @@ def test_product와_base_render가_kind_구성을_유지한다(
     # 재처리 전진은 2026-09-18에 더했다 — 막힌 창을 사람이 창마다 손으로 닫고 있었다(EAT-274).
     # 과거 기록 mart 예약은 2026-09-29에 더했다 — 발행마다 만들던 mart가 정시 수집 한 회차를 36~46분으로 늘려
     # 사이 회차가 건너뛰어졌다(EAT-300, ADR 0060).
-    assert manifests.kinds.count("CronWorkflow") == 9
+    # 개찰 결과 줄은 2026-10-11에 더했다 — 명단이 정시 수집 회차 크기에 묶여 성수기에 1~3시간 늦었다(EAT-335, ADR 0064).
+    assert manifests.kinds.count("CronWorkflow") == 10
     # migration(schema)과 db-provisioning(권한) 둘뿐이다. 여기를 늘리기 전에 새 Job이 왜 hook이어야
     # 하는지 먼저 답해야 한다.
     assert manifests.kinds.count("Job") == 2
@@ -310,11 +311,20 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
         ("eatbid-workflow-limits", "eatbid-source-reconcile"),
         ("eatbid-workflow-limits", "eatbid-source-reconcile"),
     ]
+    # 개찰 결과 줄도 자기 key를 쓴다(2026-10-11, EAT-335). live를 함께 쓰면 몇 시간짜리 poll-open 회차 뒤에 줄 선다.
+    assert [
+        _source_semaphore_key(name) for name in ("discover-results", "capture-results")
+    ] == [
+        ("eatbid-workflow-limits", "eatbid-source-results"),
+        ("eatbid-workflow-limits", "eatbid-source-results"),
+    ]
     for live_name, variant_name in (
         ("discover", "discover-backfill"),
         ("capture", "capture-backfill"),
         ("discover", "discover-reconcile"),
         ("capture", "capture-reconcile"),
+        ("discover", "discover-results"),
+        ("capture", "capture-results"),
     ):
         live_template = dict(templates[live_name])
         variant_template = dict(templates[variant_name])
@@ -387,6 +397,7 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     assert limit["data"] == {
         "eatbid-source-live": "1",
         "eatbid-source-reconcile": "2",
+        "eatbid-source-results": "1",
         "eatbid-source-backfill": "8",
         "eatbid-source-limit": "1",
     }
@@ -412,6 +423,7 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     ]
     assert {_metadata(cron)["name"] for cron in cron_workflows} == {
         "eatbid-poll-open",
+        "eatbid-poll-results",
         "eatbid-daily-reconcile",
         "eatbid-reference-refresh",
         "eatbid-backfill-advance",
@@ -421,6 +433,8 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
         # 10분은 신규 공고 노출 SLO 15분(주기 10 + 회차 실행 최대 5, runtime §2.5, EAT-151)의 항이다.
         # 주기를 바꾸는 커밋은 manifest·이 단언·SLO 문서를 함께 바꾼다.
         "eatbid-poll-open": ["*/10 8-19 * * 1-5"],
+        # 오전 마감이 9~11시에 몰리고 명단은 개찰 뒤 21~24분에 공개된다. 5분이면 공개 뒤 몇 분 안에 받는다(ADR 0064).
+        "eatbid-poll-results": ["*/5 9-11 * * 1-5"],
         "eatbid-daily-reconcile": ["0 7 * * *"],
         "eatbid-reference-refresh": ["0 5 1 * *"],
         # 창 하나가 실측 15분이라 시간당 한 번이면 넉넉하다. Forbid가 겹침을 막으므로 도는 중의
@@ -430,6 +444,7 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     }
     expected_modes = {
         "eatbid-poll-open": "poll-open",
+        "eatbid-poll-results": "poll-results",
         "eatbid-daily-reconcile": "daily-reconcile",
         "eatbid-reference-refresh": "reference",
         "eatbid-backfill-advance": "backfill",
@@ -438,6 +453,7 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     # 아무도 확인하지 않은 파일이 스케줄로 먼저 들어오면 그것이 곧 기준이 된다(ADR 0035).
     expected_suspend = {
         "eatbid-poll-open": False,
+        "eatbid-poll-results": False,
         "eatbid-daily-reconcile": False,
         "eatbid-reference-refresh": True,
         "eatbid-backfill-advance": False,
@@ -449,6 +465,8 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
         # 불려 poll-open과 같은 source semaphore key를 잡고, 재대조가 도는 몇 시간 동안 정시 수집이
         # 굶는다. poll-open은 기본값을 쓰므로 여기 없는 것이 맞다.
         "eatbid-daily-reconcile": "reconcile-pipeline",
+        # 결과 줄도 전용 진입점이다. 비우면 scheduled-pipeline이 불려 live key를 잡는다(EAT-335).
+        "eatbid-poll-results": "results-pipeline",
     }
     for cron in cron_workflows:
         name = str(_metadata(cron)["name"])
@@ -1228,7 +1246,7 @@ def _flag_value(argv: list[str], flag: str) -> str:
     return argv[argv.index(flag) + 1]
 
 
-@pytest.mark.parametrize("mode", ["poll-open", "daily-reconcile"])
+@pytest.mark.parametrize("mode", ["poll-open", "daily-reconcile", "poll-results"])
 def test_discover_단계는_mode를_CLI에_넘기고_예약_모드의_창은_CLI가_번역한다(
     manifests: ManifestSet, monkeypatch: object, tmp_path: Path, mode: str
 ) -> None:
@@ -2031,3 +2049,32 @@ def test_DAG_task는_부르는_template의_input을_하나도_빠뜨리지_않�
             }
             missing = required - supplied
             assert not missing, f"{name}.{task_map.get('name')} -> {task_map.get('template')}: {missing}"
+
+
+def test_개찰_결과_줄은_자기_key로_수집하고_목록_스냅샷을_만들지_않는다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 결과 줄은 평일 오전 5분마다 돈다(ADR 0064). live key를 쓰면 몇 시간짜리 poll-open 회차 뒤에 줄 서서
+    존재 이유가 사라지고, marts를 이으면 open_auction_snapshot 활성화가 "마지막에 올린 build가 이긴다"라서 그보다
+    오래된 목록으로 끝난 poll-open build가 나중에 올라와 화면이 뒤로 간다. 명단은 core에 앉으면 충분하다.
+    """
+    workflow_template = manifests.named("WorkflowTemplate", "eatbid-dataplane")
+    templates = {
+        str(template["name"]): _mapping(template)
+        for template in (_mapping(item) for item in _sequence(_spec(workflow_template)["templates"]))
+    }
+    tasks = [_mapping(task) for task in _sequence(_mapping(templates["results-pipeline"]["dag"])["tasks"])]
+    assert [task["name"] for task in tasks] == ["discover", "capture", "normalize", "validate", "project"]
+    assert [task["template"] for task in tasks] == [
+        "discover-results",
+        "capture-results",
+        "normalize",
+        "validate",
+        "project",
+    ]
+    cron = manifests.named("CronWorkflow", "eatbid-poll-results")
+    spec = _spec(cron)
+    assert spec["concurrencyPolicy"] == "Forbid"
+    # 주기와 같은 300초다. 늦게 끝난 회차 뒤에 놓친 tick 하나만 만들어진다.
+    assert spec["startingDeadlineSeconds"] == 300
+

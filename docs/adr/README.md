@@ -78,6 +78,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0061](0061-record-scoped-exclusion.md) | Accepted | 레코드 한 건에 갇힌 위반은 그 정규화 레코드 전체만 발행에서 빼고 `ingest.publication_exclusion` 원장에 적는다 — 창 전체 결함은 여전히 발행을 막고, 허용 수는 `min(50, max(1, floor(1% × N)))`, 등식은 `expected = published + excluded`. 30일 발행 실패 22건이 모두 레코드 단위(최대 5건, 0.039%)였고 창 복구에 5~170시간이 걸렸다 (0053·0056의 부분 발행 기각 항과 0049 결정 6의 수량 등식을 대체) |
 | [0062](0062-recommended-bid-in-scope.md) | Accepted | 추천 투찰가(특정 금액 지목)를 판단 재료로 들인다 — 근거(규칙 버전·검증 기간·예상 승률)와 입찰 시점 관측값만 쓰는 조건은 유지하고 자동 투찰은 계속 밖. 2026-10-07 재검증에서 투찰 위치 규칙이 2026년 봉인과 9월 운영 자료로 재현됐다 (0002 경계 조항의 추천가, 0027 결정 1과 추천가 배제, 0030 "❌ 추천가" 항을 대체) |
 | [0063](0063-supplier-label-lives-on-the-submission.md) | Accepted | 업체명(`SHIPPER_NM`)은 그 이름이 관측된 투찰 행의 `core.bid_submission.supplier_label`에 둔다 — 이름 관측 표의 93%(약 4,750만 행·색인 셋)가 투찰 한 줄마다 이름 한 줄이었고 읽는 곳은 같은 관측으로 다시 만나는 명단 조회 하나였다. 기관·지역 라벨은 그대로이며, 기존 행은 마이그레이션이 아니라 업체 범위로 나눠 커밋하는 `backfill-supplier-labels`가 채운다 (0033 §1의 업체명 자리 문장을 대체) |
+| [0064](0064-results-only-collection-lane.md) | Accepted | 개찰 결과는 평일 오전 5분마다 도는 전용 수집 줄(`poll-results`)이 받는다 — 목록은 다 읽고 상태 라벨이 바뀐 공고의 상세만 부르며, 기준 release를 모드별로 골라 정시 수집 기준을 흐리지 않고, 자기 semaphore key를 쓰고 marts는 잇지 않는다 (0037의 기준 선택을 보충) |
 
 ## 새 ADR 형식
 

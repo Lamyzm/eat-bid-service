@@ -1,4 +1,4 @@
-"""모듈 책임: poll-open 발견이 목록 신호와 마감 전이만으로 상세 재호출 대상을 고르는 규칙을 소유한다(ADR 0037)."""
+"""모듈 책임: 정시 수집(poll-open)과 개찰 결과 줄(poll-results)의 발견이 목록 신호·마감 전이만으로 상세 재호출 대상을 고르는 규칙을 소유한다(ADR 0037·0064)."""
 
 from __future__ import annotations
 
@@ -18,12 +18,13 @@ RefetchReason = Literal[
     "signal-changed",
     "deadline-passed",
     "post-deadline-window",
+    "status-changed",
 ]
 SKIP_REASON = "unchanged"
 
 # 왜 poll-open만 좁히나. daily-reconcile은 7일 창 전부를 다시 부르는 하루 한 번의 강제 재호출이라
 # 이 정책이 놓친 것을 하루 안에 되돌리는 안전망이고, backfill은 애초에 기준 관측이 없는 과거 창이다.
-NARROWED_MODES: frozenset[CollectionRunMode] = frozenset({"poll-open"})
+NARROWED_MODES: frozenset[CollectionRunMode] = frozenset({"poll-open", "poll-results"})
 
 # 왜 2시간인가. 입찰 마감(`BID_END_DT`) 뒤 개찰·낙찰 결정은 목록 상태 라벨을 바꾸므로 신호 비교가
 # 잡지만, 명단(`ds_bidList`)이 상태 변화 없이 채워지는 순간이 있는지는 아직 관측하지 못했다
@@ -150,6 +151,8 @@ def _reason_for(
 ) -> RefetchReason | None:
     if mode not in NARROWED_MODES:
         return "full-mode"
+    if mode == "poll-results":
+        return _results_reason(row, baseline)
     if baseline is None:
         return "no-baseline"
     current = ListSignal.from_row(row)
@@ -162,6 +165,24 @@ def _reason_for(
         return "deadline-passed"
     if _crossed_post_deadline_slot(current.deadline_at, baseline.observed_at, as_of):
         return "post-deadline-window"
+    return None
+
+
+def _results_reason(row: BidListRow, baseline: RefetchBaseline | None) -> RefetchReason | None:
+    """결과 줄은 상태 라벨이 바뀐 공고만 부른다(ADR 0064).
+
+    명단은 소스가 낙찰 전이 때 처음 준다(runtime §2.6, 오전 개찰 3,086건 전부). 그래서 이 줄이 볼 신호는 상태 라벨
+    하나다. 새 공고·투찰 수·마감 연장·정정·마감 뒤 창은 정시 수집 몫으로 남긴다 — 이 줄이 맡으면 5분마다 소스를
+    정시 수집만큼 부르게 된다. 기준이 없으면 무엇이 바뀌었는지 모르므로 아무것도 부르지 않는다. 전부 부르는
+    것은 정시 수집의 일이다.
+    """
+    if baseline is None:
+        return None
+    previous = baseline.signals.get(row.external_bid_id)
+    if previous is None:
+        return None
+    if previous.status_name != ListSignal.from_row(row).status_name:
+        return "status-changed"
     return None
 
 

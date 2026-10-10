@@ -8,6 +8,7 @@ resources:
   - workflow-template.yaml
   - poll-open.yaml
   - daily-reconcile.yaml
+  - poll-results.yaml
   - reference-refresh.yaml
   - db-backup.yaml
   - expectation-check.yaml

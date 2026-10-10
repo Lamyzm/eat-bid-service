@@ -55,4 +55,11 @@ def test_알_수_없는_모드와_naive_시각은_거부한다() -> None:
         resolve_collection_window(
             "poll-open", as_of=datetime(2026, 9, 4, 0, 30)  # noqa: DTZ001
         )
-    assert COLLECTION_MODES == ("poll-open", "daily-reconcile", "backfill")
+    assert COLLECTION_MODES == ("poll-open", "daily-reconcile", "backfill", "poll-results")
+
+
+def test_poll_results는_poll_open과_같은_서울_기준_오늘_하루_창이다() -> None:
+    # 결과 줄은 정시 수집과 같은 목록 행 집합을 봐야 상태가 바뀐 공고를 같은 기준으로 가려낸다.
+    assert resolve_collection_window("poll-results", as_of=SEOUL_MIDNIGHT_EDGE) == (
+        resolve_collection_window("poll-open", as_of=SEOUL_MIDNIGHT_EDGE)
+    )

@@ -248,6 +248,54 @@ def test_poll_open은_봉인된_직전_release를_기준으로_바뀐_공고만_
     assert detail_run == (1,)
 
 
+def test_결과_줄은_상태가_바뀐_공고만_부르고_정시_수집의_기준을_흐리지_않는다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """ADR 0064. 결과 줄은 목록을 다 읽지만 상세는 상태 라벨이 바뀐 공고만 부른다. 그 release가 정시 수집의 기준이
+    되면 투찰 수만 바뀐 공고를 다음 정시 수집이 unchanged로 보고 놓친다. 결과 줄 자신은 자기 release를 기준으로 삼아
+    이미 받은 낙찰 공고를 다시 부르지 않는다."""
+    listed = LIST_FIXTURE.read_bytes()
+    awarded = listed.replace(
+        '<Col id="ETN_BID_STT_NM">입찰공고</Col>'.encode(), '<Col id="ETN_BID_STT_NM">낙찰</Col>'.encode(), 1
+    )
+    awarded_with_bid = awarded.replace(
+        b'<Col id="BID_CNT">0</Col>', b'<Col id="BID_CNT">1</Col>', 1
+    )
+    assert awarded != listed and awarded_with_bid != awarded
+    # 같은 DB를 쓰는 다른 시험의 release보다 늦은 관측 시각이어야 "가장 최근 봉인 기준"이 이 시험의 회차가 된다.
+    t1 = T0 + timedelta(days=2)
+
+    # 회차 1: 정시 수집 기준. 목록 전부의 상세를 부르고 봉인한다.
+    base = _발견(pipeline_services, round_number=11, mode="daily-reconcile", list_body=listed, as_of=t1)
+    _상세까지_발행한다(pipeline_services, base, round_number=11, at=t1)
+
+    # 회차 2: 결과 줄. 상태 라벨이 낙찰로 바뀐 공고 하나만 부른다.
+    first_results = _발견(
+        pipeline_services, round_number=12, mode="poll-results", list_body=awarded, as_of=t1 + POLL
+    )
+    assert first_results.baseline_source_release_id == base.source_release_id
+    assert first_results.detail_external_bid_ids == ("5610615",)
+    assert first_results.refetch_reason_counts == {"status-changed": 1, "unchanged": 0}
+    _상세까지_발행한다(pipeline_services, first_results, round_number=12, at=t1 + POLL)
+
+    # 회차 3: 다음 결과 줄은 자기 release를 기준으로 삼아 이미 받은 낙찰 공고를 다시 부르지 않는다. 투찰 수 변화는
+    # 결과 줄이 볼 신호가 아니다.
+    second_results = _발견(
+        pipeline_services, round_number=13, mode="poll-results", list_body=awarded_with_bid, as_of=t1 + 2 * POLL
+    )
+    assert second_results.baseline_source_release_id == first_results.source_release_id
+    assert second_results.detail_external_bid_ids == ()
+    _상세까지_발행한다(pipeline_services, second_results, round_number=13, at=t1 + 2 * POLL)
+
+    # 회차 4: 정시 수집은 결과 줄 release를 기준으로 삼지 않는다. 기준은 회차 1이라 상태·투찰 수 변화를 모두 본다.
+    poll = _발견(
+        pipeline_services, round_number=14, mode="poll-open", list_body=awarded_with_bid, as_of=t1 + 3 * POLL
+    )
+    assert poll.baseline_source_release_id == base.source_release_id
+    assert poll.detail_external_bid_ids == ("5610615",)
+    assert poll.refetch_reason_counts == {"signal-changed": 1, "unchanged": 0}
+
+
 def test_poll_open_발행의_build_marts가_열린_공고_스냅샷_활성_build를_만든다(
     pipeline_services: PipelineServices, migrated_db: MigratedDatabase
 ) -> None:
