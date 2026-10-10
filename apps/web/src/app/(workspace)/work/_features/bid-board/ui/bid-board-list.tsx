@@ -28,22 +28,32 @@ function AmountLines({ lines }: { readonly lines: readonly AmountLine[] }) {
   );
 }
 
+// 넓은 화면은 칸 머리줄이 방법 이름을 말한다. 좁은 화면에서는 머리줄이 숨고 칸이 세로로 쌓이므로 칸 안의 이름만이 어느
+// 방법인지 말한다 — 그래서 이름은 좁은 화면에서만 보이고 넓은 화면에서는 읽기 도구에만 남는다.
+const METHOD_NAME = 'sm:sr-only';
+
 function Cell({ cell, method }: { readonly cell: AmountCell; readonly method: string }) {
   if (cell.kind === 'reason') {
     return (
-      <div className='grid content-start justify-items-end rounded-lg px-2.5 py-2'>
-        <span className='sr-only'>{method}: </span>
-        <span className={`text-right text-[12px] font-semibold ${HINT}`}>{cell.text}</span>
+      <div data-slot='bid-board-cell' data-cell='reason' className='flex flex-wrap content-start justify-end gap-x-1.5 rounded-lg px-2.5 py-2 text-[12px] font-semibold'>
+        <span data-slot='bid-board-cell-method' className={METHOD_NAME}>{method}</span>
+        <span className={`text-right ${HINT}`}>{cell.text}</span>
       </div>
     );
   }
   return (
     <div
+      data-slot='bid-board-cell'
+      data-cell='amounts'
       className={`grid content-start justify-items-end gap-1 rounded-lg px-2.5 py-2 ${cell.lead ? 'bg-background ring-2 ring-primary' : ''}`}
       aria-label={cell.lead ? `${method}, 지금 근거가 가장 강한 방법` : method}
       role='group'
     >
-      {cell.lead ? <span className='text-[11.5px] font-bold text-primary'>근거 가장 강함</span> : null}
+      {/* 주도 표시가 없는 칸은 넓은 화면에서 이 줄이 비므로 줄째 감춘다. 이름은 칸의 aria-label이 말한다. */}
+      <span className={`flex items-baseline gap-1.5 text-[11.5px] font-bold ${cell.lead ? '' : 'sm:hidden'}`}>
+        <span data-slot='bid-board-cell-method' className={METHOD_NAME}>{method}</span>
+        {cell.lead ? <span className='text-primary'>근거 가장 강함</span> : null}
+      </span>
       <AmountLines lines={cell.lines} />
     </div>
   );
