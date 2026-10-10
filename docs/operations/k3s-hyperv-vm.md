@@ -184,12 +184,13 @@ provisioning·이미지 기동에 드는 몇 분이다. 사용자 작성 상태�
 1. VM의 `cloudflared`·`server`·`web`이 Ready인지 확인한다: `kubectl --context <새 context> get pods -n eatbid`.
 2. eatbid.net을 몇 번 호출해 두 클러스터가 번갈아 응답하는지, 오류가 없는지 본다.
 3. 마지막 덤프·복원을 한 번 더 돌린다(4절). 이 시점부터 옛 클러스터에는 쓰지 않는다.
-4. 옛 클러스터를 내린다. 순서는 자동 sync 해제 → 모든 CronWorkflow suspend(2026-10 기준 아홉 개. 백필·재처리·
+4. 옛 클러스터를 내린다. 순서는 자동 sync 해제 → 모든 CronWorkflow suspend(2026-10-11부터 열 개. 개찰 결과 줄·백필·재처리·
    mart·백업도 DB에 쓴다) → 실행 중 Workflow가 끝나기를 기다리기(종료하면 진행 중 run이 남는다) → cloudflared 0이다. 수집을 먼저 멈추지 않으면 겹쳐 켜진 동안 두 DB가 갈린다(2026-09-10 실측: 18:30 회차 직전).
    ```powershell
    kubectl --context <옛> -n argocd patch application eatbid --type merge -p '{"spec":{"syncPolicy":null}}'
    kubectl --context <옛> -n eatbid patch cronwf eatbid-poll-open --type merge -p '{"spec":{"suspend":true}}'
    kubectl --context <옛> -n eatbid patch cronwf eatbid-daily-reconcile --type merge -p '{"spec":{"suspend":true}}'
+   kubectl --context <옛> -n eatbid patch cronwf eatbid-poll-results --type merge -p '{"spec":{"suspend":true}}'
    kubectl --context <옛> -n eatbid patch wf <실행 중> --type merge -p '{"spec":{"shutdown":"Terminate"}}'
    kubectl --context <옛> -n eatbid scale deploy/cloudflared --replicas=0
    ```

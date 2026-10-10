@@ -58,5 +58,6 @@ def test_보류_때문에_안_부른_것은_소스가_막은_것과_같은_어�
 
 
 def test_정시_수집_모드만_보류를_본다() -> None:
-    assert SCHEDULED_SOURCE_MODES == {"poll-open", "daily-reconcile"}
+    # 결과 줄도 예약 실행이라 소스가 막은 동안에는 부르지 않는다(ADR 0055).
+    assert SCHEDULED_SOURCE_MODES == {"poll-open", "daily-reconcile", "poll-results"}
     assert "backfill" not in SCHEDULED_SOURCE_MODES

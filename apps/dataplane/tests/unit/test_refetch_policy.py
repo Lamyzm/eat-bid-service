@@ -294,3 +294,47 @@ def test_dataclass_replace로_기준을_옮겨도_관측_시각은_aware여야_�
     baseline = _기준(_행("1"))
     with pytest.raises(ValueError, match="timezone-aware"):
         replace(baseline, observed_at=datetime(2026, 9, 7))  # noqa: DTZ001
+
+
+def _결과_줄(
+    rows: tuple[BidListRow, ...],
+    baseline: RefetchBaseline | None,
+    *,
+    as_of: datetime = AS_OF,
+) -> DetailSelection:
+    return select_detail_refetch(rows, mode="poll-results", baseline=baseline, as_of=as_of)
+
+
+def test_결과_줄은_상태_라벨이_바뀐_공고만_부른다() -> None:
+    # 명단은 낙찰 전이 때 처음 공개된다(runtime §2.6). 투찰 수·마감·정정 같은 다른 신호는 정시 수집 몫이다.
+    awarded_before = _행("1", status_name="개찰")
+    awarded_after = _행("1", status_name="낙찰")
+    count_before = _행("2", competitor_count=3)
+    count_after = _행("2", competitor_count=9)
+    same = _행("3")
+
+    selection = _결과_줄((awarded_after, count_after, same), _기준(awarded_before, count_before, same))
+
+    assert selection.reasons == {"1": "status-changed"}
+    assert selection.unchanged_count == 2
+    assert selection.baseline_source_release_id == BASELINE_ID
+
+
+def test_결과_줄은_새_공고와_마감_뒤_창을_정시_수집에_맡긴다() -> None:
+    deadline = AS_OF - timedelta(minutes=10)
+    new = _행("1")
+    passed = _행("2", deadline_at=deadline)
+    baseline = _기준(_행("2", deadline_at=deadline), observed_at=deadline - timedelta(minutes=20))
+
+    selection = _결과_줄((new, passed), baseline)
+
+    assert selection.reasons == {}
+    assert selection.unchanged_count == 2
+
+
+def test_결과_줄은_기준이_없으면_아무것도_부르지_않는다() -> None:
+    # 기준 없이 전부 부르면 5분마다 열린 공고 상세 수천 건을 다시 부르게 된다. 그 일은 정시 수집이 한다.
+    selection = _결과_줄((_행("1", status_name="낙찰"),), None)
+
+    assert selection.external_bid_ids == ()
+    assert selection.unchanged_count == 1

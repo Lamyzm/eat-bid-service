@@ -16,6 +16,7 @@ LIVE_CRON = "eatbid-poll-open"
 # cron마다 실패가 화면에 미치는 영향이 다르다. 이름을 모르는 cron은 영향을 지어내지 않고 "확인 못 함"이다.
 CRON_IMPACTS: Mapping[str, str] = {
     LIVE_CRON: "이번 회차의 새 공고가 화면에 들어오지 않았습니다",
+    "eatbid-poll-results": "이번 회차 개찰 결과가 늦게 들어옵니다. 다음 정시 수집 회차가 대신 가져옵니다",
     "eatbid-daily-reconcile": "지난 이레 공고의 변경·마감 대조가 빠져 화면 일부가 옛 상태일 수 있습니다",
     "eatbid-backfill-advance": "과거 공고 채우기가 이번 시간만큼 늦어집니다. 오늘 공고에는 영향이 없습니다",
     "eatbid-replay-advance": "실패했던 발행을 다시 돌리는 일이 늦어져 빠진 공고가 그만큼 오래 비어 있습니다",

@@ -19,7 +19,7 @@ REASON_THROTTLED = "source-throttled"
 
 # 정시 실행만 보류를 본다. 사람이 부르는 backfill-pipeline·replay-pipeline은 그 사람이 보류를 알고 부른 것이고,
 # replay는 소스를 부르지도 않는다.
-SCHEDULED_SOURCE_MODES: frozenset[str] = frozenset({"poll-open", "daily-reconcile"})
+SCHEDULED_SOURCE_MODES: frozenset[str] = frozenset({"poll-open", "daily-reconcile", "poll-results"})
 
 # 지난 24시간에 걸린 보류 수에 따른 다음 보류 길이. 마지막 값이 상한이다.
 HOLD_STEPS_MINUTES: tuple[int, ...] = (15, 30, 60, 120, 240, 480, 960, 1440)
