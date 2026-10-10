@@ -3,6 +3,7 @@ import { healthOperationRegistry } from "../operations/health";
 import { auctionV1OperationRegistry } from "./v1/auctions/operations";
 import { codeSchemeV1OperationRegistry } from "./v1/code-schemes/operations";
 import { eligibilityAreaV1OperationRegistry } from "./v1/eligibility-areas/operations";
+import { myBidBoardV1OperationRegistry } from "./v1/me/bid-board.operations";
 import { myBidObservationV1OperationRegistry } from "./v1/me/bid-observations.operations";
 import { myFilterCombinationV1OperationRegistry } from "./v1/me/filter-combination.operations";
 import { meV1OperationRegistry } from "./v1/me/operations";
@@ -29,5 +30,7 @@ export const publicHttpOperationRegistry = createOperationRegistry([
   // 저장된 조건 조합도 개인 상태라 같은 `me` resource에 산다. 건수 operation이 `:filterCombinationId`보다
   // 앞에 있어야 `counts`가 id로 먹히지 않는다 — registry 순서와 Nest handler 순서가 같아야 한다.
   ...myFilterCombinationV1OperationRegistry,
+  // 오늘 투찰 한 장은 워크스페이스의 관심 지역과 등록 사업자 시장으로 정해지는 개인 응답이라 같은 `me` resource에 산다.
+  ...myBidBoardV1OperationRegistry,
   ...healthOperationRegistry,
 ] as const);

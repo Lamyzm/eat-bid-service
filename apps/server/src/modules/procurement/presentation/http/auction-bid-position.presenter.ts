@@ -4,13 +4,14 @@ import type { PercentagePoints } from "@eatbid/domain";
 import { z } from "zod";
 import { baseRelativeBidRateWire, bidRateWire, bigintText, instantText } from "../../../../platform/http/wire";
 import type { AuctionBidPositionRecord, MarketPickRecord } from "../../application/find-auction-bid-position";
+import type { BidPositionResult } from "../../domain/bid-position-rule";
 import type { MarketPickPosition } from "../../domain/market-position-pick";
 
 function percentagePointsWire(value: PercentagePoints) {
   return { value, unit: "percentage-points" as const };
 }
 
-function marketPositionWire(position: MarketPickPosition) {
+export function marketPositionWire(position: MarketPickPosition) {
   return {
     order: position.order,
     amount: z.encode(moneyCodec, position.amount),
@@ -38,8 +39,43 @@ function marketPickWire(record: MarketPickRecord): AuctionBidPositionV1Response[
   };
 }
 
+/** 전국 규칙 결과를 공개 형태로 바꾼다. 공고 상세와 오늘 투찰이 같은 변환을 쓴다. */
+export function ruleResultWire(result: BidPositionResult): AuctionBidPositionV1Response["result"] {
+  return result.state === "not-applicable"
+    ? { state: "not-applicable", reasons: [...result.reasons] }
+    : {
+      state: "applicable",
+      band: { minBidCount: result.band.minBidCount, maxBidCount: result.band.maxBidCount },
+      bidCountBasis: result.bidCountBasis.kind === "observed"
+        ? { kind: "observed", bidCount: result.bidCountBasis.bidCount }
+        : {
+          kind: "estimated",
+          observedBidCount: result.bidCountBasis.observedBidCount,
+          hoursBeforeDeadline: result.bidCountBasis.hoursBeforeDeadline,
+          estimatedBidCount: result.bidCountBasis.estimatedBidCount,
+        },
+      evidence: result.evidence,
+      selection: result.selection,
+      validationRounds: result.validationRounds,
+      holdout: result.holdout === null ? null : {
+        month: result.holdout.month,
+        rounds: result.holdout.rounds,
+        tickets: result.holdout.tickets,
+        wins: result.holdout.wins,
+        lotteryExpectedWins: result.holdout.lotteryExpectedWins,
+      },
+      positions: result.positions.map((position) => ({
+        order: position.order,
+        amount: z.encode(moneyCodec, position.amount),
+        baseRelativeRate: baseRelativeBidRateWire(position.baseRelativeRate),
+        cumulativeWinRate: percentagePointsWire(position.cumulativeWinRate),
+        cumulativeLotteryWinRate: percentagePointsWire(position.cumulativeLotteryWinRate),
+        cumulativeValidationWins: position.cumulativeValidationWins,
+      })),
+    };
+}
+
 export function toAuctionBidPositionResponse(record: AuctionBidPositionRecord): AuctionBidPositionV1Response {
-  const { result } = record;
   return {
     auctionId: bigintText(record.auctionId),
     revisionId: bigintText(record.revisionId),
@@ -55,38 +91,7 @@ export function toAuctionBidPositionResponse(record: AuctionBidPositionRecord): 
       validatedFrom: record.rule.validatedFrom,
       validatedThrough: record.rule.validatedThrough,
     },
-    result: result.state === "not-applicable"
-      ? { state: "not-applicable", reasons: [...result.reasons] }
-      : {
-        state: "applicable",
-        band: { minBidCount: result.band.minBidCount, maxBidCount: result.band.maxBidCount },
-        bidCountBasis: result.bidCountBasis.kind === "observed"
-          ? { kind: "observed", bidCount: result.bidCountBasis.bidCount }
-          : {
-            kind: "estimated",
-            observedBidCount: result.bidCountBasis.observedBidCount,
-            hoursBeforeDeadline: result.bidCountBasis.hoursBeforeDeadline,
-            estimatedBidCount: result.bidCountBasis.estimatedBidCount,
-          },
-        evidence: result.evidence,
-        selection: result.selection,
-        validationRounds: result.validationRounds,
-        holdout: result.holdout === null ? null : {
-          month: result.holdout.month,
-          rounds: result.holdout.rounds,
-          tickets: result.holdout.tickets,
-          wins: result.holdout.wins,
-          lotteryExpectedWins: result.holdout.lotteryExpectedWins,
-        },
-        positions: result.positions.map((position) => ({
-          order: position.order,
-          amount: z.encode(moneyCodec, position.amount),
-          baseRelativeRate: baseRelativeBidRateWire(position.baseRelativeRate),
-          cumulativeWinRate: percentagePointsWire(position.cumulativeWinRate),
-          cumulativeLotteryWinRate: percentagePointsWire(position.cumulativeLotteryWinRate),
-          cumulativeValidationWins: position.cumulativeValidationWins,
-        })),
-      },
+    result: ruleResultWire(record.result),
     marketPick: marketPickWire(record.marketPick),
   };
 }

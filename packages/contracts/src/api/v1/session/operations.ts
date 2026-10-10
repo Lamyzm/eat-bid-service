@@ -4,6 +4,14 @@ import { problemDetailsSchema } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation } from "../../operation";
 import { currentSessionV1ResponseSchema } from "./get-current-session.response";
 
+/**
+ * 응답에 실을 선택 항목이다. 새 key는 요청할 때만 싣는다. 옛 server는 이 query를 읽지 않고 무시하므로 새 web이 보내도
+ * 깨지지 않고, 옛 web은 보내지 않으므로 새 key를 받지 않는다(배포 순서와 무관하게 안전한 opt-in).
+ */
+export const currentSessionQuerySchema = z.strictObject({
+  include: z.literal("operator").optional(),
+}).meta({ id: "CurrentSessionQuery" });
+
 export const sessionV1Operations = {
   getCurrentSession: defineOperation({
     method: "get",
@@ -15,7 +23,7 @@ export const sessionV1Operations = {
       + " 이 조회는 어떤 행도 만들지 않는다.",
     tags: ["내 계정과 조건"],
     pathSchema: z.undefined(),
-    querySchema: z.undefined(),
+    querySchema: currentSessionQuerySchema.default({}),
     bodySchema: z.undefined(),
     successResponses: {
       // 미로그인에서 401을 던지면 진입 화면이 정상 흐름에서 오류를 렌더해야 한다. 세션 조회는
@@ -23,6 +31,7 @@ export const sessionV1Operations = {
       200: { description: "세션 상태 조회 성공", schema: currentSessionV1ResponseSchema },
     },
     problemResponses: {
+      400: { description: "query가 유효하지 않음", schema: problemDetailsSchema },
       500: { description: "예상하지 못한 서버 결함", schema: problemDetailsSchema },
       // 인증 설정이 갖춰지지 않은 배포에서 이 조회가 200 미로그인을 돌려주면 화면은 "로그인하면 된다"고
       // 안내하지만 로그인 자체가 불가능하다. 준비되지 않은 의존성은 그렇게 말한다.
@@ -30,6 +39,8 @@ export const sessionV1Operations = {
     },
   }),
 } as const;
+
+export type CurrentSessionQuery = z.output<typeof currentSessionQuerySchema>;
 
 export const sessionV1OperationRegistry = createOperationRegistry([
   sessionV1Operations.getCurrentSession,

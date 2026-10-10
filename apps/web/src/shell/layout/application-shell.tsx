@@ -13,6 +13,8 @@ interface ApplicationShellProps {
   readonly headerControls?: React.ReactNode;
   /** session store를 읽는 계정 허브도 같은 이유로 상위 layout이 sidebar footer로 주입한다. */
   readonly sidebarFooter?: React.ReactNode;
+  /** 세션에 따라 보이는 탐색 묶음도 상위 layout이 판정해 기본 묶음 뒤에 주입한다. */
+  readonly sidebarExtraNav?: React.ReactNode;
 }
 
 /**
@@ -24,7 +26,8 @@ interface ApplicationShellProps {
 export function ApplicationShell({
   children,
   headerControls,
-  sidebarFooter
+  sidebarFooter,
+  sidebarExtraNav
 }: ApplicationShellProps) {
   return (
     <CommandPalette>
@@ -36,7 +39,7 @@ export function ApplicationShell({
           >
             본문으로 건너뛰기
           </a>
-          <AppSidebar footer={sidebarFooter} />
+          <AppSidebar footer={sidebarFooter} extraNav={sidebarExtraNav} />
           <SidebarInset
             id='main-content'
             tabIndex={-1}

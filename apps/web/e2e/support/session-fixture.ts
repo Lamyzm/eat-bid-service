@@ -22,7 +22,8 @@ const ACTIVE_SESSION: CurrentSessionV1Response = {
   state: 'active',
   account: ACCOUNT,
   principalId: '1',
-  workspace: { workspaceId: '1', name: '검사 워크스페이스', role: 'owner' }
+  workspace: { workspaceId: '1', name: '검사 워크스페이스', role: 'owner' },
+  operator: false
 };
 
 const UNINITIALIZED_SESSION: CurrentSessionV1Response = {

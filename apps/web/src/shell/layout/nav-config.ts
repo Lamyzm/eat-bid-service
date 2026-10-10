@@ -3,8 +3,8 @@ import type { Route } from 'next';
 import type { Icons } from '@/shared/ui/icons';
 
 // 제품 navigation은 `투찰 업무 /work | 복기 /review | 성과 /performance` 세 항목이다(screen-system §3).
-// typed route가 없는 경로는 typecheck에 실패하므로 이 목록 교체는 `/work` route가 생기는 slice와 같은
-// 변경에서만 수행하고, 그 전까지 스타터 잔재 항목을 유지한다. 존재하지 않는 route를 미리 링크하지 않는다.
+// `/work`(오늘 투찰)는 지금 운영자에게만 열려 있어 이 목록이 아니라 workspace layout이 세션을 보고 `내 투찰` 묶음으로
+// 주입한다(PDR-0008). 모두에게 열리는 slice에서 이 목록으로 옮긴다. 존재하지 않는 route를 미리 링크하지 않는다.
 
 /**
  * navigation 한 항목이다.

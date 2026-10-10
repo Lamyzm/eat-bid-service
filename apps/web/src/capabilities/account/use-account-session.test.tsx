@@ -41,13 +41,15 @@ const firstAccount: CurrentSessionV1Response = {
   state: 'active',
   account: { displayName: '첫째 사용자', maskedEmail: 'f***@example.com' },
   principalId: '9007199254740993',
-  workspace: { workspaceId: '11', name: '첫째 워크스페이스', role: 'owner' }
+  workspace: { workspaceId: '11', name: '첫째 워크스페이스', role: 'owner' },
+  operator: false
 };
 const secondAccount: CurrentSessionV1Response = {
   state: 'active',
   account: { displayName: '둘째 사용자', maskedEmail: 's***@example.com' },
   principalId: '9007199254740995',
-  workspace: { workspaceId: '12', name: '둘째 워크스페이스', role: 'owner' }
+  workspace: { workspaceId: '12', name: '둘째 워크스페이스', role: 'owner' },
+  operator: false
 };
 const firstScope = { principalId: '9007199254740993', workspaceId: '11' };
 const firstBusinesses = {

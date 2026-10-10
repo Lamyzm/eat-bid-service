@@ -57,6 +57,8 @@ describe('로그인 복귀 경로 검증', () => {
   test('redirect 대상은 실제 화면으로 좁히고 query는 보존한다', () => {
     expect(returnRoute('/setup')).toBe('/setup');
     expect(returnRoute('/today?region=1')).toBe('/today?region=1');
+    // 오늘 투찰은 주소의 품목 조건이 곧 즐겨찾기라 로그인 뒤 그 조건 그대로 돌아온다.
+    expect(returnRoute('/work?items=육류,가금류')).toBe('/work?items=육류,가금류');
     // 공고 상세는 이 앱에서 가장 흔한 복귀 지점이라 식별자 모양을 검사해 그대로 돌려준다.
     expect(returnRoute('/auctions/9007199254740993')).toBe('/auctions/9007199254740993');
     expect(returnRoute('/auctions/5796468?view=흐름')).toBe('/auctions/5796468?view=흐름');

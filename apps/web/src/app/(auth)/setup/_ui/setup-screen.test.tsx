@@ -65,7 +65,8 @@ const active: CurrentSessionV1Response = {
   state: 'active',
   account,
   principalId: '9007199254740993',
-  workspace: { workspaceId: '11', name: '내 워크스페이스', role: 'owner' }
+  workspace: { workspaceId: '11', name: '내 워크스페이스', role: 'owner' },
+  operator: false
 };
 
 describe('설정 화면 상태', () => {

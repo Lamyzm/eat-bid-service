@@ -1,3 +1,5 @@
+export * from "./bid-board.operations";
+export * from "./bid-board.response";
 export * from "./business.resource";
 export * from "./bid-observation.resource";
 export * from "./bid-observations.operations";

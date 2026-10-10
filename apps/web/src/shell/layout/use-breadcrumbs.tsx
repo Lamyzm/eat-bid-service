@@ -14,7 +14,7 @@ const routeMapping: Record<string, BreadcrumbItem[]> = {};
 
 /** 경로 조각 → 한글 (COPY-GUIDE: 화면 이름은 명사형) */
 const segmentKo: Record<string, string> = {
-  dashboard: '홈', today: '오늘', auction: '공고', analysis: '분석판', wins: '낙찰',
+  dashboard: '홈', today: '오늘', work: '오늘 투찰', auction: '공고', analysis: '분석판', wins: '낙찰',
   schools: '학교 찾기', firms: '업체', record: '내 성적', market: '시장 지도', my: '내 사업자',
   delivery: '납품', funnel: '퍼널', notifications: '알림',
 };

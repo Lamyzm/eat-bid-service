@@ -78,6 +78,64 @@ function cumulativeAt(distribution: PlannedRatioDistribution, value: number): nu
   return (parts[knot]! + fraction * (parts[knot + 1]! - parts[knot]!)) / 1e6;
 }
 
+function gridOf(candidates: CandidateMultiples): number[] {
+  const grid: number[] = [];
+  for (let value = candidates.fromTenThousandths; value <= candidates.toTenThousandths; value += candidates.stepTenThousandths) {
+    grid.push(value);
+  }
+  return grid;
+}
+
+/** 격자마다 한 장 기대 낙찰 합이다. 최선 한 장과 예비 순위가 같은 적분을 쓰도록 한곳에 둔다. */
+function singleTicketScores(
+  rounds: readonly MarketRound[],
+  grid: readonly number[],
+  distribution: PlannedRatioDistribution,
+): Float64Array {
+  const gridCdf = grid.map((value) => cumulativeAt(distribution, value / 10000));
+  const scores = new Float64Array(grid.length);
+  for (const round of rounds) {
+    const sorted = round.competitorRatios.map(Number).sort((left, right) => left - right);
+    let index = 0;
+    for (let g = 0; g < grid.length; g += 1) {
+      const candidate = grid[g]! / 10000;
+      while (index < sorted.length && sorted[index]! < candidate) index += 1;
+      const below = index === 0 ? 0 : cumulativeAt(distribution, sorted[index - 1]!);
+      scores[g] = scores[g]! + gridCdf[g]! - below;
+    }
+  }
+  return scores;
+}
+
+/**
+ * 한 장 기대가 큰 순으로 예비 자리를 고른다. 이미 고른 자리 옆 0.0001 칸은 거의 같은 금액이라 고르는 의미가 없어
+ * `minimumGapTenThousandths`만큼 떨어뜨린다. 표본 밖 성적을 잰 적 없는 순위라 화면은 "예비"로만 보인다(PDR-0008).
+ * 같은 기대면 낮은 배수를 먼저 고른다 — 최선 한 장을 고르는 순서와 같다.
+ */
+export function spareMarketMultiples(input: {
+  readonly rounds: readonly MarketRound[];
+  readonly candidates: CandidateMultiples;
+  readonly distribution: PlannedRatioDistribution;
+  readonly taken: readonly string[];
+  readonly count: number;
+  readonly minimumGapTenThousandths: number;
+}): readonly string[] {
+  const grid = gridOf(input.candidates);
+  const scores = singleTicketScores(input.rounds, grid, input.distribution);
+  const order = grid.map((_, index) => index)
+    .sort((left, right) => scores[right]! - scores[left]! || grid[left]! - grid[right]!);
+  const chosen = input.taken.map((multiple) => Math.round(Number(multiple) * 10000));
+  const spares: string[] = [];
+  for (const index of order) {
+    if (spares.length >= input.count) break;
+    const value = grid[index]!;
+    if (chosen.some((other) => Math.abs(other - value) < input.minimumGapTenThousandths)) continue;
+    chosen.push(value);
+    spares.push(multipleText(value));
+  }
+  return spares;
+}
+
 /**
  * 한 장이면 그 금액, 두 장이면 두 금액의 낙찰 확률 합이 가장 큰 배수를 고른다. 내 금액 x로 낙찰하는 것은 예정가격 비율이
  * (바로 아래 경쟁 투찰, x] 안에 뽑힐 때이고, 두 번째 금액은 첫 금액이 이미 덮은 구간을 빼고 센다. 같은 값이면 낮은 배수를
@@ -89,14 +147,16 @@ export function pickMarketMultiples(input: {
   readonly candidates: CandidateMultiples;
   readonly distribution: PlannedRatioDistribution;
 }): MarketPick {
-  const { candidates, distribution } = input;
-  const grid: number[] = [];
-  for (let value = candidates.fromTenThousandths; value <= candidates.toTenThousandths; value += candidates.stepTenThousandths) {
-    grid.push(value);
-  }
+  const { distribution } = input;
+  const grid = gridOf(input.candidates);
   const size = grid.length;
+  if (input.tickets === 1) {
+    const single = singleTicketScores(input.rounds, grid, distribution);
+    let best = 0;
+    for (let g = 1; g < size; g += 1) if (single[g]! > single[best]!) best = g;
+    return { multiples: [multipleText(grid[best]!)], inSampleExpectedWins: single[best]! };
+  }
   const gridCdf = grid.map((value) => cumulativeAt(distribution, value / 10000));
-  const single = new Float64Array(size);
   const pair = new Float64Array(size * size);
   const belowCdf = new Float64Array(size);
   const own = new Float64Array(size);
@@ -108,21 +168,13 @@ export function pickMarketMultiples(input: {
       while (index < sorted.length && sorted[index]! < candidate) index += 1;
       belowCdf[g] = index === 0 ? 0 : cumulativeAt(distribution, sorted[index - 1]!);
       own[g] = gridCdf[g]! - belowCdf[g]!;
-      single[g] = single[g]! + own[g]!;
     }
-    if (input.tickets === 2) {
-      for (let low = 0; low < size; low += 1) {
-        for (let high = low + 1; high < size; high += 1) {
-          const cell = low * size + high;
-          pair[cell] = pair[cell]! + own[low]! + Math.max(0, gridCdf[high]! - Math.max(belowCdf[high]!, gridCdf[low]!));
-        }
+    for (let low = 0; low < size; low += 1) {
+      for (let high = low + 1; high < size; high += 1) {
+        const cell = low * size + high;
+        pair[cell] = pair[cell]! + own[low]! + Math.max(0, gridCdf[high]! - Math.max(belowCdf[high]!, gridCdf[low]!));
       }
     }
-  }
-  if (input.tickets === 1) {
-    let best = 0;
-    for (let g = 1; g < size; g += 1) if (single[g]! > single[best]!) best = g;
-    return { multiples: [multipleText(grid[best]!)], inSampleExpectedWins: single[best]! };
   }
   let bestLow = 0;
   let bestHigh = 1;

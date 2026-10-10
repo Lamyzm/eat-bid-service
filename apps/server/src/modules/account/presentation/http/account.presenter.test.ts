@@ -46,8 +46,9 @@ describe("계정 presenter", () => {
   test("세션 판정 셋을 각각 다른 상태로 직렬화하고 활성 세션만 principal과 워크스페이스를 싣는다", () => {
     const unauthenticated = toCurrentSessionResponse({ state: "unauthenticated" });
     const uninitialized = toCurrentSessionResponse({ state: "uninitialized", subject });
-    const active = toCurrentSessionResponse({ state: "active", subject, principal });
-    for (const response of [unauthenticated, uninitialized, active]) {
+    const active = toCurrentSessionResponse({ state: "active", subject, principal, operator: false });
+    const operator = toCurrentSessionResponse({ state: "active", subject, principal, operator: true });
+    for (const response of [unauthenticated, uninitialized, active, operator]) {
       expect(sessionSchema.parse(response)).toEqual(response);
     }
     expect(unauthenticated).toEqual({ state: "unauthenticated" });
@@ -57,7 +58,11 @@ describe("계정 presenter", () => {
       account: { displayName: "김철수", maskedEmail: "c***@example.com" },
       principalId: "9007199254740993",
       workspace: { workspaceId: "9007199254740995", name: "내 워크스페이스", role: "owner" },
+      operator: false,
     });
+    expect(operator).toMatchObject({ state: "active", operator: true });
+    // 요청하지 않은 운영자 여부는 key째 싣지 않는다. 옛 web의 엄격한 schema가 모르는 key로 세션을 거부하지 않게 한다.
+    expect("operator" in toCurrentSessionResponse({ state: "active", subject, principal, operator: null })).toBe(false);
     expect(toAccountInitializationResponse(principal)).toEqual({
       principalId: "9007199254740993",
       workspace: { workspaceId: "9007199254740995", name: "내 워크스페이스", role: "owner" },
