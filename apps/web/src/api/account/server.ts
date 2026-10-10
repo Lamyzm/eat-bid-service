@@ -15,6 +15,7 @@ import { cache } from 'react';
 
 import { privateServerRequest } from '../_transport/private-server-request.server';
 import { getCurrentSessionWith } from './get-current-session';
+import { getMyBidBoardWith, type MyBidBoardInput, type MyBidBoardRead } from './get-my-bid-board';
 import { listMyBusinessesWith } from './my-businesses';
 import {
   countFilterCombinationsWith,
@@ -118,6 +119,16 @@ export async function countFilterCombinationsFromServer(
     return { kind: 'unread' };
   }
 }
+
+/**
+ * 오늘 투찰 한 장이다. 운영자 권한과 관심 지역이 사람마다 달라 `use cache`를 쓰지 않는다. 권한 없음은 결과 값
+ * `forbidden`이고, 그 밖의 실패는 그대로 던져 화면의 실패 갈래가 다룬다(추천 투찰가 조회와 같은 이유).
+ */
+export async function getMyBidBoardFromServer(input: Omit<MyBidBoardInput, 'signal'>): Promise<MyBidBoardRead> {
+  return await getMyBidBoardWith(privateServerRequest, input);
+}
+
+export type { MyBidBoardRead };
 
 /**
  * 서버가 읽은 목록을 브라우저 캐시의 어느 자리에 놓을지는 조회를 소유한 query factory가 정한다. 여기서
