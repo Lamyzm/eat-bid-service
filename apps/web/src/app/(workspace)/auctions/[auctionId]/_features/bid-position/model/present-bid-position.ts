@@ -111,10 +111,10 @@ function basisText(result: Applicable): string | null {
   const basis = result.bidCountBasis;
   if (basis.kind === 'observed') return null;
   const head =
-    `마감 ${basis.hoursBeforeDeadline}시간 전 관측 ${countText(basis.observedBidCount)}곳을 ` +
-    `마감 1시간 전 약 ${countText(basis.estimatedBidCount)}곳으로 추정해 표를 골랐습니다.`;
+    `마감 ${basis.hoursBeforeDeadline}시간 전에 본 ${countText(basis.observedBidCount)}곳으로 ` +
+    `마감 1시간 전 참여를 약 ${countText(basis.estimatedBidCount)}곳으로 잡아 표를 골랐어요.`;
   return basis.hoursBeforeDeadline >= 24
-    ? `${head} 마감이 하루 이상 남아 추정이 흔들립니다. 마감 당일에 다시 보세요.`
+    ? `${head} 마감이 하루 넘게 남아 이 추정은 흔들려요. 마감 당일에 다시 보세요.`
     : head;
 }
 
@@ -132,10 +132,10 @@ function ruleText(response: Response): string {
 type Reason = Extract<Response['result'], { state: 'not-applicable' }>['reasons'][number];
 
 const REASONS: Record<Reason, string> = {
-  'floor-rate-unobserved': '낙찰하한율이 확인되지 않았습니다.',
-  'floor-rate-outside-rule': '규칙은 하한율 90%·88% 회차에서만 검증했습니다.',
-  'participation-unobserved': '참여 업체 수가 아직 관측되지 않았습니다.',
-  'participation-below-rule': '참여가 2곳 미만이라 규칙 표가 없습니다.'
+  'floor-rate-unobserved': '낙찰하한율을 아직 확인하지 못했어요.',
+  'floor-rate-outside-rule': '규칙은 하한율 90%·88% 회차에서만 검증했어요.',
+  'participation-unobserved': '참여 업체 수를 아직 확인하지 못했어요.',
+  'participation-below-rule': '참여가 2곳 미만이라 쓸 수 있는 표가 없어요.'
 };
 
 function evidenceText(result: Applicable, position: Applicable['positions'][number]): string {
@@ -149,8 +149,8 @@ function evidenceText(result: Applicable, position: Applicable['positions'][numb
 function holdoutText(holdout: Applicable['holdout']): string {
   if (holdout === null) return '';
   return (
-    ` 고른 뒤 처음 본 ${holdout.month} ${countText(holdout.rounds)}회차에서 ${holdout.tickets}장은 ` +
-    `${countText(holdout.wins)}회 낙찰, 무작위 ${holdout.lotteryExpectedWins}회(${multipleText(holdout.wins, holdout.lotteryExpectedWins)})였습니다.`
+    ` 고른 뒤 처음 본 ${holdout.month} ${countText(holdout.rounds)}회차에서는 ${holdout.tickets}장으로 ` +
+    `${countText(holdout.wins)}회 낙찰했고 무작위로는 ${holdout.lotteryExpectedWins}회였어요(${multipleText(holdout.wins, holdout.lotteryExpectedWins)}).`
   );
 }
 
@@ -158,8 +158,8 @@ function calibrationText(response: Response, result: Applicable): string {
   const period = `${response.rule.validatedFrom}~${response.rule.validatedThrough}`;
   const head =
     result.selection === 'training'
-      ? `배수는 ~${response.rule.trainedThrough} 자료로만 골랐고 위 낙찰률은 고를 때 보지 않은 ${period} 결과입니다.`
-      : `이 표의 배수는 ${period} 성적을 보고 골라 위 낙찰률이 실제보다 높게 나왔을 수 있습니다.`;
+      ? `배수는 ~${response.rule.trainedThrough} 자료로만 골랐어요. 위 낙찰률은 고를 때 보지 않은 ${period} 회차의 결과예요.`
+      : `이 표의 배수는 ${period} 성적을 보고 골라서 위 낙찰률이 실제보다 높게 나왔을 수 있어요.`;
   return head + holdoutText(result.holdout);
 }
 
@@ -175,7 +175,7 @@ export function presentBidPosition(load: BidPositionLoad): BidPositionView | nul
       inputs: inputsText(response),
       reason: [
         ...result.reasons.map((reason) => REASONS[reason]),
-        '이 회차는 계산하지 않았습니다.'
+        '그래서 이 회차는 계산하지 않았어요.'
       ].join(' '),
       rule: ruleText(response)
     };
@@ -187,7 +187,7 @@ export function presentBidPosition(load: BidPositionLoad): BidPositionView | nul
     basisNote: basisText(result),
     weakNote:
       result.evidence === 'weak'
-        ? '이 구간은 표본 밖 성적이 무작위와 뚜렷하게 갈리지 않았습니다. 금액은 참고로만 보세요.'
+        ? '이 구간은 고를 때 쓰지 않은 회차에서 무작위와 뚜렷한 차이가 나지 않았어요. 금액은 참고로만 보세요.'
         : null,
     rows: result.positions.map((position) => ({
       label: `${position.order}번 사업자`,

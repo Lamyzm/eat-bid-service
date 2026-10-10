@@ -27,7 +27,7 @@ export function BidPositionPanel({ view }: { readonly view: BidPositionView }) {
     return (
       <PanelFrame>
         <p role='status' className='mt-2 text-sm text-muted-foreground'>
-          추천 투찰가를 불러오지 못했습니다. 잠시 뒤 새로고침해 주세요.
+          추천 투찰가를 불러오지 못했어요. 잠시 뒤 새로고침해 주세요.
         </p>
       </PanelFrame>
     );

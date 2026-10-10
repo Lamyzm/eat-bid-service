@@ -87,9 +87,9 @@ describe('추천 투찰가 표시', () => {
 
   test('표본 밖 성적과 고른 뒤 처음 본 달의 결과를 함께 쓰고 근거가 약한 대역은 그렇게 말한다', () => {
     const view = applicableView(presentBidPosition({ kind: 'position', response }));
-    expect(view.calibration).toContain('고를 때 보지 않은 2026-01~2026-08 결과');
+    expect(view.calibration).toContain('고를 때 보지 않은 2026-01~2026-08 회차의 결과예요');
     expect(view.calibration).toContain(
-      '2026-09 851회차에서 2장은 33회 낙찰, 무작위 31.6회(1.04배)'
+      '2026-09 851회차에서는 2장으로 33회 낙찰했고 무작위로는 31.6회였어요(1.04배)'
     );
     expect(view.weakNote).toBeNull();
     const weak = applicableView(withResult({ ...applicable, evidence: 'weak' }));
@@ -110,7 +110,7 @@ describe('추천 투찰가 표시', () => {
         })
       );
     expect(estimated(12).basisNote).toBe(
-      '마감 12시간 전 관측 36곳을 마감 1시간 전 약 49곳으로 추정해 표를 골랐습니다.'
+      '마감 12시간 전에 본 36곳으로 마감 1시간 전 참여를 약 49곳으로 잡아 표를 골랐어요.'
     );
     expect(estimated(30).basisNote).toContain('마감 당일에 다시 보세요');
     expect(applicableView(presentBidPosition({ kind: 'position', response })).basisNote).toBeNull();
@@ -128,7 +128,7 @@ describe('추천 투찰가 표시', () => {
     });
     if (view?.kind !== 'not-applicable') throw new Error('규칙 밖이어야 한다');
     expect(view.reason).toBe(
-      '규칙은 하한율 90%·88% 회차에서만 검증했습니다. 참여 업체 수가 아직 관측되지 않았습니다. 이 회차는 계산하지 않았습니다.'
+      '규칙은 하한율 90%·88% 회차에서만 검증했어요. 참여 업체 수를 아직 확인하지 못했어요. 그래서 이 회차는 계산하지 않았어요.'
     );
     expect(JSON.stringify(view)).not.toContain('15,227,341원');
   });
