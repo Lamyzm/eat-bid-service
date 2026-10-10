@@ -6,6 +6,7 @@
  * 마감된 날들이다(ADR 0034).
  */
 import { sql, type SQL } from "drizzle-orm";
+import { latestRevisionOrder } from "./latest-revision-order";
 import type { Temporal } from "@eatbid/domain";
 
 import { KST_TIME_ZONE } from "../../domain/kst-month";
@@ -86,7 +87,7 @@ export function coverageWindowQuery(input: {
       from core.auction_revision revision
       where revision.deadline_at >= ${windowStart}::timestamptz
         and revision.deadline_at < ${windowEnd}::timestamptz
-      order by revision.auction_attempt_id, revision.auction_revision_id desc
+      order by revision.auction_attempt_id, ${latestRevisionOrder("revision")}
     ),
     matched as (
       select latest.deadline_at

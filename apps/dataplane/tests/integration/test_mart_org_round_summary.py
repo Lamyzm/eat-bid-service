@@ -289,6 +289,85 @@ def test_한_attempt의_최신_revision만_요약한다(
     assert rows[0][13] == "unknown"
 
 
+def test_늦게_투영된_옛_관측은_최신_revision을_덮지_않는다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """EAT-333. 재처리나 오래 걸린 회차가 옛 관측을 나중에 투영하면 revision 번호가 커진다. 번호로 최신을 고르면 회차 요약이
+    낙찰 전 상태로 돌아간다(2026-09 회차 11,162건 중 10,849건). 최신은 관측 번호 순이다."""
+    # 같은 공고를 두 번 관측한다. 첫 관측(O1) 뒤 제목이 바뀐 두 번째 관측(O2)이 최신이다.
+    external_bid_id = _publish_and_project(pipeline_services)
+    renamed = ROSTER_FIXTURE.read_bytes().replace(
+        "비식별 급식 식재료 구매".encode(), "비식별 급식 식재료 구매 정정".encode(), 1
+    )
+    second_publication, _ = publish_v2_observation(
+        pipeline_services, renamed, external_bid_id=external_bid_id
+    )
+    project_publication(
+        publication_id=second_publication,
+        projector_version=BUILD_SHA,
+        activated_at=ACTIVATED_AT,
+        repository=pipeline_services.projection_repository,
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select revision.auction_attempt_id, revision.observation_id, revision.content_sha256,
+                   organization.organization_id, revision.auction_revision_id
+              from core.auction_revision as revision
+              join core.auction_attempt as attempt using (auction_attempt_id)
+              join core.auction_organization as organization
+                on organization.auction_revision_id = revision.auction_revision_id
+               and organization.role = 'purchaser'
+             where attempt.external_bid_id = %s
+             order by revision.observation_id
+            """,
+            (external_bid_id,),
+        )
+        first, current = cursor.fetchall()[-2:]
+        older = (first[1],)
+        assert older[0] < current[1]
+        cursor.execute(
+            """
+            insert into ingest.normalized_record
+              (observation_id, record_type, source_entity_id, normalized_payload,
+               parser_version, normalized_at)
+            values (%s, 'auction.v2', %s, '{}'::jsonb, 'eat-v1-replayed', now())
+            returning normalized_record_id
+            """,
+            (older[0], external_bid_id),
+        )
+        replayed_record = cursor.fetchone()
+        assert replayed_record is not None
+        cursor.execute(
+            """
+            insert into core.auction_revision
+              (auction_attempt_id, normalized_record_id, observation_id, content_sha256,
+               source_status, title, announced_at, opened_at, base_amount, planned_amount,
+               currency, lineage_observed)
+            values (%s, %s, %s, %s, '진행중', '옛 관측 재투영', now(), now(), 222.00, 200.00,
+                    'KRW', false)
+            returning auction_revision_id
+            """,
+            (current[0], replayed_record[0], older[0], current[2]),
+        )
+        replayed = cursor.fetchone()
+        assert replayed is not None and replayed[0] > current[4]
+        cursor.execute(
+            "insert into core.auction_organization "
+            "(auction_revision_id, organization_id, role) values (%s, %s, 'purchaser')",
+            (replayed[0], current[3]),
+        )
+    pipeline_services.connection.commit()
+
+    plan = mart_plan(create_source_release(pipeline_services))
+    build_id, _ = build_mart(pipeline_services, plan, fill_org_round_summary)
+
+    rows = _rows_for(pipeline_services, build_id, external_bid_id)
+    assert len(rows) == 1
+    assert rows[0][15] == current[4]
+    assert rows[0][1] != Decimal("222.00")
+
+
 def test_revision이_없는_attempt는_회차로_발표하지_않는다(
     pipeline_services: PipelineServices,
 ) -> None:

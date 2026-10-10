@@ -1,5 +1,6 @@
 /** @module 책임: 선택 revision의 명단과 같은 원본 관측의 업체명·판정 라벨·관측 시각을 한 SQL snapshot으로 읽는다. */
 import { sql, type SQL } from "drizzle-orm";
+import { latestRevisionOrder } from "./latest-revision-order";
 import type { AuctionRosterQuery } from "../../application/auction-roster-reader";
 import { ROSTER_QUERY_ROW_LIMIT } from "../../domain/roster-limits";
 
@@ -62,7 +63,7 @@ export function auctionRosterQuery(query: AuctionRosterQuery) {
       join core.auction_attempt a using (auction_attempt_id)
       where r.auction_attempt_id = ${query.auctionId}
         and (${query.revisionId}::bigint is null or r.auction_revision_id = ${query.revisionId}::bigint)
-      order by r.auction_revision_id desc limit 1
+      order by ${latestRevisionOrder("r")} limit 1
     ), chosen as (
       -- 명단 줄 수와 원본 명단 크기는 revision 열이다(EAT-308). 줄 수가 null이면 명단 계약이 없는 v1 해석이다.
       select selected.*, observation.observed_at_count, observation.observed_at,

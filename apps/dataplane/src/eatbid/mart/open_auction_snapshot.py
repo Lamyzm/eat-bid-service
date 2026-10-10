@@ -21,6 +21,7 @@ from typing import Any
 
 from eatbid.core.projection_models import instant_datetime, money_decimal
 from eatbid.mart.item_bridge import fill_item_bridge
+from eatbid.mart.latest_revision import latest_revision_order
 from eatbid.mart.models import MartBuildPlan
 from eatbid.mart.plausibility import IMPLAUSIBLE_OPENING_GAP_DAYS
 from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
@@ -145,7 +146,9 @@ update mart.open_auction_snapshot as snapshot
               where build_id = %(build_id)s
            )
      -- 한 revision에 같은 role의 코드가 둘 이상 관측되면 어느 것을 실었는지가 실행마다 달라진다.
-     order by revision.auction_attempt_id, revision.auction_revision_id desc,
+     order by revision.auction_attempt_id, """
+    + latest_revision_order("revision")
+    + """,
               sido.code_value_id, sigungu.code_value_id, solo_bid.code_value_id,
               change_kind.code_value_id
   ) as latest
