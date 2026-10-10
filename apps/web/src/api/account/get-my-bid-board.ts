@@ -16,7 +16,7 @@ export type MyBidBoardRead =
   | { readonly kind: 'forbidden' };
 
 export interface MyBidBoardInput {
-  readonly items?: MyBidBoardQuery['items'];
+  readonly items?: readonly NonNullable<MyBidBoardQuery['items']>[number][];
   readonly itemUnknown?: MyBidBoardQuery['itemUnknown'];
   readonly signal?: AbortSignal;
 }

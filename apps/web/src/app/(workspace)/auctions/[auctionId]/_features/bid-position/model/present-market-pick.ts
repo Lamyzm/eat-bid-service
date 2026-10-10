@@ -9,6 +9,8 @@
  */
 import type { AuctionBidPositionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
+import { decimalScale, scaledText, sumAtScale } from '@/shared/lib/decimal-sum';
+
 type MarketPick = AuctionBidPositionV1Response['marketPick'];
 type Applicable = Extract<MarketPick['result'], { state: 'applicable' }>;
 type Reason = Extract<MarketPick['result'], { state: 'not-applicable' }>['reasons'][number];
@@ -72,20 +74,6 @@ function monthSpan(from: string, through: string): string {
     : `${yearMonthText(from)}~${yearMonthText(through)}`;
 }
 
-/** 소수 문자열들의 정확한 합을 같은 자릿수의 정수로 낸다. 표시용 합계라도 Number 소수 덧셈 오차를 들이지 않는다. */
-function scaledSum(values: readonly string[], scale: number): bigint {
-  return values.reduce((sum, value) => {
-    const [whole, fraction = ''] = value.split('.');
-    return sum + BigInt(whole + fraction.padEnd(scale, '0'));
-  }, BigInt(0));
-}
-
-function scaledText(units: bigint, scale: number): string {
-  const digits = units.toString().padStart(scale + 1, '0');
-  const whole = digits.slice(0, digits.length - scale).replace(GROUPING, ',');
-  return scale === 0 ? whole : `${whole}.${digits.slice(-scale)}`;
-}
-
 function rowOf(label: string, position: Applicable['single']): MarketPickRow {
   return {
     label,
@@ -110,13 +98,10 @@ function recordOf(pick: MarketPick, result: Applicable): MarketPickRecord {
   const first = evidence[0]!;
   const last = evidence[evidence.length - 1]!;
   const rounds = evidence.reduce((total, entry) => total + entry.rounds, 0);
-  const scale = Math.max(
-    0,
-    ...evidence.flatMap((entry) => METHODS.map(({ field }) => (entry[field].split('.')[1] ?? '').length))
-  );
+  const scale = decimalScale(evidence.flatMap((entry) => METHODS.map(({ field }) => entry[field])));
   const sums = METHODS.map((method) => ({
     ...method,
-    units: scaledSum(evidence.map((entry) => entry[method.field]), scale)
+    units: sumAtScale(evidence.map((entry) => entry[method.field]), scale)
   })).toSorted((left, right) => (left.units === right.units ? 0 : left.units > right.units ? -1 : 1));
   const largest = sums[0]!.units;
   const permille = (units: bigint) =>

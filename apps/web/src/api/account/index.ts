@@ -45,6 +45,7 @@ export type {
   RegisteredBusinessLocation,
   WorkspaceRegionPreference
 } from '@eatbid/contracts/api/v1/me';
+export type { MyBidBoardInput, MyBidBoardRead } from './get-my-bid-board';
 export type { MyBidObservationsInput } from './find-my-bid-observations';
 export type { FilterCombinationCountsInput, SaveFilterCombinationInput } from './filter-combinations';
 export type { PrivateWorkspaceScope } from './queries';
