@@ -5,19 +5,36 @@
  * 이유는 오늘 투찰이 권한·지역·장애마다 사용자가 할 일이 달라서다 — error 경계로 빠지면 그 차이를 말할 수 없다.
  */
 import type { MyBidBoardInput, MyBidBoardRead } from '@/api/account';
+import { conditionSummary } from '../_features/bid-board/model/condition-summary';
 import { presentBidBoard, type BoardView } from '../_features/bid-board/model/present-bid-board';
 import { workItemsOf } from './work-search';
 
-export type WorkView = BoardView | { readonly kind: 'forbidden' } | { readonly kind: 'failed' };
+type Conditions = Parameters<typeof conditionSummary>[0];
+type Board = Extract<BoardView, { kind: 'board' }>;
+
+export type WorkView =
+  | Exclude<BoardView, { kind: 'board' }>
+  | (Board & { readonly summary: string })
+  | { readonly kind: 'forbidden' }
+  | { readonly kind: 'failed' };
+
+const UNREAD: Conditions = { areas: null, businessCount: null };
 
 export async function loadWorkPage(
   search: { readonly items: readonly string[] | null; readonly itemUnknown: string | null },
-  dependencies: { readonly readBoard: (input: Omit<MyBidBoardInput, 'signal'>) => Promise<MyBidBoardRead> }
+  dependencies: {
+    readonly readBoard: (input: Omit<MyBidBoardInput, 'signal'>) => Promise<MyBidBoardRead>;
+    /** 목록이 걸러진 범위(관심 지역·등록 사업자 수)다. 못 읽어도 목록은 서야 하므로 실패는 빈 조각으로 바꾼다. */
+    readonly readConditions: () => Promise<Conditions>;
+  }
 ): Promise<WorkView> {
+  const conditions = dependencies.readConditions().catch(() => UNREAD);
   try {
     const read = await dependencies.readBoard(workItemsOf(search));
     if (read.kind === 'forbidden') return { kind: 'forbidden' };
-    return presentBidBoard(read.response);
+    const view = presentBidBoard(read.response);
+    if (view.kind !== 'board') return view;
+    return { ...view, summary: conditionSummary(await conditions) };
   } catch {
     return { kind: 'failed' };
   }

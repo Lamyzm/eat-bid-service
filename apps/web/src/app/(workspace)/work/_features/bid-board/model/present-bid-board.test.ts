@@ -60,34 +60,62 @@ describe('오늘 투찰 표시', () => {
         ]
       }
     ]);
-    expect(row.facts).toBe('기초금액 15,009,130원 · 참여 93곳');
-    expect(row.more.single).toEqual({ label: '한 곳만 넣을 때', amount: '13,304,243원', copyValue: '13304243', note: '이번 달은 1번과 같은 금액' });
-    expect(row.more.spares.map((spare) => [spare.label, spare.amount])).toEqual([
-      ['예비 3순위', '13,289,384원'],
-      ['예비 4순위', '13,319,102원'],
-      ['예비 5순위', '13,333,962원']
-    ]);
+    // 값이 라벨보다 진해야 eaT 화면과 같은 공고인지 맞춰 볼 수 있다. 그래서 라벨과 값을 나눠 넘긴다.
+    expect(row.facts).toEqual([{ label: '기초금액', value: '15,009,130원' }, { label: '참여', value: '93곳' }]);
+    expect(row.more.market).toEqual({
+      title: '10월 맞춤 더 보기',
+      single: { label: '한 곳만 넣을 때', amount: '13,304,243원', copyValue: '13304243', note: '이번 달은 1번과 같은 금액' },
+      spares: [
+        { label: '예비 3순위', amount: '13,289,384원', copyValue: '13289384' },
+        { label: '예비 4순위', amount: '13,319,102원', copyValue: '13319102' },
+        { label: '예비 5순위', amount: '13,333,962원', copyValue: '13333962' }
+      ],
+      basis: '7~9월 내 사업자 공고 164건으로 고른 배수예요'
+    });
+    expect(row.more.ruleExtras).toEqual([]);
     expect(row.more.band).toBe('전국 공식은 참여 70곳 이상 표를 썼어요');
+  });
+
+  test('더 보기의 성적은 네 방법을 같은 공고에 대어 본 막대이고 맞춤 막대에 이번 달 이름을 단다', () => {
+    const view = boardView();
+    expect(view.record.heading).toBe('성적 · 같은 공고 1,838건');
+    expect(view.record.bars.map((bar) => [bar.label, bar.value, bar.mine])).toEqual([
+      ['10월 맞춤', '95.0건', true],
+      ['전국 공식', '81.9건', false],
+      ['무작위 자리', '68.7건', false],
+      ['그동안 낸 금액', '57.9건', false]
+    ]);
+  });
+
+  test('읽는 법은 두 칸·파란 테두리·칸 머리 숫자·복사·88% 공고를 이번 달 이름으로 풀어 쓴다', () => {
+    const view = boardView();
+    expect(view.guide).toEqual([
+      '오른쪽 두 칸은 방법마다 낸 1번·2번 금액이에요. 파란 테두리가 지금 근거가 가장 강한 방법이에요. 10월 맞춤이 나오면 그 칸, 아니면 전국 공식이에요.',
+      '칸 머리의 숫자는 같은 공고에 대어 본 낙찰 수예요(두 장, 예정가격 추첨 평균).',
+      '금액 옆 복사를 누르면 쉼표 없는 숫자가 복사돼요. 넣을지와 언제 넣을지는 직접 정하세요.',
+      '하한율 88% 공고는 금액 없이 직접 판단만 달아요.'
+    ]);
   });
 
   test('하한율 88 행은 금액 없이 직접 판단으로 표시한다', () => {
     const row = rowOf(boardView(), '2797004');
     expect(row.selfJudged).toBe(true);
     expect(row.cells).toEqual([]);
-    expect(JSON.stringify(row)).not.toContain('원"');
+    // 기초금액은 공고 사실이라 남고, 투찰 금액(칸·더 보기)만 없다.
+    expect(row.more).toEqual({ market: null, ruleExtras: [], band: null });
   });
 
   test('기초금액이 없는 행은 두 칸 모두 기초금액 미확인이라고 말한다', () => {
     const row = rowOf(boardView(), '2797005');
     expect(row.cells).toEqual([{ kind: 'reason', text: '기초금액 미확인' }, { kind: 'reason', text: '기초금액 미확인' }]);
-    expect(row.facts).toBe('기초금액 미확인 · 참여 43곳');
+    expect(row.facts).toEqual([{ label: '기초금액', value: '미확인' }, { label: '참여', value: '43곳' }]);
   });
 
   test('참여 수를 아직 모르면 전국 공식 칸만 그렇게 말하고 맞춤 금액이 근거 표시를 갖는다', () => {
     const row = rowOf(boardView(), '2797007');
     expect(row.cells[0]).toMatchObject({ kind: 'amounts', lead: true });
     expect(row.cells[1]).toEqual({ kind: 'reason', text: '참여 수 미확인' });
-    expect(row.facts).toBe('기초금액 5,598,590원 · 참여 미확인');
+    expect(row.facts).toEqual([{ label: '기초금액', value: '5,598,590원' }, { label: '참여', value: '미확인' }]);
   });
 
   test('맞춤 시장 조회가 실패하면 맞춤 칸만 계산하지 못했다고 하고 전국 공식이 근거 표시를 갖는다', () => {

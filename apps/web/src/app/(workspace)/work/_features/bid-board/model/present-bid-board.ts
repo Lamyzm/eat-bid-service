@@ -6,6 +6,7 @@
  */
 import type { BidBoardRowWire, MyBidBoardV1Response } from '@eatbid/contracts/api/v1/me';
 
+import { marketPickRecord, type MarketPickBar } from '@/entities/market-pick-record/market-pick-record';
 import { decimalScale, scaledText, sumAtScale } from '@/shared/lib/decimal-sum';
 import { groupLabel, hourMinuteText, kstOf, relativeText } from './closing-time';
 
@@ -32,14 +33,21 @@ export interface BoardRowView {
   readonly organization: string;
   readonly item: string;
   readonly title: string;
-  readonly facts: string;
+  /** 라벨과 값을 나눈다. 값이 라벨보다 진해야 eaT 화면과 같은 공고인지 맞춰 볼 수 있다. */
+  readonly facts: readonly { readonly label: string; readonly value: string }[];
   /** 하한율 88% 공고다. 금액 없이 직접 판단으로 표시한다(PDR-0008). */
   readonly selfJudged: boolean;
   /** [이번 달 맞춤, 전국 공식] 순서가 고정이다. 직접 판단 행은 비어 있다. */
   readonly cells: readonly AmountCell[];
   readonly more: {
-    readonly single: (AmountLine & { readonly note: string | null }) | null;
-    readonly spares: readonly AmountLine[];
+    readonly market: {
+      readonly title: string;
+      readonly single: AmountLine & { readonly note: string | null };
+      readonly spares: readonly AmountLine[];
+      readonly basis: string;
+    } | null;
+    /** 전국 공식 표가 1·2번 뒤로 더 낸 금액이다. */
+    readonly ruleExtras: readonly AmountLine[];
     readonly band: string | null;
   };
 }
@@ -59,6 +67,9 @@ export type BoardView =
     readonly columns: readonly { readonly label: string; readonly record: string }[];
     readonly columnCaption: string;
     readonly groups: readonly ClosingGroupView[];
+    /** 더 보기 안의 성적 막대다. 공고마다 같은 값이라 한 번 만들어 행마다 그린다. */
+    readonly record: { readonly heading: string; readonly bars: readonly MarketPickBar[] };
+    readonly guide: readonly string[];
   };
 
 const GROUPING = /\B(?=(\d{3})+(?!\d))/g;
@@ -86,11 +97,13 @@ function marketMonth(head: MarketHead): number {
   return month === 12 ? 1 : month + 1;
 }
 
+function windowText(head: MarketHead): string {
+  return `${Number(head.window.fromMonth.slice(5, 7))}~${Number(head.window.throughMonth.slice(5, 7))}월`;
+}
+
 function marketStamp(head: MarketHead): string {
   if (head.state === 'picked') {
-    const from = Number(head.window.fromMonth.slice(5, 7));
-    const through = Number(head.window.throughMonth.slice(5, 7));
-    return `${marketMonth(head)}월 맞춤 금액은 ${from}~${through}월 내 사업자 공고 ${(head.marketRounds ?? 0).toLocaleString('ko-KR')}건으로 골랐어요`;
+    return `${marketMonth(head)}월 맞춤 금액은 ${windowText(head)} 내 사업자 공고 ${(head.marketRounds ?? 0).toLocaleString('ko-KR')}건으로 골랐어요`;
   }
   if (head.reasons.includes('market-rounds-below-minimum')) {
     return `최근 석 달 내 사업자 공고가 ${(head.marketRounds ?? 0).toLocaleString('ko-KR')}건이라 맞춤 금액을 고르지 않았어요(${head.minimumRounds}건 이상 필요)`;
@@ -136,42 +149,58 @@ function ruleCellOf(row: BidBoardRowWire, marketLead: boolean): AmountCell {
   };
 }
 
-function moreOf(row: BidBoardRowWire): BoardRowView['more'] {
-  const market = row.market?.state === 'applicable' ? row.market : null;
+function moreOf(row: BidBoardRowWire, head: MarketHead): BoardRowView['more'] {
+  const market = row.market?.state === 'applicable' && head.state === 'picked' ? row.market : null;
   const rule = row.rule?.state === 'applicable' ? row.rule : null;
-  const single = market === null ? null : {
-    ...line('한 곳만 넣을 때', market.single.amount.amount),
-    note: market.single.amount.amount === market.positions[0]!.amount.amount ? '이번 달은 1번과 같은 금액' : null
-  };
   const band = rule === null ? null : rule.band.maxBidCount === null
     ? `전국 공식은 참여 ${rule.band.minBidCount}곳 이상 표를 썼어요`
     : `전국 공식은 참여 ${rule.band.minBidCount}~${rule.band.maxBidCount}곳 표를 썼어요`;
   return {
-    single,
-    spares: [
-      ...(market?.spares.map((spare) => line(`예비 ${spare.order}순위`, spare.amount.amount)) ?? []),
-      ...(rule?.positions.slice(2).map((position) => line(`전국 공식 ${position.order}번`, position.amount.amount)) ?? [])
-    ],
+    market: market === null ? null : {
+      title: `${marketMonth(head)}월 맞춤 더 보기`,
+      single: {
+        ...line('한 곳만 넣을 때', market.single.amount.amount),
+        note: market.single.amount.amount === market.positions[0]!.amount.amount ? '이번 달은 1번과 같은 금액' : null
+      },
+      spares: market.spares.map((spare) => line(`예비 ${spare.order}순위`, spare.amount.amount)),
+      basis: `${windowText(head)} 내 사업자 공고 ${(head.marketRounds ?? 0).toLocaleString('ko-KR')}건으로 고른 배수예요`
+    },
+    ruleExtras: rule?.positions.slice(2).map((position) => line(`전국 공식 ${position.order}번`, position.amount.amount)) ?? [],
     band
   };
 }
 
-function rowOf(row: BidBoardRowWire): BoardRowView {
+function recordOf(head: MarketHead): Extract<BoardView, { kind: 'board' }>['record'] {
+  const record = marketPickRecord(head.evidence, { version: head.version, mineLabel: `${marketMonth(head)}월 맞춤` });
+  return { heading: `성적 · 같은 공고 ${record.rounds.toLocaleString('ko-KR')}건`, bars: record.bars };
+}
+
+function guideOf(head: MarketHead): readonly string[] {
+  return [
+    `오른쪽 두 칸은 방법마다 낸 1번·2번 금액이에요. 파란 테두리가 지금 근거가 가장 강한 방법이에요. ${marketMonth(head)}월 맞춤이 나오면 그 칸, 아니면 전국 공식이에요.`,
+    '칸 머리의 숫자는 같은 공고에 대어 본 낙찰 수예요(두 장, 예정가격 추첨 평균).',
+    '금액 옆 복사를 누르면 쉼표 없는 숫자가 복사돼요. 넣을지와 언제 넣을지는 직접 정하세요.',
+    '하한율 88% 공고는 금액 없이 직접 판단만 달아요.'
+  ];
+}
+
+function rowOf(row: BidBoardRowWire, head: MarketHead): BoardRowView {
   const selfJudged = row.floorRate?.value === '88.000';
   const market = marketCellOf(row);
   const marketLead = market.kind === 'amounts';
-  const base = row.baseAmount === null ? '기초금액 미확인' : `기초금액 ${wonText(row.baseAmount.amount)}`;
-  const participation = row.bidCount === null ? '참여 미확인' : `참여 ${row.bidCount.toLocaleString('ko-KR')}곳`;
   return {
     auctionId: row.auctionId,
     href: `/auctions/${encodeURIComponent(row.auctionId)}`,
     organization: row.organizationLabel ?? '기관 미관측',
     item: row.itemLabel === null ? '품목 미상' : row.itemLabel.split(',').map((part) => part.trim()).filter(Boolean).join(' · '),
     title: row.title ?? '제목 미관측',
-    facts: `${base} · ${participation}`,
+    facts: [
+      { label: '기초금액', value: row.baseAmount === null ? '미확인' : wonText(row.baseAmount.amount) },
+      { label: '참여', value: row.bidCount === null ? '미확인' : `${row.bidCount.toLocaleString('ko-KR')}곳` }
+    ],
     selfJudged,
     cells: selfJudged ? [] : [market, ruleCellOf(row, marketLead)],
-    more: selfJudged ? { single: null, spares: [], band: null } : moreOf(row)
+    more: selfJudged ? { market: null, ruleExtras: [], band: null } : moreOf(row, head)
   };
 }
 
@@ -190,7 +219,7 @@ export function presentBidBoard(response: MyBidBoardV1Response): BoardView {
     else tomorrow += 1;
     const key = closes.toString();
     const group = groups.get(key) ?? { label: groupLabel(asOf, closes), relative: relativeText(asOf, closes), rows: [] };
-    group.rows.push(rowOf(row));
+    group.rows.push(rowOf(row, response.marketPick));
     groups.set(key, group);
   }
   return {
@@ -198,6 +227,8 @@ export function presentBidBoard(response: MyBidBoardV1Response): BoardView {
     lede: today + tomorrow === 0 ? '오늘·내일 마감 공고가 없어요.' : `오늘 마감 ${today}건, 내일 마감 ${tomorrow}건이에요.`,
     stamp: `${hourMinuteText(asOf)} 기준 · ${marketStamp(response.marketPick)}`,
     ...columnsOf(response.marketPick),
-    groups: [...groups.values()]
+    groups: [...groups.values()],
+    record: recordOf(response.marketPick),
+    guide: guideOf(response.marketPick)
   };
 }

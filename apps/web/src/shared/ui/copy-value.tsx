@@ -9,7 +9,8 @@ export function CopyValue({
   value,
   label,
   children,
-  className
+  className,
+  chip = false
 }: {
   /** 클립보드에 들어갈 값이다. 금액이면 쉼표·단위 없는 숫자다 — 보이는 글자(`children`)와 다를 수 있다. */
   readonly value: string;
@@ -17,6 +18,11 @@ export function CopyValue({
   readonly label: string;
   readonly children: ReactNode;
   readonly className?: string;
+  /**
+   * 값 옆에 "복사" 표시를 늘 보인다. 값 자체가 단추라는 것은 눈으로 알 수 없어서, 손으로 옮겨 치면 사고가 나는 값(투찰 금액)에는
+   * 켠다. 표시는 눈을 위한 것이라 낭독기에는 숨기고, 복사 결과는 아래 status가 그대로 알린다.
+   */
+  readonly chip?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
@@ -39,7 +45,16 @@ export function CopyValue({
           값인지 모른다. 눈에는 값만 보인다. */}
       <span className='sr-only'>{label} 복사 </span>
       {children}
-      <span role='status' className={copied ? 'font-semibold text-foreground' : 'sr-only'}>
+      {chip ? (
+        <span
+          data-slot='copy-chip'
+          aria-hidden='true'
+          className='self-center rounded bg-primary/10 px-1.5 py-px text-[11px] font-bold tracking-normal text-primary'
+        >
+          {copied ? '복사됨' : '복사'}
+        </span>
+      ) : null}
+      <span role='status' className={copied && !chip ? 'font-semibold text-foreground' : 'sr-only'}>
         {copied ? '복사됨' : ''}
       </span>
     </button>

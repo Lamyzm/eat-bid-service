@@ -5,7 +5,9 @@
 import type { ReactNode } from 'react';
 
 import type { BidPositionView } from '../model/present-bid-position';
-import type { MarketPickRecord, MarketPickRow, MarketPickView } from '../model/present-market-pick';
+import type { MarketPickRecord } from '@/entities/market-pick-record/market-pick-record';
+import { RecordBarList } from '@/entities/market-pick-record/record-bar-list';
+import type { MarketPickRow, MarketPickView } from '../model/present-market-pick';
 
 function PanelFrame({ children }: { readonly children: ReactNode }) {
   return (
@@ -77,23 +79,9 @@ function RecordBars({ record }: { readonly record: MarketPickRecord }) {
   return (
     <figure className='mt-4'>
       <figcaption className='text-xs text-muted-foreground'>{record.title}</figcaption>
-      <ul className='mt-2 space-y-1.5'>
-        {record.bars.map((bar) => (
-          <li
-            key={bar.label}
-            className={`grid grid-cols-[7.5em_1fr_4em] items-center gap-2 text-xs tabular-nums ${bar.mine ? 'font-semibold' : ''}`}
-          >
-            <span>{bar.label}</span>
-            <span aria-hidden='true' className='block h-2.5 overflow-hidden rounded-sm bg-muted'>
-              <span
-                className={`block h-full rounded-sm ${bar.mine ? 'bg-primary' : 'bg-muted-foreground/40'}`}
-                style={{ width: `${bar.widthPercent}%` }}
-              />
-            </span>
-            <span className='text-right'>{bar.value}</span>
-          </li>
-        ))}
-      </ul>
+      <div className='mt-2'>
+        <RecordBarList bars={record.bars} />
+      </div>
       <p className='mt-2 text-xs text-muted-foreground'>{record.note}</p>
     </figure>
   );

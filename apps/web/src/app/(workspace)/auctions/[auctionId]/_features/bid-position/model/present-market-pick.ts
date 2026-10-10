@@ -9,7 +9,7 @@
  */
 import type { AuctionBidPositionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
-import { decimalScale, scaledText, sumAtScale } from '@/shared/lib/decimal-sum';
+import { marketPickRecord, type MarketPickRecord } from '@/entities/market-pick-record/market-pick-record';
 
 type MarketPick = AuctionBidPositionV1Response['marketPick'];
 type Applicable = Extract<MarketPick['result'], { state: 'applicable' }>;
@@ -19,20 +19,6 @@ export type MarketPickRow = {
   readonly label: string;
   readonly amount: string;
   readonly baseRelative: string;
-};
-
-export type MarketPickBar = {
-  readonly label: string;
-  readonly value: string;
-  /** 가장 큰 막대에 대한 길이 비율(백분율, 소수 한 자리)이다. */
-  readonly widthPercent: string;
-  readonly mine: boolean;
-};
-
-export type MarketPickRecord = {
-  readonly title: string;
-  readonly bars: readonly MarketPickBar[];
-  readonly note: string;
 };
 
 export type MarketPickView =
@@ -82,47 +68,6 @@ function rowOf(label: string, position: Applicable['single']): MarketPickRow {
   };
 }
 
-const METHODS = [
-  { field: 'expectedWins', label: '이 방법', mine: true },
-  { field: 'ruleExpectedWins', label: '전국 공식', mine: false },
-  { field: 'lotteryExpectedWins', label: '무작위 자리', mine: false },
-  { field: 'currentExpectedWins', label: '그동안 낸 금액', mine: false }
-] as const;
-
-/**
- * 네 방법을 같은 공고에 대어 본 낙찰 수 막대다. 막대 길이는 가장 큰 값에 대한 비율이고, 값이 큰 순서로 세운다. 순서와 길이를
- * 화면이 다시 계산하지 않도록 표시 모델이 정해 넘긴다.
- */
-function recordOf(pick: MarketPick, result: Applicable): MarketPickRecord {
-  const { evidence } = result;
-  const first = evidence[0]!;
-  const last = evidence[evidence.length - 1]!;
-  const rounds = evidence.reduce((total, entry) => total + entry.rounds, 0);
-  const scale = decimalScale(evidence.flatMap((entry) => METHODS.map(({ field }) => entry[field])));
-  const sums = METHODS.map((method) => ({
-    ...method,
-    units: sumAtScale(evidence.map((entry) => entry[method.field]), scale)
-  })).toSorted((left, right) => (left.units === right.units ? 0 : left.units > right.units ? -1 : 1));
-  const largest = sums[0]!.units;
-  const permille = (units: bigint) =>
-    largest === BigInt(0) ? BigInt(0) : (units * BigInt(2000) + largest) / (largest * BigInt(2));
-  return {
-    title:
-      `같은 공고 ${rounds.toLocaleString('ko-KR')}건(${yearMonthText(first.from)}~${yearMonthText(last.through)})에 ` +
-      `대어 본 낙찰 수 · 두 장, 예정가격 추첨 평균`,
-    bars: sums.map(({ label, mine, units }) => {
-      const width = permille(units);
-      return {
-        label,
-        value: `${scaledText(units, scale)}건`,
-        widthPercent: `${width / BigInt(10)}.${width % BigInt(10)}`,
-        mine
-      };
-    }),
-    note: `매달 앞선 석 달로만 금액을 골라 다음 달 공고에 대어 봤어요. 계산 판 ${pick.version}.`
-  };
-}
-
 function reasonText(reasons: readonly Reason[], marketRounds: number | null, minimumRounds: number): string {
   const text: Record<Reason, string> = {
     'floor-rate-unobserved': '낙찰하한율을 아직 확인하지 못했어요.',
@@ -157,7 +102,7 @@ export function presentMarketPick(pick: MarketPick): MarketPickView {
     single: singleRow(result),
     pairNote:
       result.positions.length === 1 ? '두 번째 사업자를 등록하면 2번 금액이 같이 나와요.' : null,
-    record: recordOf(pick, result)
+    record: marketPickRecord(result.evidence, { version: pick.version, mineLabel: '이 방법' })
   };
 }
 

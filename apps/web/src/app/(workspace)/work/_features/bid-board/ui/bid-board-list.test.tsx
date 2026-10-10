@@ -24,4 +24,24 @@ describe('오늘 투찰 목록 칸', () => {
       expect(classes).not.toContain('hidden');
     }
   });
+
+  test('금액마다 복사 표시가 보이고 목록 아래에 읽는 법이 있다', () => {
+    // 금액 자체가 단추라는 것은 눈으로 알 수 없다. 복사 표시가 없으면 일곱 자리 금액을 손으로 옮겨 치게 된다.
+    const { container, getByRole } = render(<BidBoardList view={view} />);
+    const amountCells = [...container.querySelectorAll('[data-cell="amounts"]')];
+    expect(amountCells.length).toBeGreaterThan(0);
+    for (const cell of amountCells) {
+      const lines = cell.querySelectorAll('button');
+      expect(cell.querySelectorAll('[data-slot="copy-chip"]').length).toBe(lines.length);
+    }
+    expect(getByRole('heading', { name: '읽는 법' })).toBeTruthy();
+  });
+
+  test('더 보기에는 맞춤 더 보기와 같은 공고에 대어 본 성적 막대가 함께 있다', () => {
+    const { container } = render(<BidBoardList view={view} />);
+    const more = container.querySelector('[data-slot="bid-board-row"] details')!;
+    const titles = [...more.querySelectorAll('h4')].map((title) => title.textContent);
+    expect(titles).toEqual(['10월 맞춤 더 보기', '성적 · 같은 공고 1,838건']);
+    expect(more.textContent).toContain('그동안 낸 금액');
+  });
 });

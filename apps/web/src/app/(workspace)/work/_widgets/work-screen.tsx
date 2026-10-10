@@ -9,6 +9,16 @@ import { ItemChips } from '../_features/bid-board/ui/item-chips';
 import type { WorkView } from '../_lib/load-work-page';
 import { WorkFrame } from './work-frame';
 
+/** 목록이 어떤 범위로 걸러졌는지 말한다. 지역과 사업자는 설정 화면이 소유하므로 바꾸는 길만 잇는다. 품목은 바로 아래 단추가 바꾼다. */
+function ConditionLine({ summary }: { readonly summary: string }) {
+  return (
+    <p className='mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg bg-muted/60 px-3 py-2 text-[13px] font-semibold'>
+      <span>{summary}</span>
+      <Link href='/setup' className='font-bold text-primary hover:underline'>지역·사업자 바꾸기</Link>
+    </p>
+  );
+}
+
 function Notice({ title, body, action }: { readonly title: string; readonly body: string; readonly action?: React.ReactNode }) {
   return (
     <div role='status' className='mt-8 grid max-w-xl gap-2 rounded-xl bg-muted px-5 py-4'>
@@ -46,7 +56,7 @@ export function WorkScreen({ view }: { readonly view: WorkView }) {
     );
   }
   return (
-    <WorkFrame lede={view.lede} stamp={view.stamp} filters={<ItemChips />}>
+    <WorkFrame lede={view.lede} stamp={view.stamp} filters={<><ConditionLine summary={view.summary} /><ItemChips /></>}>
       {view.groups.length === 0 ? null : <BidBoardList view={view} />}
     </WorkFrame>
   );
