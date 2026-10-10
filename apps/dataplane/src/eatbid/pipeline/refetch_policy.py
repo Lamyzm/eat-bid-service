@@ -31,6 +31,13 @@ NARROWED_MODES: frozenset[CollectionRunMode] = frozenset({"poll-open"})
 # 오전 9~11시에 73% 몰리므로(2026-09-06 실측 §3.2) 이 창의 비용은 하루 마감 건수 × 4회다.
 POST_DEADLINE_REFETCH_WINDOW = timedelta(hours=2)
 
+# 왜 창 안에서 30분 칸마다 한 번인가(ADR 0037 후속, EAT-329). 창의 비용 "마감 건수 × 4회"는 30분 주기에서
+# 센 값인데, 주기가 10분이 되자(EAT-151) 같은 창이 회차마다 걸려 마감 건수 × 12회가 됐다. 성수기
+# (2026-09-21)에는 회차 하나가 상세 5,774~7,139건·141~193분으로 부풀어 10분 주기가 무너졌다. 2026-09
+# 오전 개찰 3,086건은 명단이 모두 낙찰 상태 전이와 함께 처음 보였고 개찰 상태의 명단은 0건이라, 창이
+# 지키려는 공백은 회차마다가 아니라 30분 해상도로도 원래 설계만큼 덮인다. 칸은 마감 시각에서 센다.
+POST_DEADLINE_REFETCH_INTERVAL = timedelta(minutes=30)
+
 
 @dataclass(frozen=True, slots=True)
 class ListSignal:
@@ -108,8 +115,9 @@ def select_detail_refetch(
     """어느 공고의 상세를 이번 회차에 다시 부를지 정한다.
 
     규칙 순서가 곧 우선순위다. 기준이 없으면 전부 부르고, 기준에 없던 공고·신호가 바뀐 공고는
-    부르며, 기준 관측 뒤에 마감이 지났거나 마감 직후 창 안이면 신호가 같아도 부른다. 나머지는
-    마지막 관측을 유지한다. 재공고 차수는 `ETN_BID_ID`가 다른 새 공고라 `new`로 잡힌다(AGENTS 4).
+    부르며, 기준 관측 뒤에 마감이 지났거나 마감 직후 창 안에서 새 30분 칸에 들어섰으면 신호가 같아도
+    부른다. 나머지는 마지막 관측을 유지한다. 재공고 차수는 `ETN_BID_ID`가 다른 새 공고라 `new`로
+    잡힌다(AGENTS 4).
     """
     if as_of.utcoffset() is None:
         raise ValueError("as_of must be timezone-aware")
@@ -152,6 +160,19 @@ def _reason_for(
         return "signal-changed"
     if baseline.observed_at < current.deadline_at <= as_of:
         return "deadline-passed"
-    if timedelta(0) <= as_of - current.deadline_at <= POST_DEADLINE_REFETCH_WINDOW:
+    if _crossed_post_deadline_slot(current.deadline_at, baseline.observed_at, as_of):
         return "post-deadline-window"
     return None
+
+
+def _crossed_post_deadline_slot(deadline_at: datetime, baseline_at: datetime, as_of: datetime) -> bool:
+    """마감 뒤 창 안에서 기준 관측 이후 새 30분 칸에 들어섰는지 본다.
+
+    기준(마지막 봉인 회차)이 이미 같은 칸에서 상세를 불렀다면 이번 회차는 건너뛴다. 공고마다 마지막 상세
+    시각을 새 표에 두지 않고(ADR 0037 기각안) 봉인 기준의 관측 시각을 그 대리로 쓴다 — 봉인되지 않은 회차는
+    기준이 되지 못하므로, 그 회차에서 부르다 실패한 칸은 다음 회차가 더 오래된 기준과 비교해 다시 부른다.
+    """
+    elapsed = as_of - deadline_at
+    if not timedelta(0) <= elapsed <= POST_DEADLINE_REFETCH_WINDOW:
+        return False
+    return elapsed // POST_DEADLINE_REFETCH_INTERVAL > (baseline_at - deadline_at) // POST_DEADLINE_REFETCH_INTERVAL
