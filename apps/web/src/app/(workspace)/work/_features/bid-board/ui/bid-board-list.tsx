@@ -93,7 +93,8 @@ function MoreLines({ lines }: { readonly lines: readonly (AmountLine & { readonl
   );
 }
 
-function More({ row, record }: { readonly row: BoardRowView; readonly record: Board['record'] }) {
+function More({ row, board }: { readonly row: BoardRowView; readonly board: Pick<Board, 'record' | 'ruleBasis'> }) {
+  const { record } = board;
   const { market, ruleExtras, band } = row.more;
   if (market === null && ruleExtras.length === 0 && band === null) return null;
   return (
@@ -115,14 +116,16 @@ function More({ row, record }: { readonly row: BoardRowView; readonly record: Bo
         )}
         <MoreCard title={record.heading}>
           <RecordBarList bars={record.bars} />
-          {band === null ? null : <p className={HINT}>{band}</p>}
+          <p className={HINT}>{record.basis}</p>
+          {band === null ? null : <p className={HINT}>{band} · {board.ruleBasis}</p>}
         </MoreCard>
       </div>
     </details>
   );
 }
 
-function Row({ row, columns, record }: { readonly row: BoardRowView; readonly columns: Board['columns']; readonly record: Board['record'] }) {
+function Row({ row, board }: { readonly row: BoardRowView; readonly board: Board }) {
+  const { columns } = board;
   return (
     <article data-slot='bid-board-row' className={`grid gap-x-2.5 gap-y-2 py-3.5 ${CELLS} [&+&]:border-t [&+&]:border-border`}>
       <div className='min-w-0'>
@@ -146,12 +149,12 @@ function Row({ row, columns, record }: { readonly row: BoardRowView; readonly co
       ) : (
         row.cells.map((cell, index) => <Cell key={columns[index]!.label} cell={cell} method={columns[index]!.label} />)
       )}
-      <More row={row} record={record} />
+      <More row={row} board={board} />
     </article>
   );
 }
 
-function Group({ group, columns, record }: { readonly group: ClosingGroupView; readonly columns: Board['columns']; readonly record: Board['record'] }) {
+function Group({ group, board }: { readonly group: ClosingGroupView; readonly board: Board }) {
   return (
     <section aria-label={`${group.label} ${group.rows.length}건`} className='mt-5'>
       <h3 className='flex items-baseline gap-2.5 border-b border-border pb-2'>
@@ -159,7 +162,7 @@ function Group({ group, columns, record }: { readonly group: ClosingGroupView; r
         <span className='text-[14px] font-semibold text-muted-foreground'>{group.relative}</span>
         <span className={`ml-auto text-[14px] font-semibold tabular-nums ${HINT}`}>{group.rows.length}건</span>
       </h3>
-      {group.rows.map((row) => <Row key={row.auctionId} row={row} columns={columns} record={record} />)}
+      {group.rows.map((row) => <Row key={row.auctionId} row={row} board={board} />)}
     </section>
   );
 }
@@ -188,7 +191,7 @@ export function BidBoardList({ view }: { readonly view: Board }) {
         ))}
       </div>
       {view.groups.map((group) => (
-        <Group key={`${group.label}-${group.relative}`} group={group} columns={view.columns} record={view.record} />
+        <Group key={`${group.label}-${group.relative}`} group={group} board={view} />
       ))}
       <ReadingGuide lines={view.guide} />
     </div>

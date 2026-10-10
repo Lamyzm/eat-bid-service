@@ -15,8 +15,13 @@ import { marketPickFor, type DecideMarketPick, type MarketPickDecision } from ".
 import { ProcurementDependencyUnavailable } from "./failures";
 import type { OpenAuctionReader, OpenAuctionRecord } from "./open-auction-reader";
 
-/** 열린 공고 목록 한 장의 상한과 같다. 오늘·내일 마감 관심 지역 공고는 성수기 하루에도 이 안에 든다(2026-09-21 김해 91건). */
-const BOARD_LIMIT = 200;
+/** 열린 공고 목록 한 쪽의 상한과 같다. */
+const BOARD_PAGE_SIZE = 200;
+/**
+ * 따라 읽을 쪽 수의 상한이다. 하한율은 목록을 읽은 뒤에 거르므로 다른 하한율 공고도 쪽을 차지한다. 성수기 이틀·넓은 관심 지역이
+ * 겹쳐도 넉넉하게 잡고(1,000건), 그래도 남으면 잘렸다고 응답에 싣는다 — 늦게 마감하는 공고가 말없이 빠지면 안 된다.
+ */
+const BOARD_MAX_PAGES = 5;
 /** 이 조각이 다루는 하한율이다. 88은 금액을 화면에 보이지 않지만 공고는 목록에 남긴다(PDR-0008). */
 const BOARD_FLOOR_RATES: readonly string[] = ["90.000", "88.000"];
 
@@ -36,6 +41,8 @@ export type MyBidBoardRecord =
     readonly closesBeforeDate: string;
     readonly decision: MarketPickDecision;
     readonly rows: readonly MyBidBoardRowRecord[];
+    /** 쪽 상한에 닿아 늦게 마감하는 공고 일부를 읽지 못했다. */
+    readonly truncated: boolean;
   };
 
 export interface GetMyBidBoardInput {
@@ -75,7 +82,7 @@ export class GetMyBidBoard {
     // 목록 reader는 시간 창만 받는다. 올림한 만큼 넘친 행은 아래에서 날짜 경계로 다시 자른다.
     const hours = Math.min(720, Math.max(1, Math.ceil(asOf.until(closesBefore).total({ unit: "hours" }))));
 
-    const listing = await this.reader.listOpen({
+    const query = {
       asOf,
       sidoCodeValueId: null,
       sigunguCodeValueIds: null,
@@ -90,17 +97,34 @@ export class GetMyBidBoard {
       announcedOnKst: null,
       baseAmountMin: null,
       baseAmountMax: null,
-      cursor: null,
-      limit: BOARD_LIMIT,
-    });
-    // cursor를 보내지 않으므로 사라진 cursor는 일어날 수 없다. 일어나면 계약 위반이라 장애로 닫는다.
-    if (listing.kind !== "page") throw new Error("cursor 없이 보낸 목록 조회가 cursor 오류를 냈다");
+      limit: BOARD_PAGE_SIZE,
+    };
+    const listed: OpenAuctionRecord[] = [];
+    let cursor: bigint | null = null;
+    let truncated = false;
+    for (let page = 1; ; page += 1) {
+      const listing = await this.reader.listOpen({ ...query, cursor });
+      if (listing.kind !== "page") {
+        // 첫 쪽은 cursor 없이 읽으므로 사라진 cursor가 일어날 수 없다. 일어나면 계약 위반이라 장애로 닫는다.
+        if (cursor === null) throw new Error("cursor 없이 보낸 목록 조회가 cursor 오류를 냈다");
+        // 다음 쪽을 읽는 사이 목록이 바뀌었다. 읽은 데까지 내고 잘렸다고 말한다.
+        truncated = true;
+        break;
+      }
+      listed.push(...listing.page.auctions);
+      cursor = listing.page.nextCursor;
+      if (cursor === null) break;
+      if (page >= BOARD_MAX_PAGES) {
+        truncated = true;
+        break;
+      }
+    }
 
-    const auctions = listing.page.auctions.filter((auction) =>
+    const auctions = listed.filter((auction) =>
       auction.closesAt !== null
       && Temporal.Instant.compare(auction.closesAt, closesBefore) < 0
-      && auction.floorRate !== null
-      && BOARD_FLOOR_RATES.includes(auction.floorRate));
+      // 하한율 미관측 공고는 남긴다. 하한율은 상세 수집에서만 오므로 그 수집이 밀린 날 행을 빼면 공고가 흔적 없이 사라진다.
+      && (auction.floorRate === null || BOARD_FLOOR_RATES.includes(auction.floorRate)));
 
     // 배수는 공고와 무관해 한 번만 고른다. 하한율이 섞여 있어 하한율을 넘기지 않는다.
     const decision = await this.decideMarketPick.decide({ workspaceId: input.principal.workspace.workspaceId });
@@ -110,6 +134,7 @@ export class GetMyBidBoard {
       closesBeforeDate: closesBeforeDate.toString(),
       decision,
       rows: auctions.map((auction) => rowOf(auction, decision)),
+      truncated,
     };
   }
 }

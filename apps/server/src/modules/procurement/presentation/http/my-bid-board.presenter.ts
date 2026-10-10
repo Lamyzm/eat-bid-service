@@ -66,5 +66,6 @@ export function toMyBidBoardResponse(record: MyBidBoardRecord): MyBidBoardV1Resp
     },
     marketPick: marketPickHeadWire(record.decision),
     rows: record.rows.map(rowWire),
+    truncated: record.truncated,
   };
 }

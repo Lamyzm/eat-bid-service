@@ -1,7 +1,7 @@
-/** @module 책임: 오늘 투찰의 품목 조건을 주소(`items`)에 켜고 끄는 버튼 줄을 그린다. 고른 조건이 곧 즐겨찾기할 주소다. */
+/** @module 책임: 오늘 투찰의 품목 조건을 주소(`items`·`itemUnknown`)에 켜고 끄는 버튼 줄을 그린다. 고른 조건이 곧 즐겨찾기할 주소다. */
 'use client';
 import { AUCTION_ITEM_ATOMS } from '@eatbid/contracts/api/v1/auctions';
-import { useQueryState } from 'nuqs';
+import { useQueryStates } from 'nuqs';
 import { useTransition } from 'react';
 
 import { workSearchParsers } from '@/app/(workspace)/work/_lib/work-search';
@@ -15,21 +15,34 @@ const CHIP =
  */
 export function ItemChips() {
   const [pending, startTransition] = useTransition();
-  const [items, setItems] = useQueryState(
-    'items',
-    workSearchParsers.items.withOptions({ shallow: false, history: 'replace', scroll: false, startTransition })
-  );
-  const chosen = new Set(items ?? []);
+  const [search, setSearch] = useQueryStates(workSearchParsers, {
+    shallow: false,
+    history: 'replace',
+    scroll: false,
+    startTransition
+  });
+  const chosen = new Set(search.items ?? []);
   function toggle(atom: string) {
     const next = new Set(chosen);
     if (next.has(atom)) next.delete(atom);
     else next.add(atom);
-    void setItems(next.size === 0 ? null : AUCTION_ITEM_ATOMS.filter((value) => next.has(value)));
+    void setSearch({
+      items: next.size === 0 ? null : AUCTION_ITEM_ATOMS.filter((value) => next.has(value)),
+      // 품목을 다 풀면 품목 미상 조건도 뜻이 없다. 남겨 두면 다음에 품목을 고를 때 말없이 미상이 빠진다.
+      ...(next.size === 0 ? { itemUnknown: null } : {})
+    });
   }
+  // 품목 미상을 빼는 것은 사용자가 이 단추로 정할 때뿐이다. 기본은 함께 보기다(work-search).
+  const unknownIncluded = search.itemUnknown !== 'exclude';
   // 아무것도 고르지 않은 상태도 하나의 조건이다. 그 상태를 눌린 `전부` 단추로 보여야 꺼진 단추 줄로 읽히지 않는다.
   return (
     <div role='group' aria-label='품목' aria-busy={pending} className='mt-4 flex flex-wrap items-center gap-1.5'>
-      <button type='button' aria-pressed={chosen.size === 0} onClick={() => void setItems(null)} className={CHIP}>
+      <button
+        type='button'
+        aria-pressed={chosen.size === 0}
+        onClick={() => void setSearch({ items: null, itemUnknown: null })}
+        className={CHIP}
+      >
         전부
       </button>
       {AUCTION_ITEM_ATOMS.map((atom) => (
@@ -37,6 +50,16 @@ export function ItemChips() {
           {atom}
         </button>
       ))}
+      {chosen.size === 0 ? null : (
+        <button
+          type='button'
+          aria-pressed={unknownIncluded}
+          onClick={() => void setSearch({ itemUnknown: unknownIncluded ? 'exclude' : null })}
+          className={`${CHIP} border-dashed`}
+        >
+          품목 미상
+        </button>
+      )}
     </div>
   );
 }

@@ -79,7 +79,10 @@ export const myBidBoardV1ResponseSchema = z.discriminatedUnion("regionPreference
     closesBeforeDate: kstDateTextSchema,
     rule: bidPositionRuleSchema,
     marketPick: bidBoardMarketPickSchema,
-    rows: z.array(bidBoardRowSchema).max(200),
+    // 서버가 열린 공고 목록을 쪽 상한(200건 × 5쪽)까지 따라 읽고 하한율로 거른 결과다.
+    rows: z.array(bidBoardRowSchema).max(1000),
+    // 쪽 상한에 닿아 늦게 마감하는 공고 일부를 읽지 못했다. 빠졌다는 사실은 화면이 말해야 한다.
+    truncated: z.boolean(),
   }),
   z.strictObject({
     regionPreference: z.literal("unconfirmed"),

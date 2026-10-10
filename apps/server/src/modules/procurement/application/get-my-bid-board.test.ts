@@ -60,21 +60,26 @@ const confirmed: RegionPreferenceRecord = {
 function board(options: {
   readonly preference?: RegionPreferenceRecord;
   readonly auctions?: readonly OpenAuctionRecord[];
+  /** 여러 쪽으로 나뉜 목록이다. 쪽 번호를 cursor로 쓴다. 주면 `auctions`를 무시한다. */
+  readonly pages?: readonly (readonly OpenAuctionRecord[])[];
   readonly market?: MarketRoundReader;
   readonly asked?: OpenAuctionQuery[];
   readonly now?: string;
 }) {
   const clock = fixedClock(Temporal.Instant.from(options.now ?? "2026-10-12T14:50:00Z"));
+  const pages = options.pages ?? [options.auctions ?? []];
   const reader: OpenAuctionReader = {
     listOpen: async (query) => {
       options.asked?.push(query);
+      const index = query.cursor === null ? 0 : Number(query.cursor);
+      const auctions = pages[index] ?? [];
       return {
         kind: "page",
         page: {
-          auctions: options.auctions ?? [],
-          nextCursor: null,
-          sampleCount: options.auctions?.length ?? 0,
-          eligibilityMatchedCount: options.auctions?.length ?? 0,
+          auctions,
+          nextCursor: index + 1 < pages.length ? BigInt(index + 1) : null,
+          sampleCount: auctions.length,
+          eligibilityMatchedCount: auctions.length,
           eligibilityUnobservedCount: 0,
           snapshotLineage: null,
           orgSummaryLineage: null,
@@ -138,6 +143,38 @@ describe("오늘 투찰 한 장 use case", () => {
     expect(ninety.rule?.state).toBe("applicable");
     expect(eightyEight?.market?.result).toEqual({ state: "not-applicable", reasons: ["floor-rate-outside-market-pick"], marketRounds: null });
     expect(result.decision.kind).toBe("picked");
+  });
+
+  test("하한율이 아직 관측되지 않은 공고도 행으로 남기고 두 방법 모두 하한율 미확인이라고 말한다", async () => {
+    // 하한율은 상세 수집에서만 온다. 상세 수집이 밀린 날 행을 빼면 바로 그 공고들이 흔적 없이 사라진다.
+    const result = await run(board({ auctions: [auction({ auctionAttemptId: 1n, floorRate: null })] }));
+    if (result.state !== "confirmed") throw new Error("확인된 지역이어야 한다");
+    expect(result.rows.map((row) => row.auction.auctionAttemptId)).toEqual([1n]);
+    expect(result.rows[0]!.rule).toMatchObject({ state: "not-applicable", reasons: ["floor-rate-unobserved"] });
+    expect(result.rows[0]!.market?.result).toMatchObject({ state: "not-applicable", reasons: ["floor-rate-unobserved"] });
+  });
+
+  test("목록이 한 쪽을 넘으면 다음 쪽을 끝까지 따라 읽고 잘리지 않았다고 말한다", async () => {
+    const asked: OpenAuctionQuery[] = [];
+    const result = await run(board({
+      asked,
+      pages: [[auction({ auctionAttemptId: 1n })], [auction({ auctionAttemptId: 2n })], [auction({ auctionAttemptId: 3n })]],
+    }));
+    if (result.state !== "confirmed") throw new Error("확인된 지역이어야 한다");
+    expect(asked.map((query) => query.cursor)).toEqual([null, 1n, 2n]);
+    expect(result.rows.map((row) => row.auction.auctionAttemptId)).toEqual([1n, 2n, 3n]);
+    expect(result.truncated).toBe(false);
+  });
+
+  test("다섯 쪽을 읽고도 남으면 거기서 멈추고 잘렸다고 말한다", async () => {
+    // 성수기 이틀·넓은 관심 지역이 겹치면 늦게 마감하는 공고부터 빠진다. 빠졌다는 사실은 화면이 말해야 한다.
+    const asked: OpenAuctionQuery[] = [];
+    const pages = Array.from({ length: 7 }, (_, index) => [auction({ auctionAttemptId: BigInt(index + 1) })]);
+    const result = await run(board({ asked, pages }));
+    if (result.state !== "confirmed") throw new Error("확인된 지역이어야 한다");
+    expect(asked).toHaveLength(5);
+    expect(result.rows).toHaveLength(5);
+    expect(result.truncated).toBe(true);
   });
 
   test("기초금액이 없는 공고는 행을 남기고 두 방법을 null로 둔다", async () => {

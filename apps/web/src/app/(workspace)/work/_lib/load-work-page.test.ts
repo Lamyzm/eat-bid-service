@@ -15,8 +15,14 @@ describe('오늘 투찰 화면 조립', () => {
       readBoard: async (input) => { asked.push(input); return { kind: 'board', response: board }; },
       readConditions: noConditions
     });
-    expect(asked).toEqual([{ items: ['육류', '가금류'], itemUnknown: undefined }]);
-    expect(workItemsOf({ items: null, itemUnknown: 'include' })).toEqual({ items: undefined, itemUnknown: 'include' });
+    // 품목을 고르면 품목 미상 공고도 함께 본다. 넣던 공고의 약 15%가 품목 미상이라 말없이 빼면 공고를 놓친다.
+    expect(asked).toEqual([{ items: ['육류', '가금류'], itemUnknown: 'include' }]);
+  });
+
+  test('품목 미상은 사용자가 뺐을 때만 빼고, 품목을 고르지 않았으면 이미 전부라 따로 묻지 않는다', () => {
+    expect(workItemsOf({ items: ['육류'], itemUnknown: 'exclude' })).toEqual({ items: ['육류'], itemUnknown: undefined });
+    expect(workItemsOf({ items: ['육류'], itemUnknown: null })).toEqual({ items: ['육류'], itemUnknown: 'include' });
+    expect(workItemsOf({ items: null, itemUnknown: null })).toEqual({ items: undefined, itemUnknown: undefined });
   });
 
   test('권한이 없으면 forbidden, 조회가 실패하면 failed로 말하고 화면 전체를 오류로 만들지 않는다', async () => {
@@ -32,7 +38,7 @@ describe('오늘 투찰 화면 조립', () => {
       readConditions: async () => ({ areas: [gimhae], businessCount: 2 })
     });
     expect(view.kind).toBe('board');
-    expect(view.kind === 'board' ? view.summary : null).toBe('관심 지역 경남 김해시 · 하한율 90%·88% · 내 사업자 2곳');
+    expect(view.kind === 'board' ? view.summary : null).toBe('관심 지역 경남 김해시 · 하한율 90%·88%·미확인 · 내 사업자 2곳');
   });
 
   test('조건을 읽지 못해도 목록은 그대로 내고 요약에서 그 조각만 뺀다', async () => {
@@ -41,6 +47,6 @@ describe('오늘 투찰 화면 조립', () => {
       readBoard: async () => ({ kind: 'board', response: board }),
       readConditions: async () => { throw new Error('조회 실패'); }
     });
-    expect(view.kind === 'board' ? view.summary : null).toBe('하한율 90%·88%');
+    expect(view.kind === 'board' ? view.summary : null).toBe('하한율 90%·88%·미확인');
   });
 });

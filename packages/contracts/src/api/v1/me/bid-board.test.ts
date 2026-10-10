@@ -52,10 +52,17 @@ function boardFixture() {
         spares: [position(3, "7753218.00", "88.5420"), position(4, "7770552.00", "88.7400"), position(5, "7779218.00", "88.8390")],
       },
     }],
+    truncated: false,
   };
 }
 
 describe("오늘 투찰 공개 계약", () => {
+  test("목록이 쪽 상한에 닿았는지를 늘 싣는다 — 늦게 마감하는 공고가 빠졌다는 사실은 화면이 말해야 한다", () => {
+    expect(myBidBoardV1ResponseSchema.parse({ ...boardFixture(), truncated: true })).toMatchObject({ truncated: true });
+    const { truncated: _omitted, ...withoutFlag } = boardFixture();
+    expect(myBidBoardV1ResponseSchema.safeParse(withoutFlag).success).toBe(false);
+  });
+
   test("공고 행은 전국 공식과 맞춤 금액을 따로 싣고 왕복한다", () => {
     expect(myBidBoardV1ResponseSchema.parse(boardFixture())).toEqual(boardFixture());
   });

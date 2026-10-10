@@ -97,6 +97,30 @@ describe('오늘 투찰 표시', () => {
     ]);
   });
 
+  test('하한율을 아직 모르는 행은 직접 판단이 아니라 두 칸 모두 하한율 미확인이라고 말한다', () => {
+    const unknownFloor = withRows([{
+      ...boardRows.tongyeong,
+      floorRate: null,
+      rule: { state: 'not-applicable', reasons: ['floor-rate-unobserved'] },
+      market: { state: 'not-applicable', reasons: ['floor-rate-unobserved'] }
+    }]);
+    const row = boardView(unknownFloor).groups[0]!.rows[0]!;
+    expect(row.selfJudged).toBe(false);
+    expect(row.cells).toEqual([{ kind: 'reason', text: '하한율 미확인' }, { kind: 'reason', text: '하한율 미확인' }]);
+  });
+
+  test('목록이 잘렸으면 늦게 마감하는 공고 일부가 빠졌다고 말하고, 아니면 아무 말도 하지 않는다', () => {
+    expect(boardView().truncatedNote).toBeNull();
+    expect(boardView(withRows(board.rows as Confirmed['rows'], { truncated: true })).truncatedNote)
+      .toBe('공고가 많아 늦게 마감하는 공고 일부를 불러오지 못했어요. 품목을 골라 좁혀 보세요.');
+  });
+
+  test('성적과 전국 공식에는 잰 기간과 계산 판·규칙 판을 함께 단다', () => {
+    const view = boardView();
+    expect(view.record.basis).toBe('2024년 4월~2026년 9월 공고 · 두 장, 예정가격 추첨 평균 · 계산 판 2026-10-10');
+    expect(view.ruleBasis).toBe('전국 공식 규칙 2026-10-10 · 학습 ~2025-12 · 검증 2026-01~2026-08');
+  });
+
   test('하한율 88 행은 금액 없이 직접 판단으로 표시한다', () => {
     const row = rowOf(boardView(), '2797004');
     expect(row.selfJudged).toBe(true);

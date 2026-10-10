@@ -20,6 +20,8 @@ export type MarketPickBar = {
 export type MarketPickRecord = {
   /** 성적을 잰 공고 수(기간 합)다. */
   readonly rounds: number;
+  /** 성적을 잰 기간이다. 예: 2024년 4월~2026년 9월. */
+  readonly period: string;
   readonly title: string;
   readonly bars: readonly MarketPickBar[];
   readonly note: string;
@@ -44,6 +46,7 @@ export function marketPickRecord(
   const first = evidence[0]!;
   const last = evidence[evidence.length - 1]!;
   const rounds = evidence.reduce((total, entry) => total + entry.rounds, 0);
+  const period = `${yearMonthText(first.from)}~${yearMonthText(last.through)}`;
   const scale = decimalScale(evidence.flatMap((entry) => methods.map(({ field }) => entry[field])));
   const sums = methods.map((method) => ({
     ...method,
@@ -54,8 +57,9 @@ export function marketPickRecord(
     largest === BigInt(0) ? BigInt(0) : (units * BigInt(2000) + largest) / (largest * BigInt(2));
   return {
     rounds,
+    period,
     title:
-      `같은 공고 ${rounds.toLocaleString('ko-KR')}건(${yearMonthText(first.from)}~${yearMonthText(last.through)})에 ` +
+      `같은 공고 ${rounds.toLocaleString('ko-KR')}건(${period})에 ` +
       `대어 본 낙찰 수 · 두 장, 예정가격 추첨 평균`,
     bars: sums.map(({ label, mine, units }) => {
       const width = permille(units);

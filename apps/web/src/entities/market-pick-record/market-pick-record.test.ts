@@ -11,6 +11,7 @@ describe('맞춤 금액 비교 성적', () => {
   test('네 방법을 값이 큰 순서로 세우고 내 방법 이름은 화면이 정한다', () => {
     const record = marketPickRecord(evidence, { version: '2026-10-10', mineLabel: '10월 맞춤' });
     expect(record.rounds).toBe(1838);
+    expect(record.period).toBe('2026년 6월~2026년 9월');
     expect(record.bars.map((bar) => [bar.label, bar.value, bar.widthPercent, bar.mine])).toEqual([
       ['10월 맞춤', '95.0건', '100.0', true],
       ['전국 공식', '81.9건', '86.2', false],

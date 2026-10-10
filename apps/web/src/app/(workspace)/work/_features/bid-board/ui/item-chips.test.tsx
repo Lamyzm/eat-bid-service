@@ -24,11 +24,22 @@ describe('오늘 투찰 품목 단추', () => {
     expect(screen.getByRole('button', { name: '육류' }).getAttribute('aria-pressed')).toBe('false');
   });
 
+  test('품목을 고르면 품목 미상 단추가 눌린 채 나타나고, 누르면 품목 미상을 뺀다고 주소에 남긴다', async () => {
+    expect(renderChips('').screen.queryByRole('button', { name: '품목 미상' })).toBeNull();
+    cleanup();
+    const { screen, updates } = renderChips('?items=육류');
+    const unknown = screen.getByRole('button', { name: '품목 미상' });
+    expect(unknown.getAttribute('aria-pressed')).toBe('true');
+    await userEvent.click(unknown);
+    expect(updates.at(-1)!.searchParams.get('itemUnknown')).toBe('exclude');
+  });
+
   test('품목을 고른 상태에서 전부를 누르면 품목 조건을 주소에서 지운다', async () => {
     const { screen, updates } = renderChips('?items=육류,가금류');
     expect(screen.getByRole('button', { name: '전부' }).getAttribute('aria-pressed')).toBe('false');
     expect(screen.getByRole('button', { name: '육류' }).getAttribute('aria-pressed')).toBe('true');
     await userEvent.click(screen.getByRole('button', { name: '전부' }));
     expect(updates.at(-1)!.searchParams.has('items')).toBe(false);
+    expect(updates.at(-1)!.searchParams.has('itemUnknown')).toBe(false);
   });
 });

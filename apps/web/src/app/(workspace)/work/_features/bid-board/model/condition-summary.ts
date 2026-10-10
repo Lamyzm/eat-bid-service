@@ -14,8 +14,8 @@ const areaText = (area: Area) => area.label ?? `코드 ${area.code}`;
 
 function regionPiece(areas: readonly Area[] | null): string | null {
   if (areas === null) return null;
-  // 빈 목록은 "지역으로 좁히지 않겠다"는 확인된 선택이다. 미설정과 다르다(관심 지역 계약).
-  if (areas.length === 0) return '모든 지역';
+  // 빈 목록은 "전국"이 아니다. 서버는 참가제한지역이 관측되지 않은 공고만 남긴다 — 오늘 화면과 같은 말을 쓴다.
+  if (areas.length === 0) return '고른 지역 없음';
   const named = areas.slice(0, NAMED_AREAS).map(areaText).join(', ');
   const rest = areas.length - NAMED_AREAS;
   return `관심 지역 ${named}${rest > 0 ? ` 외 ${rest}곳` : ''}`;
@@ -24,8 +24,8 @@ function regionPiece(areas: readonly Area[] | null): string | null {
 export function conditionSummary(input: { readonly areas: readonly Area[] | null; readonly businessCount: number | null }): string {
   return [
     regionPiece(input.areas),
-    // 오늘 투찰은 하한율 90%와 88% 공고만 싣는다(서버 조회 조건과 같다).
-    '하한율 90%·88%',
+    // 오늘 투찰은 하한율 90%·88% 공고와 하한율을 아직 모르는 공고를 싣는다(서버 조회 조건과 같다).
+    '하한율 90%·88%·미확인',
     input.businessCount === null ? null : `내 사업자 ${input.businessCount}곳`
   ].filter((piece) => piece !== null).join(' · ');
 }

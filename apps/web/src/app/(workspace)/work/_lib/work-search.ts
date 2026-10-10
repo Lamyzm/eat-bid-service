@@ -16,14 +16,17 @@ type ItemAtom = (typeof AUCTION_ITEM_ATOMS)[number];
 
 const isItemAtom = (value: string): value is ItemAtom => (AUCTION_ITEM_ATOMS as readonly string[]).includes(value);
 
-/** 어휘 밖 값은 버린다. 그대로 보내면 서버가 400으로 화면 전체를 실패로 만든다 — 손으로 고친 주소 하나가 화면을 막지 않게 한다. */
+/**
+ * 어휘 밖 값은 버린다. 그대로 보내면 서버가 400으로 화면 전체를 실패로 만든다 — 손으로 고친 주소 하나가 화면을 막지 않게 한다.
+ *
+ * 품목을 고르면 품목 미상 공고도 기본으로 함께 본다. 넣던 공고의 약 15%가 품목 미상이라(PDR-0008 배경) 말없이 빼면 공고를
+ * 놓친다. 빼는 것은 사용자가 단추로 정한 때(`itemUnknown=exclude`)뿐이다. 품목을 고르지 않았으면 이미 전부라 묻지 않는다.
+ */
 export function workItemsOf(search: { readonly items: readonly string[] | null; readonly itemUnknown: string | null }): {
   readonly items: readonly ItemAtom[] | undefined;
   readonly itemUnknown: 'include' | undefined;
 } {
   const items = search.items?.filter(isItemAtom) ?? [];
-  return {
-    items: items.length === 0 ? undefined : items,
-    itemUnknown: search.itemUnknown === 'include' ? 'include' : undefined
-  };
+  if (items.length === 0) return { items: undefined, itemUnknown: undefined };
+  return { items, itemUnknown: search.itemUnknown === 'exclude' ? undefined : 'include' };
 }

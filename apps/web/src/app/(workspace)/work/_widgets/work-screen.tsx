@@ -57,6 +57,11 @@ export function WorkScreen({ view }: { readonly view: WorkView }) {
   }
   return (
     <WorkFrame lede={view.lede} stamp={view.stamp} filters={<><ConditionLine summary={view.summary} /><ItemChips /></>}>
+      {view.truncatedNote === null ? null : (
+        <p role='status' className='mt-4 rounded-lg border border-dashed border-border px-3 py-2 text-[13px] font-semibold'>
+          {view.truncatedNote}
+        </p>
+      )}
       {view.groups.length === 0 ? null : <BidBoardList view={view} />}
     </WorkFrame>
   );

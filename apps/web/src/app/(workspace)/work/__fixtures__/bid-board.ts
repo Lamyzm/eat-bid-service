@@ -147,6 +147,7 @@ export const board: MyBidBoardV1Response = {
   regionPreference: 'confirmed',
   asOf: '2026-09-22T00:47:00Z',
   closesBeforeDate: '2026-09-24',
+  truncated: false,
   rule: { version: '2026-10-10', trainedThrough: '2025-12', validatedFrom: '2026-01', validatedThrough: '2026-08' },
   marketPick: marketPickHead,
   rows: Object.values(boardRows)

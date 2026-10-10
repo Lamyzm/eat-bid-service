@@ -67,8 +67,12 @@ export type BoardView =
     readonly columns: readonly { readonly label: string; readonly record: string }[];
     readonly columnCaption: string;
     readonly groups: readonly ClosingGroupView[];
-    /** 더 보기 안의 성적 막대다. 공고마다 같은 값이라 한 번 만들어 행마다 그린다. */
-    readonly record: { readonly heading: string; readonly bars: readonly MarketPickBar[] };
+    /** 더 보기 안의 성적 막대다. 공고마다 같은 값이라 한 번 만들어 행마다 그린다. 잰 기간과 계산 판을 함께 단다(AGENTS 7). */
+    readonly record: { readonly heading: string; readonly basis: string; readonly bars: readonly MarketPickBar[] };
+    /** 전국 공식 금액의 규칙 판·학습·검증 기간이다(AGENTS 7). */
+    readonly ruleBasis: string;
+    /** 목록이 쪽 상한에 닿아 늦게 마감하는 공고 일부가 빠졌을 때만 있다. */
+    readonly truncatedNote: string | null;
     readonly guide: readonly string[];
   };
 
@@ -172,7 +176,11 @@ function moreOf(row: BidBoardRowWire, head: MarketHead): BoardRowView['more'] {
 
 function recordOf(head: MarketHead): Extract<BoardView, { kind: 'board' }>['record'] {
   const record = marketPickRecord(head.evidence, { version: head.version, mineLabel: `${marketMonth(head)}월 맞춤` });
-  return { heading: `성적 · 같은 공고 ${record.rounds.toLocaleString('ko-KR')}건`, bars: record.bars };
+  return {
+    heading: `성적 · 같은 공고 ${record.rounds.toLocaleString('ko-KR')}건`,
+    basis: `${record.period} 공고 · 두 장, 예정가격 추첨 평균 · 계산 판 ${head.version}`,
+    bars: record.bars
+  };
 }
 
 function guideOf(head: MarketHead): readonly string[] {
@@ -229,6 +237,8 @@ export function presentBidBoard(response: MyBidBoardV1Response): BoardView {
     ...columnsOf(response.marketPick),
     groups: [...groups.values()],
     record: recordOf(response.marketPick),
+    ruleBasis: `전국 공식 규칙 ${response.rule.version} · 학습 ~${response.rule.trainedThrough} · 검증 ${response.rule.validatedFrom}~${response.rule.validatedThrough}`,
+    truncatedNote: response.truncated ? '공고가 많아 늦게 마감하는 공고 일부를 불러오지 못했어요. 품목을 골라 좁혀 보세요.' : null,
     guide: guideOf(response.marketPick)
   };
 }

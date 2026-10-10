@@ -43,5 +43,8 @@ describe('오늘 투찰 목록 칸', () => {
     const titles = [...more.querySelectorAll('h4')].map((title) => title.textContent);
     expect(titles).toEqual(['10월 맞춤 더 보기', '성적 · 같은 공고 1,838건']);
     expect(more.textContent).toContain('그동안 낸 금액');
+    // 성적 숫자는 잰 기간·계산 판과, 전국 공식 금액은 규칙 판·검증 기간과 함께 보여야 한다(AGENTS 7).
+    expect(more.textContent).toContain('2024년 4월~2026년 9월 공고 · 두 장, 예정가격 추첨 평균 · 계산 판 2026-10-10');
+    expect(more.textContent).toContain('전국 공식 규칙 2026-10-10 · 학습 ~2025-12 · 검증 2026-01~2026-08');
   });
 });
