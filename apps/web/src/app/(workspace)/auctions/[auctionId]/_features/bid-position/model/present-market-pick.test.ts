@@ -62,14 +62,36 @@ describe('내 사업자 맞춤 금액 표시', () => {
     expect(one.pairNote).toBe('두 번째 사업자를 등록하면 2번 금액이 같이 나와요.');
   });
 
-  test('기간별 근거를 소수 오차 없이 더해 네 방법의 낙찰 수와 기간·공고 수를 쓴다', () => {
-    const view = applicableView(presentMarketPick(octoberMarketPick));
-    expect(view.record).toContain('2024년 4월~2026년 9월 두 사업자가 넣은 하한율 90% 공고 1,832건으로 비교했어요');
-    // 32.7 + 39.6 + 19.3 + 3.0 = 94.6. Number로 더하면 94.60000000000001이 된다.
-    expect(view.record).toContain(
-      '이 방법 94.6건 · 전국 공식 81.7건 · 그동안 낸 금액 57.8건 · 무작위 자리 68.5건'
+  test('기간별 근거를 소수 오차 없이 더해 네 방법을 큰 순서의 막대로 세우고 길이는 가장 큰 값에 대한 비율이다', () => {
+    const { record } = applicableView(presentMarketPick(octoberMarketPick));
+    expect(record.title).toBe(
+      '같은 공고 1,832건(2024년 4월~2026년 9월)에 대어 본 낙찰 수 · 두 장, 예정가격 추첨 평균'
     );
-    expect(view.record).toContain('계산 판 2026-10-10');
+    // 32.7 + 39.6 + 19.3 + 3.0 = 94.6. Number로 더하면 94.60000000000001이 된다.
+    expect(record.bars).toEqual([
+      { label: '이 방법', value: '94.6건', widthPercent: '100.0', mine: true },
+      { label: '전국 공식', value: '81.7건', widthPercent: '86.4', mine: false },
+      { label: '무작위 자리', value: '68.5건', widthPercent: '72.4', mine: false },
+      { label: '그동안 낸 금액', value: '57.8건', widthPercent: '61.1', mine: false }
+    ]);
+    expect(record.note).toContain('계산 판 2026-10-10');
+  });
+
+  test('근거 값의 소수 자릿수가 달라도 같은 자릿수로 맞춰 더하고 순서를 정한다', () => {
+    const { record } = applicableView(
+      withResult({
+        ...octoberMarketResult,
+        evidence: [
+          { from: '2025-01', through: '2025-12', rounds: 10, expectedWins: '2.25', ruleExpectedWins: '2.3', currentExpectedWins: '1', lotteryExpectedWins: '0.5' }
+        ]
+      })
+    );
+    expect(record.bars.map((bar) => [bar.label, bar.value])).toEqual([
+      ['전국 공식', '2.30건'],
+      ['이 방법', '2.25건'],
+      ['그동안 낸 금액', '1.00건'],
+      ['무작위 자리', '0.50건']
+    ]);
   });
 
   test('창이 해를 넘으면 연도를 붙이고 12월 창 다음 달은 1월이다', () => {

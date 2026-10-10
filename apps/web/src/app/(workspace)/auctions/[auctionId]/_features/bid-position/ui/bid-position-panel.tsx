@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react';
 
 import type { BidPositionView } from '../model/present-bid-position';
-import type { MarketPickRow, MarketPickView } from '../model/present-market-pick';
+import type { MarketPickRecord, MarketPickRow, MarketPickView } from '../model/present-market-pick';
 
 function PanelFrame({ children }: { readonly children: ReactNode }) {
   return (
@@ -28,13 +28,13 @@ function PanelFrame({ children }: { readonly children: ReactNode }) {
 
 function AmountRow({ row }: { readonly row: MarketPickRow }) {
   return (
-    <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
-      <span className='text-sm text-muted-foreground'>{row.label}</span>
-      <span className='flex flex-wrap items-baseline gap-x-3'>
-        <span className='text-xs text-muted-foreground tabular-nums'>{row.baseRelative}</span>
-        <span className='text-lg font-semibold tabular-nums md:text-xl'>{row.amount}</span>
-      </span>
-    </div>
+    <>
+      <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
+        <span className='text-sm text-muted-foreground'>{row.label}</span>
+        <span className='text-lg font-bold tabular-nums md:text-xl'>{row.amount}</span>
+      </div>
+      <p className='mt-0.5 text-xs text-muted-foreground tabular-nums'>{row.baseRelative}</p>
+    </>
   );
 }
 
@@ -52,25 +52,50 @@ function MarketPickSection({ view }: { readonly view: MarketPickView }) {
           <p className='mt-1 text-xs leading-relaxed text-muted-foreground'>{view.basis}</p>
           <ol className='mt-3 space-y-2'>
             {view.rows.map((row) => (
-              <li key={row.label} className='rounded-md border border-border px-3 py-2'>
+              <li key={row.label} className='rounded-md border border-primary/40 bg-primary/10 px-3 py-2'>
                 <AmountRow row={row} />
               </li>
             ))}
           </ol>
           {view.single === null ? null : (
-            <div className='mt-2 rounded-md bg-muted/60 px-3 py-2'>
+            <div className='mt-2 rounded-md border border-dashed border-border px-3 py-2'>
               <AmountRow row={view.single} />
             </div>
           )}
           {view.pairNote === null ? null : (
             <p className='mt-2 text-xs text-muted-foreground'>{view.pairNote}</p>
           )}
-          <p className='mt-3 text-xs leading-relaxed text-muted-foreground tabular-nums'>
-            {view.record}
-          </p>
+          <RecordBars record={view.record} />
         </>
       )}
     </section>
+  );
+}
+
+/** 같은 공고에 네 방법을 대어 본 낙찰 수. 길이와 순서는 표시 모델이 정하고 여기서는 그리기만 한다. */
+function RecordBars({ record }: { readonly record: MarketPickRecord }) {
+  return (
+    <figure className='mt-4'>
+      <figcaption className='text-xs text-muted-foreground'>{record.title}</figcaption>
+      <ul className='mt-2 space-y-1.5'>
+        {record.bars.map((bar) => (
+          <li
+            key={bar.label}
+            className={`grid grid-cols-[7.5em_1fr_4em] items-center gap-2 text-xs tabular-nums ${bar.mine ? 'font-semibold' : ''}`}
+          >
+            <span>{bar.label}</span>
+            <span aria-hidden='true' className='block h-2.5 overflow-hidden rounded-sm bg-muted'>
+              <span
+                className={`block h-full rounded-sm ${bar.mine ? 'bg-primary' : 'bg-muted-foreground/40'}`}
+                style={{ width: `${bar.widthPercent}%` }}
+              />
+            </span>
+            <span className='text-right'>{bar.value}</span>
+          </li>
+        ))}
+      </ul>
+      <p className='mt-2 text-xs text-muted-foreground'>{record.note}</p>
+    </figure>
   );
 }
 
