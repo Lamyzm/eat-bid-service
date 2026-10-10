@@ -1,4 +1,7 @@
-/** @module 책임: 한 회차의 추천 투찰가와 그 근거(규칙 버전·검증 표본·운 기준선)를 공개 응답 하나로 구성한다. */
+/**
+ * @module 책임: 한 회차의 추천 투찰가(전국 규칙과 최근 3개월 맞춤)와 그 근거(규칙 버전·검증 표본·운 기준선)를 공개 응답
+ * 하나로 구성한다.
+ */
 import { z } from "zod";
 
 import { kstDateTextSchema, kstMonthTextSchema } from "../../../atoms/calendar";
@@ -96,6 +99,61 @@ export const bidPositionResultSchema = z.discriminatedUnion("state", [
 ]).meta({ id: "BidPositionResult" });
 
 /**
+ * 맞춤 금액을 내지 않은 이유다. 걸어가기 채점은 하한율 90 회차에서만 했고, 시장은 요청자 워크스페이스에 등록돼 원본에서
+ * 관측된 사업자가 정한다. 최근 창의 공고가 검증한 가장 작은 창보다 적으면 근거 밖이라 내지 않는다.
+ */
+export const bidPositionMarketPickReasonSchema = z.enum([
+  "floor-rate-unobserved",
+  "floor-rate-outside-market-pick",
+  "no-linked-business",
+  "market-rounds-below-minimum",
+  "market-data-unavailable",
+]).meta({ id: "BidPositionMarketPickReason" });
+
+/**
+ * 매달 다시 고르는 방법을 각 공고보다 앞선 기록만 써서 채점한 기간별 결과다. 기대 낙찰은 예정가격 추첨을 적분한 두 장 기준 값이라
+ * 추첨 운을 뺐다. 같은 공고에 전국 규칙·지금 낸 금액·운을 넣은 값을 나란히 실어야 크기를 읽을 수 있다. 근거는 한 시장(두 사업자가
+ * 넣은 하한율 90% 공고)에서만 쟀다. 한 번 뽑힌 실제 낙찰 수는 잡음이 커서 싣지 않는다.
+ */
+export const bidPositionMarketEvidenceSchema = z.strictObject({
+  from: kstMonthTextSchema,
+  through: kstMonthTextSchema,
+  rounds: nonNegativeCountSchema,
+  expectedWins: canonicalDecimalTextSchema,
+  ruleExpectedWins: canonicalDecimalTextSchema,
+  currentExpectedWins: canonicalDecimalTextSchema,
+  lotteryExpectedWins: canonicalDecimalTextSchema,
+}).meta({ id: "BidPositionMarketEvidence" });
+
+/**
+ * 최근 3개월 맞춤이다. 요청자 워크스페이스의 등록 사업자가 창 안에 넣은 공고의 실제 경쟁 투찰 배치로 매번 다시 고른다.
+ * 그래서 같은 공고라도 워크스페이스와 달에 따라 금액이 다르며, 창과 표본 수를 금액과 늘 함께 싣는다(AGENTS 7·8).
+ */
+export const bidPositionMarketPickSchema = z.strictObject({
+  version: kstDateTextSchema,
+  windowMonths: z.number().int().min(1).max(12),
+  minimumRounds: nonNegativeCountSchema,
+  window: z.strictObject({ fromMonth: kstMonthTextSchema, throughMonth: kstMonthTextSchema }),
+  result: z.discriminatedUnion("state", [
+    z.strictObject({
+      state: z.literal("applicable"),
+      marketRounds: nonNegativeCountSchema,
+      linkedBusinesses: nonNegativeCountSchema,
+      positions: z.array(bidPositionSchema.pick({ order: true, amount: true, baseRelativeRate: true })).min(1).max(2),
+      // 한 곳만 넣는 공고에 쓸 금액이다. 두 장의 1번과 다를 수 있다.
+      single: bidPositionSchema.pick({ order: true, amount: true, baseRelativeRate: true }),
+      evidence: z.array(bidPositionMarketEvidenceSchema).min(1),
+    }),
+    z.strictObject({
+      state: z.literal("not-applicable"),
+      reasons: z.array(bidPositionMarketPickReasonSchema).min(1).max(5),
+      // 시장을 읽지 않았으면(사업자 없음·하한율 밖) null이다. 0과 섞으면 "읽었는데 없었다"로 보인다.
+      marketRounds: nonNegativeCountSchema.nullable(),
+    }),
+  ]),
+}).meta({ id: "BidPositionMarketPick" });
+
+/**
  * 계산에 쓴 입력을 결과와 함께 되돌린다. 참여 수는 관측 시각과 짝이고, 대역을 고른 수가 그 관측인지 추정인지는
  * `result.bidCountBasis`가 말한다.
  */
@@ -108,9 +166,12 @@ export const auctionBidPositionV1ResponseSchema = z.strictObject({
   deadlineAt: instantTextSchema.nullable(),
   rule: bidPositionRuleSchema,
   result: bidPositionResultSchema,
+  marketPick: bidPositionMarketPickSchema,
 }).meta({ id: "AuctionBidPositionV1Response" });
 
 export type AuctionBidPositionV1Response = z.infer<typeof auctionBidPositionV1ResponseSchema>;
 export type BidPositionWire = z.infer<typeof bidPositionSchema>;
 export type BidPositionNotApplicableReason = z.infer<typeof bidPositionNotApplicableReasonSchema>;
 export type BidCountBasisWire = z.infer<typeof bidCountBasisSchema>;
+export type BidPositionMarketPickWire = z.infer<typeof bidPositionMarketPickSchema>;
+export type BidPositionMarketPickReason = z.infer<typeof bidPositionMarketPickReasonSchema>;

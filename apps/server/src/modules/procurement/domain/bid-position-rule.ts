@@ -125,7 +125,7 @@ function decimalText(coefficient: bigint, scale: number): string {
  * (재검증 중 실제로 있었던 일) 하한 기준액을 거쳐 계산한다. 정수 계수만 곱하므로 반올림은 마지막 한 번뿐이다.
  * 올림인 이유는 배수가 가리키는 자리보다 낮게 내지 않기 위해서다 — 1원 차이가 낙찰 순서를 바꾸지는 않는다.
  */
-function positionAmount(baseAmount: Money, floorRate: BidRate, multiple: string): Money {
+export function positionAmount(baseAmount: Money, floorRate: BidRate, multiple: string): Money {
   const numerator = scaled(baseAmount.amount, 2) * scaled(floorRate, 3) * scaled(multiple, 4);
   const denominator = 10n ** 11n;
   const won = (numerator + denominator - 1n) / denominator;
@@ -133,7 +133,7 @@ function positionAmount(baseAmount: Money, floorRate: BidRate, multiple: string)
 }
 
 /** 하한율(소수 셋째)×배수(소수 넷째)는 소수 일곱째까지 정확하고, 표의 하한율(90.000·88.000)에서는 넷째 아래가 항상 0이다. */
-function positionBaseRelativeRate(floorRate: BidRate, multiple: string): BaseRelativeBidRate {
+export function positionBaseRelativeRate(floorRate: BidRate, multiple: string): BaseRelativeBidRate {
   const product = scaled(floorRate, 3) * scaled(multiple, 4);
   if (product % 1000n !== 0n) throw new RangeError("추천 투찰가 기초금액 대비율이 소수 넷째 자리에서 끝나지 않는다");
   return baseRelativeBidRate(canonicalDecimal(decimalText(product / 1000n, 4), 4));

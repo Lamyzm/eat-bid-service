@@ -9,6 +9,7 @@ export const UNIT_OF_WORK = Symbol("UNIT_OF_WORK");
 export const READ_SNAPSHOT = Symbol("READ_SNAPSHOT");
 export const REGISTERED_BUSINESS_READER = Symbol("REGISTERED_BUSINESS_READER");
 export const OWN_BID_READER = Symbol("OWN_BID_READER");
+export const MARKET_ROUND_READER = Symbol("MARKET_ROUND_READER");
 export const AUCTION_READER = Symbol("AUCTION_READER");
 export const AUCTION_ROSTER_READER = Symbol("AUCTION_ROSTER_READER");
 export const OPEN_AUCTION_READER = Symbol("OPEN_AUCTION_READER");

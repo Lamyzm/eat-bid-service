@@ -27,7 +27,37 @@ const applicableFixture = () => ({
       cumulativeValidationWins: 78,
     }],
   },
+  marketPick: {
+    version: "2026-10-10",
+    windowMonths: 3,
+    minimumRounds: 70,
+    window: { fromMonth: "2026-07", throughMonth: "2026-09" },
+    result: {
+      state: "applicable",
+      marketRounds: 158,
+      linkedBusinesses: 2,
+      positions: [marketPosition(1, "15210353.00", "88.6410"), marketPosition(2, "15276760.00", "89.0280")],
+      single: marketPosition(1, "15210353.00", "88.6410"),
+      evidence: [{
+        from: "2025-01",
+        through: "2025-12",
+        rounds: 681,
+        expectedWins: "39.6",
+        ruleExpectedWins: "34.7",
+        currentExpectedWins: "22.4",
+        lotteryExpectedWins: "26.6",
+      }],
+    },
+  },
 });
+
+function marketPosition(order: number, amount: string, rate: string) {
+  return {
+    order,
+    amount: { amount, currency: "KRW" },
+    baseRelativeRate: { value: rate, unit: "percentage-points" },
+  };
+}
 
 describe("추천 투찰가 공개 계약", () => {
   test("금액과 근거를 손실 없이 왕복한다", () => {
@@ -57,6 +87,28 @@ describe("추천 투찰가 공개 계약", () => {
     const data = applicableFixture();
     (data.result as { bidCountBasis: unknown }).bidCountBasis = { kind: "estimated", estimatedBidCount: 49 };
     expect(auctionBidPositionV1ResponseSchema.safeParse(data).success).toBe(false);
+  });
+
+  test("내 사업자 맞춤 금액은 두 자리까지만 싣고 근거 기간 없는 금액을 거부한다", () => {
+    const three = applicableFixture();
+    three.marketPick.result.positions.push(marketPosition(3, "15300000.00", "89.1630"));
+    expect(auctionBidPositionV1ResponseSchema.safeParse(three).success).toBe(false);
+    const bare = applicableFixture();
+    bare.marketPick.result.evidence = [];
+    expect(auctionBidPositionV1ResponseSchema.safeParse(bare).success).toBe(false);
+    const missing = applicableFixture() as { marketPick?: unknown };
+    delete missing.marketPick;
+    expect(auctionBidPositionV1ResponseSchema.safeParse(missing).success).toBe(false);
+  });
+
+  test("맞춤 금액을 내지 않으면 금액 없이 사유와 읽은 공고 수만 싣고, 읽지 않았으면 공고 수가 null이다", () => {
+    const base = applicableFixture();
+    const unread = { ...base, marketPick: { ...base.marketPick, result: { state: "not-applicable", reasons: ["no-linked-business"], marketRounds: null } } };
+    expect(auctionBidPositionV1ResponseSchema.parse(unread).marketPick.result).toEqual(unread.marketPick.result);
+    const few = { ...unread, marketPick: { ...unread.marketPick, result: { state: "not-applicable", reasons: ["market-rounds-below-minimum"], marketRounds: 52 } } };
+    expect(auctionBidPositionV1ResponseSchema.safeParse(few).success).toBe(true);
+    const smuggled = { ...unread, marketPick: { ...unread.marketPick, result: { ...unread.marketPick.result, positions: [] } } };
+    expect(auctionBidPositionV1ResponseSchema.safeParse(smuggled).success).toBe(false);
   });
 
   test("공고 아래 bid-position 경로를 operation 하나에서 파생한다", () => {
