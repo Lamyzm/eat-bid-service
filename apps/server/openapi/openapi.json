@@ -2560,6 +2560,9 @@
               "account": {
                 "$ref": "#/components/schemas/AccountLabel"
               },
+              "operator": {
+                "type": "boolean"
+              },
               "principalId": {
                 "$ref": "#/components/schemas/PositiveBigintText"
               },
@@ -2577,7 +2580,8 @@
               "state",
               "account",
               "principalId",
-              "workspace"
+              "workspace",
+              "operator"
             ],
             "type": "object"
           }

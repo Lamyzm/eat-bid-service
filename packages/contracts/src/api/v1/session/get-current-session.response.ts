@@ -25,6 +25,9 @@ export const currentSessionV1ResponseSchema = z.discriminatedUnion("state", [
     account: accountLabelSchema,
     principalId: positiveBigintTextSchema,
     workspace: workspaceSummarySchema,
+    // 화면이 운영자 전용 메뉴(내 투찰)를 그릴지 정하는 표시다. 권한의 권위는 각 operation의 guard이며, 이 값으로 화면을
+    // 열어도 서버가 다시 판정한다(PDR-0008).
+    operator: z.boolean(),
   }),
 ]).meta({ id: "CurrentSessionV1Response" });
 

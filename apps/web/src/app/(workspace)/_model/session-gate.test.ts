@@ -23,7 +23,7 @@ describe('업무 route 세션 게이트 판정', () => {
     expect(
       workspaceGateDecision({
         kind: 'session',
-        response: { state: 'active', account, principalId: '7', workspace }
+        response: { state: 'active', account, principalId: '7', workspace, operator: false }
       })
     ).toEqual({ kind: 'allow' });
   });

@@ -6,6 +6,7 @@
  */
 import { Effect } from "effect";
 import type { AuthenticatedSubject } from "../../../platform/auth/auth-identity";
+import type { OperatorGrantReader } from "../../../platform/auth/operator-grant-reader";
 import type { PrincipalReader, ResolvedPrincipal } from "../../../platform/auth/principal-reader";
 import {
   AuthDependencyUnavailable,
@@ -20,12 +21,19 @@ import { AccountDependencyUnavailable } from "./account-repository";
 export type CurrentSessionRecord =
   | { readonly state: "unauthenticated" }
   | { readonly state: "uninitialized"; readonly subject: AuthenticatedSubject }
-  | { readonly state: "active"; readonly subject: AuthenticatedSubject; readonly principal: ResolvedPrincipal };
+  | {
+    readonly state: "active";
+    readonly subject: AuthenticatedSubject;
+    readonly principal: ResolvedPrincipal;
+    /** 화면이 운영자 전용 메뉴를 그릴지 정하는 표시다. 권한 판정 자체는 각 operation의 guard가 다시 한다. */
+    readonly operator: boolean;
+  };
 
 export class GetCurrentSession {
   constructor(
     private readonly authenticator: SessionAuthenticator,
     private readonly reader: PrincipalReader,
+    private readonly grants: OperatorGrantReader,
   ) {}
 
   execute(headers: Headers): Effect.Effect<
@@ -45,10 +53,23 @@ export class GetCurrentSession {
         return Effect.tryPromise({
           try: () => this.reader.findBySubject(subject.subject),
           catch: (cause) => new AccountDependencyUnavailable(cause),
-        }).pipe(Effect.map((principal): CurrentSessionRecord => principal === null
-          ? { state: "uninitialized", subject }
-          : { state: "active", subject, principal }));
+        }).pipe(Effect.flatMap((principal) => principal === null
+          ? Effect.succeed<CurrentSessionRecord>({ state: "uninitialized", subject })
+          : Effect.promise(() => this.isOperator(principal.principalId))
+            .pipe(Effect.map((operator): CurrentSessionRecord => ({ state: "active", subject, principal, operator })))));
       }),
     );
+  }
+
+  /**
+   * 권한 조회가 실패하면 세션을 503으로 만들지 않고 운영자가 아니라고 답한다. 세션은 모든 화면의 게이트라 권한 장애 하나로
+   * 업무 화면 전체가 막히면 안 된다. 운영자 전용 operation은 `OperatorGuard`가 장애를 503으로 따로 드러낸다.
+   */
+  private async isOperator(principalId: bigint): Promise<boolean> {
+    try {
+      return await this.grants.hasActiveGrant(principalId);
+    } catch {
+      return false;
+    }
   }
 }

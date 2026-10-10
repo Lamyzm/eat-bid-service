@@ -42,10 +42,23 @@ describe("getCurrentSession operation 계약", () => {
       account: { displayName: null, maskedEmail: null },
       principalId: maxSignedBigint,
       workspace: { workspaceId: maxSignedBigint, name: "내 워크스페이스", role: "owner" },
+      operator: false,
     });
 
     expect(uninitialized.state).toBe("uninitialized");
     expect(active.state === "active" && active.principalId).toBe(maxSignedBigint);
+  });
+
+  test("활성 세션은 운영자 여부를 반드시 싣고 다른 두 상태는 싣지 않는다", () => {
+    const active = {
+      state: "active",
+      account: { displayName: null, maskedEmail: null },
+      principalId: "7",
+      workspace: { workspaceId: "1", name: "내 워크스페이스", role: "owner" },
+    };
+    expect(currentSessionV1ResponseSchema.safeParse(active).success).toBe(false);
+    expect(currentSessionV1ResponseSchema.safeParse({ ...active, operator: true }).success).toBe(true);
+    expect(currentSessionV1ResponseSchema.safeParse({ state: "unauthenticated", operator: false }).success).toBe(false);
   });
 
   test("MAX_SAFE_INTEGER를 넘는 principal ID를 손실 없이 문자열로 싣는다", () => {
@@ -54,6 +67,7 @@ describe("getCurrentSession operation 계약", () => {
       account: { displayName: null, maskedEmail: null },
       principalId: maxSignedBigint,
       workspace: { workspaceId: maxSignedBigint, name: "내 워크스페이스", role: "member" },
+      operator: true,
     });
 
     expect(parsed.state === "active" && BigInt(parsed.principalId)).toBe(9223372036854775807n);
@@ -62,6 +76,7 @@ describe("getCurrentSession operation 계약", () => {
       account: { displayName: null, maskedEmail: null },
       principalId: "9223372036854775808",
       workspace: { workspaceId: "1", name: "내 워크스페이스", role: "owner" },
+      operator: false,
     }).success).toBe(false);
   });
 

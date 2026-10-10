@@ -1,6 +1,7 @@
 /** @module 책임: 계정 use case와 HTTP controller를 인증·저장소 주입 토큰에 연결하는 Nest 조립만 담당한다. */
 import { Module } from "@nestjs/common";
 import { AUTH_TOKENS } from "../../platform/auth/auth.tokens";
+import type { OperatorGrantReader } from "../../platform/auth/operator-grant-reader";
 import type { PrincipalReader } from "../../platform/auth/principal-reader";
 import type { SessionAuthenticator } from "../../platform/auth/session-authenticator";
 import {
@@ -58,9 +59,9 @@ const filterCombinationUseCase = <UseCase>(create: (repository: FilterCombinatio
   providers: [
     {
       provide: GetCurrentSession,
-      inject: [AUTH_TOKENS.sessionAuthenticator, AUTH_TOKENS.principalReader],
-      useFactory: (authenticator: SessionAuthenticator, reader: PrincipalReader) =>
-        new GetCurrentSession(authenticator, reader),
+      inject: [AUTH_TOKENS.sessionAuthenticator, AUTH_TOKENS.principalReader, AUTH_TOKENS.operatorGrantReader],
+      useFactory: (authenticator: SessionAuthenticator, reader: PrincipalReader, grants: OperatorGrantReader) =>
+        new GetCurrentSession(authenticator, reader, grants),
     },
     { provide: InitializeCurrentAccount, ...repositoryUseCase((repository) => new InitializeCurrentAccount(repository)) },
     { provide: ListMyBusinesses, ...repositoryUseCase((repository) => new ListMyBusinesses(repository)) },
