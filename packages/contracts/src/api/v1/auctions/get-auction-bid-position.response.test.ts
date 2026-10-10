@@ -12,8 +12,10 @@ const applicableFixture = () => ({
   rule: { version: "2026-10-07", trainedThrough: "2025-12", validatedFrom: "2026-01", validatedThrough: "2026-08" },
   result: {
     state: "applicable",
-    band: "40-69",
-    selection: "validation-informed",
+    band: { minBidCount: 40, maxBidCount: 69 },
+    bidCountBasis: { kind: "estimated", observedBidCount: 36, hoursBeforeDeadline: 12, estimatedBidCount: 49 },
+    evidence: "clear",
+    selection: "training",
     validationRounds: 3450,
     holdout: { month: "2026-09", rounds: 869, tickets: 2, wins: 41, lotteryExpectedWins: "33.7" },
     positions: [{
@@ -34,7 +36,7 @@ describe("추천 투찰가 공개 계약", () => {
   });
 
   test("규칙 밖 회차는 숫자 없이 사유만 싣는다", () => {
-    const data = { ...applicableFixture(), result: { state: "not-applicable", reason: "participation-below-rule" } };
+    const data = { ...applicableFixture(), result: { state: "not-applicable", reasons: ["floor-rate-outside-rule", "participation-unobserved"] } };
     expect(auctionBidPositionV1ResponseSchema.parse(data).result).toEqual(data.result);
     const smuggled = { ...data, result: { ...data.result, positions: [] } };
     expect(auctionBidPositionV1ResponseSchema.safeParse(smuggled).success).toBe(false);
@@ -47,6 +49,14 @@ describe("추천 투찰가 공개 계약", () => {
     const many = applicableFixture();
     many.result.positions = [1, 2, 3, 4].map((order) => ({ ...many.result.positions[0]!, order }));
     expect(auctionBidPositionV1ResponseSchema.safeParse(many).success).toBe(false);
+  });
+
+  test("사유 없는 규칙 밖 응답과 추정 근거 없는 추정 참여 수를 거부한다", () => {
+    const empty = { ...applicableFixture(), result: { state: "not-applicable", reasons: [] } };
+    expect(auctionBidPositionV1ResponseSchema.safeParse(empty).success).toBe(false);
+    const data = applicableFixture();
+    (data.result as { bidCountBasis: unknown }).bidCountBasis = { kind: "estimated", estimatedBidCount: 49 };
+    expect(auctionBidPositionV1ResponseSchema.safeParse(data).success).toBe(false);
   });
 
   test("공고 아래 bid-position 경로를 operation 하나에서 파생한다", () => {

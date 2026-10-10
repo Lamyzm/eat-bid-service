@@ -4,6 +4,9 @@ import type { AuctionBidPositionV1Response } from '@eatbid/contracts/api/v1/auct
 import { findBannedCopy } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/banned-copy';
 import { presentBidPosition, type BidPositionView } from './present-bid-position';
 
+type Result = AuctionBidPositionV1Response['result'];
+type Applicable = Extract<Result, { state: 'applicable' }>;
+
 const position = (
   order: number,
   amount: string,
@@ -20,6 +23,21 @@ const position = (
   cumulativeValidationWins: wins
 });
 
+const applicable: Applicable = {
+  state: 'applicable',
+  band: { minBidCount: 40, maxBidCount: 69 },
+  bidCountBasis: { kind: 'observed', bidCount: 52 },
+  evidence: 'clear',
+  selection: 'training',
+  validationRounds: 3450,
+  holdout: { month: '2026-09', rounds: 851, tickets: 2, wins: 33, lotteryExpectedWins: '31.6' },
+  positions: [
+    position(1, '15227341.00', '88.7400', 74, '2.144928', '1.755211'),
+    position(2, '15320002.00', '89.2800', 145, '4.202899', '3.447802'),
+    position(3, '15374076.00', '89.5950', 217, '6.289855', '5.080982')
+  ]
+};
+
 const response: AuctionBidPositionV1Response = {
   auctionId: '5796468',
   revisionId: '99',
@@ -28,71 +46,74 @@ const response: AuctionBidPositionV1Response = {
   participation: { bidCount: 52, observedAt: '2026-10-07T01:00:00Z' },
   deadlineAt: '2026-10-07T02:00:00Z',
   rule: {
-    version: '2026-10-07',
+    version: '2026-10-10',
     trainedThrough: '2025-12',
     validatedFrom: '2026-01',
     validatedThrough: '2026-08'
   },
-  result: {
-    state: 'applicable',
-    band: '40-69',
-    selection: 'validation-informed',
-    validationRounds: 3450,
-    holdout: { month: '2026-09', rounds: 869, tickets: 2, wins: 41, lotteryExpectedWins: '33.7' },
-    positions: [
-      position(1, '15219619.00', '88.6950', 78, '2.260870', '1.787757'),
-      position(2, '15320002.00', '89.2800', 149, '4.318841', '3.575513'),
-      position(3, '15358611.00', '89.5050', 206, '5.971014', '5.363270')
-    ]
-  }
+  result: applicable
 };
 
-function textsOf(view: BidPositionView | null): string {
-  return JSON.stringify(view);
+const withResult = (result: Result) =>
+  presentBidPosition({ kind: 'position', response: { ...response, result } });
+
+function applicableView(view: BidPositionView | null) {
+  if (view?.kind !== 'applicable') throw new Error('적용 대상이어야 한다');
+  return view;
 }
 
 describe('추천 투찰가 표시', () => {
   test('사업자별 금액을 원 단위로 끊고 누적 낙찰률을 무작위 자리와 나란히 쓴다', () => {
-    const view = presentBidPosition({ kind: 'position', response });
-    if (view?.kind !== 'applicable') throw new Error('적용 대상이어야 한다');
+    const view = applicableView(presentBidPosition({ kind: 'position', response }));
     expect(view.rows.map((row) => row.amount)).toEqual([
-      '15,219,619원',
+      '15,227,341원',
       '15,320,002원',
-      '15,358,611원'
+      '15,374,076원'
     ]);
-    expect(view.rows[0]?.baseRelative).toBe('기초금액 대비 88.6950%');
+    expect(view.rows[0]?.baseRelative).toBe('기초금액 대비 88.7400%');
     expect(view.rows[1]?.evidence).toBe(
-      '1~2번 함께: 검증 3,450회차 중 149회 낙찰(4.32%) · 무작위 자리 3.58%'
+      '1~2번 함께: 검증 3,450회차 중 145회 낙찰(4.20%) · 무작위 자리 3.45%'
     );
     expect(view.band).toBe('참여 40~69곳 표');
     expect(view.inputs).toBe('기초금액 17,159,500원 · 하한율 90% · 참여 52곳(10월 7일 10:00 관측)');
   });
 
-  test('검증 기간을 보고 고른 표는 낙관적이라고 말하고 고른 뒤 처음 본 달의 결과를 함께 쓴다', () => {
-    const view = presentBidPosition({ kind: 'position', response });
-    if (view?.kind !== 'applicable') throw new Error('적용 대상이어야 한다');
-    expect(view.calibration).toContain('실제보다 높게 나왔을 수 있습니다');
-    expect(view.calibration).toContain(
-      '2026-09 869회차에서 2장은 41회 낙찰, 무작위 33.7회(1.22배)'
+  test('열린 대역은 "곳 이상"으로 쓴다', () => {
+    const view = applicableView(
+      withResult({ ...applicable, band: { minBidCount: 70, maxBidCount: null } })
     );
+    expect(view.band).toBe('참여 70곳 이상 표');
   });
 
-  test('관측이 마감 1시간 전보다 이르면 표가 바뀔 수 있다고 말하고 그 뒤면 말하지 않는다', () => {
-    const early = presentBidPosition({
-      kind: 'position',
-      response: { ...response, participation: { bidCount: 52, observedAt: '2026-10-06T23:30:00Z' } }
-    });
-    if (early?.kind !== 'applicable') throw new Error('적용 대상이어야 한다');
-    expect(early.timingNote).toContain('마감 2시간 30분 전');
-    const days = presentBidPosition({
-      kind: 'position',
-      response: { ...response, participation: { bidCount: 52, observedAt: '2026-10-03T17:46:00Z' } }
-    });
-    if (days?.kind !== 'applicable') throw new Error('적용 대상이어야 한다');
-    expect(days.timingNote).toContain('마감 3일 8시간 14분 전');
-    const late = presentBidPosition({ kind: 'position', response });
-    if (late?.kind !== 'applicable') throw new Error('적용 대상이어야 한다');
-    expect(late.timingNote).toBeNull();
+  test('표본 밖 성적과 고른 뒤 처음 본 달의 결과를 함께 쓰고 근거가 약한 대역은 그렇게 말한다', () => {
+    const view = applicableView(presentBidPosition({ kind: 'position', response }));
+    expect(view.calibration).toContain('고를 때 보지 않은 2026-01~2026-08 결과');
+    expect(view.calibration).toContain(
+      '2026-09 851회차에서 2장은 33회 낙찰, 무작위 31.6회(1.04배)'
+    );
+    expect(view.weakNote).toBeNull();
+    const weak = applicableView(withResult({ ...applicable, evidence: 'weak' }));
+    expect(weak.weakNote).toContain('참고로만');
+  });
+
+  test('추정한 참여 수로 표를 고르면 관측값과 추정값을 함께 말하고 하루 이상 남으면 다시 보라고 한다', () => {
+    const estimated = (hoursBeforeDeadline: number) =>
+      applicableView(
+        withResult({
+          ...applicable,
+          bidCountBasis: {
+            kind: 'estimated',
+            observedBidCount: 36,
+            hoursBeforeDeadline,
+            estimatedBidCount: 49
+          }
+        })
+      );
+    expect(estimated(12).basisNote).toBe(
+      '마감 12시간 전 관측 36곳을 마감 1시간 전 약 49곳으로 추정해 표를 골랐습니다.'
+    );
+    expect(estimated(30).basisNote).toContain('마감 당일에 다시 보세요');
+    expect(applicableView(presentBidPosition({ kind: 'position', response })).basisNote).toBeNull();
   });
 
   test('운영자가 아니면 패널이 없고 조회 실패는 실패라고 말한다', () => {
@@ -100,31 +121,33 @@ describe('추천 투찰가 표시', () => {
     expect(presentBidPosition({ kind: 'failed' })).toEqual({ kind: 'unavailable' });
   });
 
-  test('규칙 밖 회차는 금액 없이 사유만 쓴다', () => {
-    const view = presentBidPosition({
-      kind: 'position',
-      response: {
-        ...response,
-        result: { state: 'not-applicable', reason: 'floor-rate-outside-rule' }
-      }
+  test('규칙 밖 회차는 금액 없이 실패한 조건을 모두 쓴다', () => {
+    const view = withResult({
+      state: 'not-applicable',
+      reasons: ['floor-rate-outside-rule', 'participation-unobserved']
     });
-    expect(view?.kind).toBe('not-applicable');
-    expect(view !== null && 'rows' in view).toBe(false);
-    expect(textsOf(view)).not.toContain('15,219,619원');
-    expect(textsOf(view)).toContain('하한율 90% 회차에서만 검증');
+    if (view?.kind !== 'not-applicable') throw new Error('규칙 밖이어야 한다');
+    expect(view.reason).toBe(
+      '규칙은 하한율 90%·88% 회차에서만 검증했습니다. 참여 업체 수가 아직 관측되지 않았습니다. 이 회차는 계산하지 않았습니다.'
+    );
+    expect(JSON.stringify(view)).not.toContain('15,227,341원');
   });
 
   test('패널 문구는 NeaT 입력 지시·안전 단정·확정형 낙찰 같은 금지 문형을 쓰지 않는다', () => {
     const views = [
       presentBidPosition({ kind: 'position', response }),
-      presentBidPosition({
-        kind: 'position',
-        response: {
-          ...response,
-          result: { state: 'not-applicable', reason: 'participation-below-rule' }
+      withResult({ ...applicable, evidence: 'weak' }),
+      withResult({
+        ...applicable,
+        bidCountBasis: {
+          kind: 'estimated',
+          observedBidCount: 36,
+          hoursBeforeDeadline: 30,
+          estimatedBidCount: 49
         }
-      })
+      }),
+      withResult({ state: 'not-applicable', reasons: ['participation-below-rule'] })
     ];
-    for (const view of views) expect(findBannedCopy(textsOf(view))).toEqual([]);
+    for (const view of views) expect(findBannedCopy(JSON.stringify(view))).toEqual([]);
   });
 });

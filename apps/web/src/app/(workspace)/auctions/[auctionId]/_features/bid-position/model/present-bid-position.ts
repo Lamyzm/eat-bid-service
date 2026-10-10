@@ -2,7 +2,7 @@
  * @module 책임: 추천 투찰가 조회 결과를 금액·근거·보정 상태 문장으로 바꾸는 표시 모델을 소유한다.
  *
  * 금액이 주인공이고 낙찰률은 근거다. 낙찰률은 혼자 두면 크기를 읽을 수 없으므로 언제나 같은 장수를 무작위 자리에
- * 냈을 때의 값과 나란히 쓴다. 검증 수치가 고를 때 참고됐으면 그 사실과 고른 뒤 처음 본 달의 결과를 함께 쓴다(ADR 0062).
+ * 냈을 때의 값과 나란히 쓴다. 고른 뒤 처음 본 달의 결과와 근거가 약한 대역의 경고, 추정한 참여 수를 함께 쓴다(ADR 0062).
  */
 import { Temporal } from '@eatbid/domain';
 import type { AuctionBidPositionV1Response } from '@eatbid/contracts/api/v1/auctions';
@@ -25,14 +25,14 @@ export type BidPositionView =
       readonly kind: 'not-applicable';
       readonly inputs: string;
       readonly reason: string;
-      readonly timingNote: string | null;
       readonly rule: string;
     }
   | {
       readonly kind: 'applicable';
       readonly inputs: string;
       readonly band: string;
-      readonly timingNote: string | null;
+      readonly basisNote: string | null;
+      readonly weakNote: string | null;
       readonly rows: readonly BidPositionRow[];
       readonly calibration: string;
       readonly rule: string;
@@ -104,22 +104,24 @@ function inputsText(response: Response): string {
 }
 
 /**
- * 규칙은 마감 1시간 전 참여 수로 표를 고른다. 그보다 이른 관측이면 참여가 더 늘어 표가 바뀔 수 있으므로 그 사실만
- * 말한다. 마감이나 관측이 없으면 견줄 것이 없어 말하지 않는다.
+ * 대역을 고른 참여 수가 추정이면 그 사실과 근거를 말한다. 규칙은 마감 1시간 전 참여 수로 표를 정의했으므로 이른 관측은
+ * 보정표로 옮긴 값이다. 하루 이상 남은 관측은 추정이 흔들리므로 마감 가까이 다시 보라고 덧붙인다(실험 기록 §13).
  */
-function timingText(response: Response): string | null {
-  if (response.participation === null || response.deadlineAt === null) return null;
-  const observed = Temporal.Instant.from(response.participation.observedAt);
-  const cutoff = Temporal.Instant.from(response.deadlineAt).subtract({ hours: 1 });
-  if (Temporal.Instant.compare(observed, cutoff) >= 0) return null;
-  // Instant 차이는 시간 단위까지만 나오므로 일은 24시간으로 직접 나눈다. 두 순간 사이의 경과라 달력 일과 다르지 않다.
-  const left = observed.until(Temporal.Instant.from(response.deadlineAt), { largestUnit: 'hour' });
-  const days = Math.floor(left.hours / 24);
-  const hours = left.hours % 24;
-  const span = [days > 0 ? `${days}일` : '', hours > 0 ? `${hours}시간` : '', `${left.minutes}분`]
-    .filter(Boolean)
-    .join(' ');
-  return `규칙은 마감 1시간 전 참여 수로 표를 고릅니다. 이 관측은 마감 ${span} 전이라 참여가 더 늘면 표가 바뀔 수 있습니다.`;
+function basisText(result: Applicable): string | null {
+  const basis = result.bidCountBasis;
+  if (basis.kind === 'observed') return null;
+  const head =
+    `마감 ${basis.hoursBeforeDeadline}시간 전 관측 ${countText(basis.observedBidCount)}곳을 ` +
+    `마감 1시간 전 약 ${countText(basis.estimatedBidCount)}곳으로 추정해 표를 골랐습니다.`;
+  return basis.hoursBeforeDeadline >= 24
+    ? `${head} 마감이 하루 이상 남아 추정이 흔들립니다. 마감 당일에 다시 보세요.`
+    : head;
+}
+
+function bandText(band: Applicable['band']): string {
+  return band.maxBidCount === null
+    ? `참여 ${band.minBidCount}곳 이상 표`
+    : `참여 ${band.minBidCount}~${band.maxBidCount}곳 표`;
 }
 
 function ruleText(response: Response): string {
@@ -127,15 +129,14 @@ function ruleText(response: Response): string {
   return `규칙 ${rule.version} · 학습 ~${rule.trainedThrough} · 검증 ${rule.validatedFrom}~${rule.validatedThrough} · 금액 = 기초금액 × 하한율 × 배수, 원 단위 올림`;
 }
 
-const REASONS: Record<Extract<Response['result'], { state: 'not-applicable' }>['reason'], string> =
-  {
-    'floor-rate-unobserved': '낙찰하한율이 확인되지 않아 계산하지 않았습니다.',
-    'floor-rate-outside-rule':
-      '규칙은 하한율 90% 회차에서만 검증했습니다. 이 회차는 계산하지 않았습니다.',
-    'participation-unobserved': '참여 업체 수가 아직 관측되지 않아 계산하지 않았습니다.',
-    'participation-below-rule':
-      '규칙은 참여 40곳 이상에서만 검증했습니다. 40곳 미만에 같은 배수를 쓰면 무작위보다 나빴습니다.'
-  };
+type Reason = Extract<Response['result'], { state: 'not-applicable' }>['reasons'][number];
+
+const REASONS: Record<Reason, string> = {
+  'floor-rate-unobserved': '낙찰하한율이 확인되지 않았습니다.',
+  'floor-rate-outside-rule': '규칙은 하한율 90%·88% 회차에서만 검증했습니다.',
+  'participation-unobserved': '참여 업체 수가 아직 관측되지 않았습니다.',
+  'participation-below-rule': '참여가 2곳 미만이라 규칙 표가 없습니다.'
+};
 
 function evidenceText(result: Applicable, position: Applicable['positions'][number]): string {
   const span = position.order === 1 ? '1번만' : `1~${position.order}번 함께`;
@@ -145,18 +146,21 @@ function evidenceText(result: Applicable, position: Applicable['positions'][numb
   );
 }
 
-function calibrationText(response: Response, result: Applicable): string {
-  const period = `${response.rule.validatedFrom}~${response.rule.validatedThrough}`;
-  if (result.selection === 'training') {
-    return `배수는 ~${response.rule.trainedThrough} 자료로만 골랐고 위 낙찰률은 고를 때 보지 않은 ${period} 결과입니다.`;
-  }
-  const holdout = result.holdout;
-  const caution = `이 표의 배수는 ${period} 성적을 보고 골라 위 낙찰률이 실제보다 높게 나왔을 수 있습니다.`;
-  if (holdout === null) return caution;
+function holdoutText(holdout: Applicable['holdout']): string {
+  if (holdout === null) return '';
   return (
-    `${caution} 고른 뒤 처음 본 ${holdout.month} ${countText(holdout.rounds)}회차에서 ${holdout.tickets}장은 ` +
+    ` 고른 뒤 처음 본 ${holdout.month} ${countText(holdout.rounds)}회차에서 ${holdout.tickets}장은 ` +
     `${countText(holdout.wins)}회 낙찰, 무작위 ${holdout.lotteryExpectedWins}회(${multipleText(holdout.wins, holdout.lotteryExpectedWins)})였습니다.`
   );
+}
+
+function calibrationText(response: Response, result: Applicable): string {
+  const period = `${response.rule.validatedFrom}~${response.rule.validatedThrough}`;
+  const head =
+    result.selection === 'training'
+      ? `배수는 ~${response.rule.trainedThrough} 자료로만 골랐고 위 낙찰률은 고를 때 보지 않은 ${period} 결과입니다.`
+      : `이 표의 배수는 ${period} 성적을 보고 골라 위 낙찰률이 실제보다 높게 나왔을 수 있습니다.`;
+  return head + holdoutText(result.holdout);
 }
 
 /** 권한이 없으면 패널 자체가 없다(`null`). 조회 실패는 빈 패널이 아니라 실패라고 말한다. */
@@ -169,16 +173,22 @@ export function presentBidPosition(load: BidPositionLoad): BidPositionView | nul
     return {
       kind: 'not-applicable',
       inputs: inputsText(response),
-      reason: REASONS[result.reason],
-      timingNote: result.reason === 'participation-below-rule' ? timingText(response) : null,
+      reason: [
+        ...result.reasons.map((reason) => REASONS[reason]),
+        '이 회차는 계산하지 않았습니다.'
+      ].join(' '),
       rule: ruleText(response)
     };
   }
   return {
     kind: 'applicable',
     inputs: inputsText(response),
-    band: result.band === '40-69' ? '참여 40~69곳 표' : '참여 70곳 이상 표',
-    timingNote: timingText(response),
+    band: bandText(result.band),
+    basisNote: basisText(result),
+    weakNote:
+      result.evidence === 'weak'
+        ? '이 구간은 표본 밖 성적이 무작위와 뚜렷하게 갈리지 않았습니다. 금액은 참고로만 보세요.'
+        : null,
     rows: result.positions.map((position) => ({
       label: `${position.order}번 사업자`,
       amount: wonText(position.amount.amount),

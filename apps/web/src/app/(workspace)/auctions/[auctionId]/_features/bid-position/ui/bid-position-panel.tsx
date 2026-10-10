@@ -36,9 +36,6 @@ export function BidPositionPanel({ view }: { readonly view: BidPositionView }) {
       <PanelFrame>
         <p className='mt-2 text-xs text-muted-foreground'>{view.inputs}</p>
         <p className='mt-3 text-sm'>{view.reason}</p>
-        {view.timingNote === null ? null : (
-          <p className='mt-2 text-xs leading-relaxed text-muted-foreground'>{view.timingNote}</p>
-        )}
         <p className='mt-3 text-xs text-muted-foreground'>{view.rule}</p>
       </PanelFrame>
     );
@@ -47,9 +44,17 @@ export function BidPositionPanel({ view }: { readonly view: BidPositionView }) {
       <p className='mt-2 text-xs text-muted-foreground'>
         {view.inputs} · {view.band}
       </p>
-      {view.timingNote === null ? null : (
+      {view.basisNote === null ? null : (
         <p role='note' className='mt-2 rounded-md bg-muted/60 px-3 py-2 text-xs leading-relaxed'>
-          {view.timingNote}
+          {view.basisNote}
+        </p>
+      )}
+      {view.weakNote === null ? null : (
+        <p
+          role='note'
+          className='mt-2 rounded-md border border-border px-3 py-2 text-xs font-medium leading-relaxed'
+        >
+          {view.weakNote}
         </p>
       )}
       <ol className='mt-4 space-y-3'>
