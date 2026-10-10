@@ -2,8 +2,8 @@
  * @module 책임: 최근 3개월 맞춤의 시장 공고 port를 호출자가 연 읽기 스냅샷 위의 집합 SQL 한 번으로 구현한다.
  *
  * 정의는 분석 스크립트 `tools/m1/revalidate-2026-10/sql/10-market-rounds-2026-06-09.sql`과 같다 — 창 안 그 하한율의 회차마다
- * 마지막 revision을 고르고, 그 revision에 등록 사업자의 투찰이 있으면 나머지 투찰을 경쟁 배치로 낸다. 정의가 갈리면 검증
- * 수치가 이 계산의 근거가 되지 못한다.
+ * 가장 늦게 관측한 revision을 고르고, 그 revision에 등록 사업자의 투찰이 있으면 나머지 투찰을 경쟁 배치로 낸다. 정의가 갈리면
+ * 검증 수치가 이 계산의 근거가 되지 못한다.
  */
 import { sql, type SQL } from "drizzle-orm";
 import { canonicalDecimal } from "@eatbid/domain";
@@ -45,7 +45,9 @@ export function marketRoundQuery(query: MarketRoundQuery): SQL {
          and revision.planned_amount is not null
          and revision.base_amount > 0
          and revision.floor_rate = ${query.floorRate}::numeric
-       order by revision.auction_attempt_id, revision.auction_revision_id desc
+       -- 최신은 개정본 번호가 아니라 관측 번호 순이다. 2026-09 회차는 재처리가 옛 관측을 새 개정본 번호로 넣어, 번호 순으로
+       -- 고르면 명단 없는 '진행중' 스냅숏이 잡혀 시장 공고가 크게 빠졌다. 관측 번호 순은 관측 시각 순과 모든 달에서 같았다.
+       order by revision.auction_attempt_id, revision.observation_id desc, revision.auction_revision_id desc
     )
     select latest.auction_attempt_id,
            array_agg(round((bid.bid_rate / latest.floor_rate) * (latest.planned_amount / latest.base_amount),

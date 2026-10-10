@@ -65,14 +65,14 @@ describe('내 사업자 맞춤 금액 표시', () => {
   test('기간별 근거를 소수 오차 없이 더해 네 방법을 큰 순서의 막대로 세우고 길이는 가장 큰 값에 대한 비율이다', () => {
     const { record } = applicableView(presentMarketPick(octoberMarketPick));
     expect(record.title).toBe(
-      '같은 공고 1,832건(2024년 4월~2026년 9월)에 대어 본 낙찰 수 · 두 장, 예정가격 추첨 평균'
+      '같은 공고 1,838건(2024년 4월~2026년 9월)에 대어 본 낙찰 수 · 두 장, 예정가격 추첨 평균'
     );
-    // 32.7 + 39.6 + 19.3 + 3.0 = 94.6. Number로 더하면 94.60000000000001이 된다.
+    // 32.7 + 39.6 + 19.3 + 3.4 = 95.0. Number로 더하면 95.00000000000001이 된다.
     expect(record.bars).toEqual([
-      { label: '이 방법', value: '94.6건', widthPercent: '100.0', mine: true },
-      { label: '전국 공식', value: '81.7건', widthPercent: '86.4', mine: false },
-      { label: '무작위 자리', value: '68.5건', widthPercent: '72.4', mine: false },
-      { label: '그동안 낸 금액', value: '57.8건', widthPercent: '61.1', mine: false }
+      { label: '이 방법', value: '95.0건', widthPercent: '100.0', mine: true },
+      { label: '전국 공식', value: '81.9건', widthPercent: '86.2', mine: false },
+      { label: '무작위 자리', value: '68.7건', widthPercent: '72.3', mine: false },
+      { label: '그동안 낸 금액', value: '57.9건', widthPercent: '60.9', mine: false }
     ]);
     expect(record.note).toContain('계산 판 2026-10-10');
   });

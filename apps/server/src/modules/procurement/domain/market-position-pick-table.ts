@@ -39,6 +39,7 @@ export const MARKET_POSITION_PICK = {
     { from: "2024-04", through: "2024-12", rounds: 634, expectedWins: "32.7", ruleExpectedWins: "27.6", currentExpectedWins: "21.7", lotteryExpectedWins: "25.7" },
     { from: "2025-01", through: "2025-12", rounds: 681, expectedWins: "39.6", ruleExpectedWins: "34.7", currentExpectedWins: "22.4", lotteryExpectedWins: "26.6" },
     { from: "2026-01", through: "2026-08", rounds: 450, expectedWins: "19.3", ruleExpectedWins: "17.2", currentExpectedWins: "12.0", lotteryExpectedWins: "14.2" },
-    { from: "2026-09", through: "2026-09", rounds: 67, expectedWins: "3.0", ruleExpectedWins: "2.2", currentExpectedWins: "1.7", lotteryExpectedWins: "2.0" },
+    // 2026-09는 최신 개정본을 관측 번호 순으로 고른 값이다(개정본 번호 순은 67건으로 덜 셌다, EAT-324).
+    { from: "2026-09", through: "2026-09", rounds: 73, expectedWins: "3.4", ruleExpectedWins: "2.4", currentExpectedWins: "1.8", lotteryExpectedWins: "2.2" },
   ],
 } as const satisfies MarketPositionPickMethod;
