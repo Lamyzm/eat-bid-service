@@ -14,6 +14,7 @@ import { DrizzleOpenAuctionFilterCountsReader } from "../../modules/procurement/
 import type { EligibilityAreaReader } from "../../modules/procurement/application/eligibility-area-reader";
 import { DrizzleEligibilityAreaReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-eligibility-area-reader";
 import { DrizzleOwnBidReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-own-bid-reader";
+import { DrizzleMarketRoundReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-market-round-reader";
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
 import type { AuctionRosterReader } from "../../modules/procurement/application/auction-roster-reader";
 import { DrizzleAuctionRosterReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
@@ -50,6 +51,7 @@ import {
   OPEN_AUCTION_FILTER_COUNTS_READER,
   OPEN_AUCTION_SUMMARY_READER,
   OWN_BID_READER,
+  MARKET_ROUND_READER,
   READ_SNAPSHOT,
   REGION_PREFERENCE_REPOSITORY,
   REGISTERED_BUSINESS_READER,
@@ -131,6 +133,11 @@ export class DatabaseModule {
       {
         provide: OWN_BID_READER,
         useValue: new DrizzleOwnBidReader(),
+      },
+      {
+        // 스냅샷 handle만 받아 읽으므로 연결을 직접 들지 않는다.
+        provide: MARKET_ROUND_READER,
+        useValue: new DrizzleMarketRoundReader(),
       },
       {
         provide: AUCTION_READER,
@@ -240,6 +247,7 @@ export class DatabaseModule {
         READ_SNAPSHOT,
         REGISTERED_BUSINESS_READER,
         OWN_BID_READER,
+        MARKET_ROUND_READER,
         AUCTION_READER,
         AUCTION_ROSTER_READER,
         OPEN_AUCTION_READER,

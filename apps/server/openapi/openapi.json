@@ -1125,6 +1125,9 @@
             ],
             "nullable": true
           },
+          "marketPick": {
+            "$ref": "#/components/schemas/BidPositionMarketPick"
+          },
           "participation": {
             "allOf": [
               {
@@ -1151,7 +1154,8 @@
           "participation",
           "deadlineAt",
           "rule",
-          "result"
+          "result",
+          "marketPick"
         ],
         "type": "object"
       },
@@ -1785,6 +1789,212 @@
           "lotteryExpectedWins"
         ],
         "type": "object"
+      },
+      "BidPositionMarketEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "currentExpectedWins": {
+            "$ref": "#/components/schemas/CanonicalDecimalText"
+          },
+          "expectedWins": {
+            "$ref": "#/components/schemas/CanonicalDecimalText"
+          },
+          "from": {
+            "$ref": "#/components/schemas/KstMonthText"
+          },
+          "lotteryExpectedWins": {
+            "$ref": "#/components/schemas/CanonicalDecimalText"
+          },
+          "rounds": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "ruleExpectedWins": {
+            "$ref": "#/components/schemas/CanonicalDecimalText"
+          },
+          "through": {
+            "$ref": "#/components/schemas/KstMonthText"
+          }
+        },
+        "required": [
+          "from",
+          "through",
+          "rounds",
+          "expectedWins",
+          "ruleExpectedWins",
+          "currentExpectedWins",
+          "lotteryExpectedWins"
+        ],
+        "type": "object"
+      },
+      "BidPositionMarketPick": {
+        "additionalProperties": false,
+        "properties": {
+          "minimumRounds": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "evidence": {
+                    "items": {
+                      "$ref": "#/components/schemas/BidPositionMarketEvidence"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "linkedBusinesses": {
+                    "$ref": "#/components/schemas/NonNegativeCount"
+                  },
+                  "marketRounds": {
+                    "$ref": "#/components/schemas/NonNegativeCount"
+                  },
+                  "positions": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "amount": {
+                          "$ref": "#/components/schemas/Money"
+                        },
+                        "baseRelativeRate": {
+                          "$ref": "#/components/schemas/BaseRelativeBidRate"
+                        },
+                        "order": {
+                          "maximum": 3,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "order",
+                        "amount",
+                        "baseRelativeRate"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 2,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "single": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "amount": {
+                        "$ref": "#/components/schemas/Money"
+                      },
+                      "baseRelativeRate": {
+                        "$ref": "#/components/schemas/BaseRelativeBidRate"
+                      },
+                      "order": {
+                        "maximum": 3,
+                        "minimum": 1,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "order",
+                      "amount",
+                      "baseRelativeRate"
+                    ],
+                    "type": "object"
+                  },
+                  "state": {
+                    "enum": [
+                      "applicable"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "state",
+                  "marketRounds",
+                  "linkedBusinesses",
+                  "positions",
+                  "single",
+                  "evidence"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "marketRounds": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/NonNegativeCount"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "reasons": {
+                    "items": {
+                      "$ref": "#/components/schemas/BidPositionMarketPickReason"
+                    },
+                    "maxItems": 5,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "state": {
+                    "enum": [
+                      "not-applicable"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "state",
+                  "reasons",
+                  "marketRounds"
+                ],
+                "type": "object"
+              }
+            ],
+            "type": "object"
+          },
+          "version": {
+            "$ref": "#/components/schemas/KstDateText"
+          },
+          "window": {
+            "additionalProperties": false,
+            "properties": {
+              "fromMonth": {
+                "$ref": "#/components/schemas/KstMonthText"
+              },
+              "throughMonth": {
+                "$ref": "#/components/schemas/KstMonthText"
+              }
+            },
+            "required": [
+              "fromMonth",
+              "throughMonth"
+            ],
+            "type": "object"
+          },
+          "windowMonths": {
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "windowMonths",
+          "minimumRounds",
+          "window",
+          "result"
+        ],
+        "type": "object"
+      },
+      "BidPositionMarketPickReason": {
+        "enum": [
+          "floor-rate-unobserved",
+          "floor-rate-outside-market-pick",
+          "no-linked-business",
+          "market-rounds-below-minimum",
+          "market-data-unavailable"
+        ],
+        "type": "string"
       },
       "BidPositionNotApplicableReason": {
         "enum": [

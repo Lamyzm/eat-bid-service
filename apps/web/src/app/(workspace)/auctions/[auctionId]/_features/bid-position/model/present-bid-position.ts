@@ -7,6 +7,8 @@
 import { Temporal } from '@eatbid/domain';
 import type { AuctionBidPositionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
+import { presentMarketPick, type MarketPickView } from './present-market-pick';
+
 export type BidPositionLoad =
   | { readonly kind: 'position'; readonly response: AuctionBidPositionV1Response }
   | { readonly kind: 'forbidden' }
@@ -23,12 +25,14 @@ export type BidPositionView =
   | { readonly kind: 'unavailable' }
   | {
       readonly kind: 'not-applicable';
+      readonly market: MarketPickView;
       readonly inputs: string;
       readonly reason: string;
       readonly rule: string;
     }
   | {
       readonly kind: 'applicable';
+      readonly market: MarketPickView;
       readonly inputs: string;
       readonly band: string;
       readonly basisNote: string | null;
@@ -169,9 +173,12 @@ export function presentBidPosition(load: BidPositionLoad): BidPositionView | nul
   if (load.kind === 'failed') return { kind: 'unavailable' };
   const { response } = load;
   const { result } = response;
+  // 내 시장 금액은 전국 규칙과 따로 판정된다. 전국 규칙이 이 회차를 계산하지 않아도 맞춤 금액은 있을 수 있다.
+  const market = presentMarketPick(response.marketPick);
   if (result.state === 'not-applicable') {
     return {
       kind: 'not-applicable',
+      market,
       inputs: inputsText(response),
       reason: [
         ...result.reasons.map((reason) => REASONS[reason]),
@@ -182,6 +189,7 @@ export function presentBidPosition(load: BidPositionLoad): BidPositionView | nul
   }
   return {
     kind: 'applicable',
+    market,
     inputs: inputsText(response),
     band: bandText(result.band),
     basisNote: basisText(result),

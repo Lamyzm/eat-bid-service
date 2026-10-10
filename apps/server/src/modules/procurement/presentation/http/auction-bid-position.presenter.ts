@@ -1,12 +1,41 @@
-/** @module 책임: 추천 투찰가 application record를 공개 V1 응답으로 직렬화하는 순수 presenter다. */
+/** @module 책임: 추천 투찰가 application record(전국 규칙과 내 시장 맞춤 금액)를 공개 V1 응답으로 직렬화하는 순수 presenter다. */
 import { moneyCodec, type AuctionBidPositionV1Response } from "@eatbid/contracts";
 import type { PercentagePoints } from "@eatbid/domain";
 import { z } from "zod";
 import { baseRelativeBidRateWire, bidRateWire, bigintText, instantText } from "../../../../platform/http/wire";
-import type { AuctionBidPositionRecord } from "../../application/find-auction-bid-position";
+import type { AuctionBidPositionRecord, MarketPickRecord } from "../../application/find-auction-bid-position";
+import type { MarketPickPosition } from "../../domain/market-position-pick";
 
 function percentagePointsWire(value: PercentagePoints) {
   return { value, unit: "percentage-points" as const };
+}
+
+function marketPositionWire(position: MarketPickPosition) {
+  return {
+    order: position.order,
+    amount: z.encode(moneyCodec, position.amount),
+    baseRelativeRate: baseRelativeBidRateWire(position.baseRelativeRate),
+  };
+}
+
+function marketPickWire(record: MarketPickRecord): AuctionBidPositionV1Response["marketPick"] {
+  const { method, window, result } = record;
+  return {
+    version: method.version,
+    windowMonths: method.windowMonths,
+    minimumRounds: method.minimumRounds,
+    window: { fromMonth: window.fromMonth, throughMonth: window.throughMonth },
+    result: result.state === "not-applicable"
+      ? { state: "not-applicable", reasons: [...result.reasons], marketRounds: result.marketRounds }
+      : {
+        state: "applicable",
+        marketRounds: result.marketRounds,
+        linkedBusinesses: result.linkedBusinesses,
+        positions: result.positions.map(marketPositionWire),
+        single: marketPositionWire(result.single),
+        evidence: method.evidence.map((entry) => ({ ...entry })),
+      },
+  };
 }
 
 export function toAuctionBidPositionResponse(record: AuctionBidPositionRecord): AuctionBidPositionV1Response {
@@ -58,5 +87,6 @@ export function toAuctionBidPositionResponse(record: AuctionBidPositionRecord): 
           cumulativeValidationWins: position.cumulativeValidationWins,
         })),
       },
+    marketPick: marketPickWire(record.marketPick),
   };
 }

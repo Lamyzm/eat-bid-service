@@ -1,11 +1,12 @@
 /**
- * @module 책임: 등록 사업자 단건 조회 port를 호출자가 연 읽기 스냅샷 위의 소유 확인과 기존 원본 대조
+ * @module 책임: 등록 사업자 단건·목록 조회 port를 호출자가 연 읽기 스냅샷 위의 소유 확인과 기존 원본 대조
  * 질의로 구현한다.
  *
  * 대조 질의를 다시 쓰지 않고 `readBusinesses`를 그대로 부른다. 사업자번호 두 표기를 정확한 값으로
  * 열거하는 규칙이 두 곳에 살면 한쪽만 바뀌는 순간 같은 등록이 화면마다 다른 party에 연결된다.
  */
 import { sql } from "drizzle-orm";
+import type { RegisteredBusinessRecord } from "../../application/account-repository";
 import type {
   RegisteredBusinessLookup,
   RegisteredBusinessLookupInput,
@@ -38,5 +39,9 @@ export class DrizzleRegisteredBusinessReader implements RegisteredBusinessReader
     // 상태로 옮길 수 있도록 값으로 돌려준다.
     if (business.supplier.kind === "evidence-conflict") return { kind: "evidence-conflict" };
     return { kind: "found", business };
+  }
+
+  async list(snapshot: TransactionHandle, workspaceId: bigint): Promise<readonly RegisteredBusinessRecord[]> {
+    return readBusinesses(transactionDatabase(snapshot) as AccountDatabase, workspaceId);
   }
 }
