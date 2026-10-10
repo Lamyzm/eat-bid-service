@@ -6,6 +6,7 @@
  * 검증 수치가 이 계산의 근거가 되지 못한다.
  */
 import { sql, type SQL } from "drizzle-orm";
+import { latestRevisionOrder } from "./latest-revision-order";
 import { canonicalDecimal } from "@eatbid/domain";
 import type { MarketRoundQuery, MarketRoundReader } from "../../application/market-round-reader";
 import { FLOOR_RELATIVE_RATIO_SCALE, floorRelativeRatio, type MarketRound } from "../../domain/market-position-pick";
@@ -45,9 +46,8 @@ export function marketRoundQuery(query: MarketRoundQuery): SQL {
          and revision.planned_amount is not null
          and revision.base_amount > 0
          and revision.floor_rate = ${query.floorRate}::numeric
-       -- 최신은 개정본 번호가 아니라 관측 번호 순이다. 2026-09 회차는 재처리가 옛 관측을 새 개정본 번호로 넣어, 번호 순으로
-       -- 고르면 명단 없는 '진행중' 스냅숏이 잡혀 시장 공고가 크게 빠졌다. 관측 번호 순은 관측 시각 순과 모든 달에서 같았다.
-       order by revision.auction_attempt_id, revision.observation_id desc, revision.auction_revision_id desc
+       -- 최신은 관측 번호 순이다(latest-revision-order.ts). 번호 순으로 고르면 2026-09 시장 공고가 크게 빠졌다.
+       order by revision.auction_attempt_id, ${latestRevisionOrder("revision")}
     )
     select latest.auction_attempt_id,
            array_agg(round((bid.bid_rate / latest.floor_rate) * (latest.planned_amount / latest.base_amount),

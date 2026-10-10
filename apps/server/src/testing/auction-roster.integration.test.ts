@@ -5,6 +5,7 @@ import request from "supertest";
 import { auctionV1Operations } from "@eatbid/contracts";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
+import { DrizzleAuctionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { DrizzleAuctionRosterReader } from "../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
 import { auctionId } from "../modules/procurement/domain/auction-id";
 import { disposableDatabase } from "../../fixtures/disposable-database.fixture";
@@ -17,6 +18,10 @@ const REVISION_9003_OBSERVED_AT = "2026-09-06T07:08:09.654321Z";
 const EMPTY_ROSTER_OBSERVED_AT = "2026-09-04T11:22:33.000001Z";
 // 같은 관측에 매달렸지만 소유 체계가 다른 라벨이다. 섞이면 관측 시각이 둘이 되어 조회가 실패해야 한다.
 const UNRELATED_SCHEME_OBSERVED_AT = "2026-09-05T09:09:09Z";
+// 공고 8005는 관측 순서와 투영 순서가 엇갈린다(EAT-333). 관측 번호는 받은 순서다 — 진행중 스냅숏을 먼저(6007), 낙찰 명단을
+// 나중(6008)에 받았다. 그런데 낙찰이 먼저 투영돼 번호가 작은 개정본 9007이 되고, 진행중 스냅숏이 늦게 투영돼 9008이 됐다.
+const AWARDED_OBSERVED_AT = "2026-09-07T01:30:00Z";
+const STALE_OPEN_OBSERVED_AT = "2026-09-07T00:10:00Z";
 
 const seed = `
   insert into ingest.run
@@ -49,7 +54,11 @@ const seed = `
     (6005, '00000000-0000-0000-0000-000000000114', 1141, 'eat', '/bid-detail', '{}',
      '2026-09-03T00:00:00Z', 200, '${"c".repeat(64)}'),
     (6006, '00000000-0000-0000-0000-000000000114', 1141, 'eat', '/bid-detail', '{}',
-     '2026-09-02T00:00:00Z', 200, '${"c".repeat(64)}');
+     '2026-09-02T00:00:00Z', 200, '${"c".repeat(64)}'),
+    (6007, '00000000-0000-0000-0000-000000000114', 1141, 'eat', '/bid-detail', '{}',
+     '${STALE_OPEN_OBSERVED_AT}', 200, '${"c".repeat(64)}'),
+    (6008, '00000000-0000-0000-0000-000000000114', 1141, 'eat', '/bid-detail', '{}',
+     '${AWARDED_OBSERVED_AT}', 200, '${"c".repeat(64)}');
   -- 같은 관측을 새 parser가 다시 해석하면 별도 normalized record이고 별도 revision이다(ADR 0015).
   insert into ingest.normalized_record
     (normalized_record_id, observation_id, record_type, source_entity_id, normalized_payload,
@@ -60,7 +69,9 @@ const seed = `
     (5003, 6003, 'auction.v2', 'external-8001', '{}', 'eat-v3', '2026-09-06T00:01:00Z'),
     (5004, 6004, 'auction.v2', 'external-8002', '{}', 'eat-v3', '2026-09-06T00:01:00Z'),
     (5005, 6005, 'auction.v2', 'external-8003', '{}', 'eat-v3', '2026-09-06T00:01:00Z'),
-    (5006, 6006, 'auction.v2', 'external-8004', '{}', 'eat-v3', '2026-09-06T00:01:00Z');
+    (5006, 6006, 'auction.v2', 'external-8004', '{}', 'eat-v3', '2026-09-06T00:01:00Z'),
+    (5007, 6008, 'auction.v2', 'external-8005', '{}', 'eat-v3', '2026-09-07T01:31:00Z'),
+    (5008, 6007, 'auction.v2', 'external-8005', '{}', 'eat-v3', '2026-09-07T02:00:00Z');
   insert into core.code_scheme (code_scheme_id, namespace, owner, version_policy, valid_time_policy)
   overriding system value
   values (7100, 'eat:organization', 'aT', 'source-managed', 'effective-dated'),
@@ -71,19 +82,19 @@ const seed = `
   insert into core.code_value (code_value_id, code_scheme_id, code)
   overriding system value
   values (7101, 7100, 'PURR-8001'), (7102, 7100, 'PURR-8002'),
-    (7103, 7100, 'PURR-8003'), (7104, 7100, 'PURR-8004'),
+    (7103, 7100, 'PURR-8003'), (7104, 7100, 'PURR-8004'), (7105, 7100, 'PURR-8005'),
     (7201, 7200, '005'), (7202, 7200, '002'),
     (7301, 7300, 'SHIPPER-1'), (7302, 7300, 'SHIPPER-2'),
     (7401, 7400, 'NEIS-8001');
   insert into core.organization (organization_id, type, canonical_name)
   overriding system value
   values (9101, 'unknown', null), (9102, 'unknown', null),
-    (9103, 'unknown', null), (9104, 'unknown', null);
+    (9103, 'unknown', null), (9104, 'unknown', null), (9105, 'unknown', null);
   -- 기관 정체성은 최초 관측(6001)에 매달리고 회차마다 다시 쓰지 않는다. 명단의 관측 시각을 여기서
   -- 읽으면 모든 회차가 2026-08-01이 된다. 기관 9101은 다른 소유 체계의 식별자도 함께 갖는다.
   insert into core.organization_identifier (organization_id, code_value_id, observation_id)
   values (9101, 7101, 6001), (9101, 7401, 6001),
-    (9102, 7102, 6004), (9103, 7103, 6005), (9104, 7104, 6006);
+    (9102, 7102, 6004), (9103, 7103, 6005), (9104, 7104, 6006), (9105, 7105, 6007);
   insert into core.code_label_observation
     (code_value_id, label, language, observed_at, observation_id)
   values (7101, '옛 이름 초등학교', 'und', '2026-08-01T00:00:00Z', 6001),
@@ -94,7 +105,9 @@ const seed = `
     (7104, '모순 관측 기관 가', 'und', '2026-09-02T00:00:00Z', 6006),
     (7104, '모순 관측 기관 나', 'und', '2026-09-02T00:00:01Z', 6006),
     (7201, '낙찰실패', 'und', '${REVISION_9003_OBSERVED_AT}', 6003),
-    (7202, '낙찰', 'und', '${REVISION_9003_OBSERVED_AT}', 6003);
+    (7202, '낙찰', 'und', '${REVISION_9003_OBSERVED_AT}', 6003),
+    (7105, '엇갈린 순서 학교', 'und', '${STALE_OPEN_OBSERVED_AT}', 6007),
+    (7105, '엇갈린 순서 학교', 'und', '${AWARDED_OBSERVED_AT}', 6008);
   insert into core.supplier_party (supplier_party_id, type, canonical_name)
   overriding system value
   values (7701, 'company', null), (7702, 'company', null);
@@ -105,7 +118,7 @@ const seed = `
   insert into core.auction_attempt (auction_attempt_id, source_system, external_bid_id)
   overriding system value
   values (8001, 'eat', 'external-8001'), (8002, 'eat', 'external-8002'),
-    (8003, 'eat', 'external-8003'), (8004, 'eat', 'external-8004');
+    (8003, 'eat', 'external-8003'), (8004, 'eat', 'external-8004'), (8005, 'eat', 'external-8005');
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
      content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
@@ -125,10 +138,15 @@ const seed = `
     (9005, 8003, 5005, 6005, '${"1".repeat(64)}', null, 'OPEN', '라벨 없는 기관 공고',
      '2026-09-01T00:00:00Z', null, null, 500000.00, null, 'KRW', null, null, false),
     (9006, 8004, 5006, 6006, '${"2".repeat(64)}', null, 'OPEN', '모순 관측 공고',
-     '2026-09-01T00:00:00Z', null, null, 500000.00, null, 'KRW', null, null, false);
+     '2026-09-01T00:00:00Z', null, null, 500000.00, null, 'KRW', null, null, false),
+    (9007, 8005, 5007, 6008, '${"3".repeat(64)}', null, '낙찰', '엇갈린 순서 공고',
+     '2026-09-01T00:00:00Z', null, '2026-09-07T01:00:00Z', 1000000.00, 990000.00, 'KRW', 1, 1, true),
+    (9008, 8005, 5008, 6007, '${"4".repeat(64)}', null, '진행중', '엇갈린 순서 공고',
+     '2026-09-01T00:00:00Z', null, '2026-09-07T01:00:00Z', 1000000.00, null, 'KRW', null, null, false);
   insert into core.auction_organization (auction_revision_id, organization_id, role)
   values (9001, 9101, 'purchaser'), (9002, 9101, 'purchaser'), (9003, 9101, 'purchaser'),
-    (9004, 9102, 'purchaser'), (9005, 9103, 'purchaser'), (9006, 9104, 'purchaser');
+    (9004, 9102, 'purchaser'), (9005, 9103, 'purchaser'), (9006, 9104, 'purchaser'),
+    (9007, 9105, 'purchaser'), (9008, 9105, 'purchaser');
   insert into core.bid_submission
     (auction_revision_id, auction_attempt_id, opened_at, roster_ordinal,
      source_supplier_account_id, supplier_party_id, submitted_at, amount, effective_amount,
@@ -144,7 +162,9 @@ const seed = `
     (9003, 8001, '2026-09-05T05:00:00Z', 0, 7801, 7701, null,
      10000000043768.00, 43120180.00, 'KRW', 89.001, 1, 7202, 6003, '가 업체'),
     (9003, 8001, '2026-09-05T05:00:00Z', 1, 7802, 7702, null,
-     10000000043769.00, 43120181.00, 'KRW', 89.002, 2, 7201, 6003, '나 업체');
+     10000000043769.00, 43120181.00, 'KRW', 89.002, 2, 7201, 6003, '나 업체'),
+    (9007, 8005, '2026-09-07T01:00:00Z', 0, 7801, 7701, null,
+     890100.00, 890100.00, 'KRW', 89.900, 1, 7202, 6008, '가 업체');
   insert into core.award_decision
     (auction_revision_id, auction_attempt_id, awarded_roster_ordinal, source_supplier_account_id,
      supplier_party_id, awarded_at, awarded_amount, currency, awarded_rate, runner_up_rate,
@@ -208,6 +228,25 @@ describe("실제 API 역할의 회차 명단 관측 시각", () => {
         denied = error;
       }
       expect((denied as { code?: string } | undefined)?.code).toBe("42501");
+    });
+    await expectOwnedContainersCleanedUp();
+  }, 180_000);
+
+  test("최신 개정본은 투영 순이 아니라 관측 순으로 고른다 — 늦게 투영된 옛 관측이 낙찰 명단을 덮지 않는다", async () => {
+    // EAT-333: 재처리나 오래 걸린 회차가 옛 관측을 나중에 투영하면 개정본 번호가 커진다. 번호로 고르면 공고 상세와 명단이
+    // 낙찰 전으로 되돌아간다. 결과 줄(ADR 0064)이 생기면 성수기마다 일어나는 일이다.
+    await withDatabase(async ({ api }) => {
+      const roster = await new DrizzleAuctionRosterReader(drizzle({ client: api })).find({
+        auctionId: auctionId(8005n),
+        revisionId: null,
+      });
+      expect(roster?.revisionId).toBe(9007n);
+      expect(roster?.rows).toHaveLength(1);
+      expect(roster?.observedAt.toString()).toBe(AWARDED_OBSERVED_AT);
+
+      const auction = await new DrizzleAuctionReader(drizzle({ client: api })).findById(auctionId(8005n));
+      expect(auction?.revisionId).toBe(9007n);
+      expect(auction?.status).toBe("낙찰");
     });
     await expectOwnedContainersCleanedUp();
   }, 180_000);

@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from eatbid.mart.derivations import DISTRIBUTION_BIN_WIDTH
+from eatbid.mart.latest_revision import latest_revision_order
 from eatbid.mart.models import MartBuildPlan
 from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
 
@@ -31,7 +32,7 @@ latest as (
          revision.opened_at,
          revision.floor_rate
     from core.auction_revision as revision
-   order by revision.auction_attempt_id, revision.auction_revision_id desc
+   order by revision.auction_attempt_id, {latest_revision_order("revision")}
 ),
 rounds as (
   select purchaser.organization_id,

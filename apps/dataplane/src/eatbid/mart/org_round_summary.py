@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from eatbid.mart.item_bridge import fill_item_bridge
+from eatbid.mart.latest_revision import latest_revision_order
 from eatbid.mart.models import MartBuildPlan
 from eatbid.mart.plausibility import (
     IMPLAUSIBLE_OPENING_GAP_DAYS,
@@ -59,7 +60,7 @@ latest as (
          revision.source_category_label,
          revision.lineage_observed
     from core.auction_revision as revision
-   order by revision.auction_attempt_id, revision.auction_revision_id desc
+   order by revision.auction_attempt_id, {latest_revision_order("revision")}
 ),
 roster as (
   select latest.auction_revision_id,

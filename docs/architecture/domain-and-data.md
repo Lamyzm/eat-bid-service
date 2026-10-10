@@ -202,7 +202,8 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
 - **grain은 revision이다.** `core.bid_submission`의 발행 grain은
   `(auction_revision_id, roster_ordinal, opened_at)`이고 `roster_ordinal`은 `ds_bidList`의 관측 순서
   (0-based)이지 소스가 준 번호가 아니다. 소스 정정으로 새 revision이 생기면 명단이 한 벌 더 쌓이며
-  현재 뷰는 최신 revision을 고르는 질의가 만든다.
+  현재 뷰는 최신 revision을 고르는 질의가 만든다. 최신은 관측 번호 순이다(`observation_id desc, auction_revision_id desc`,
+  [ADR 0065](../adr/0065-latest-revision-is-latest-observation.md)) — 개정본 번호는 투영 순서라 늦게 투영된 옛 관측이 더 큰 번호를 얻는다.
 - **`core.bid_submission`은 `opened_at`으로 range 파티션한다.** 경계는 KST 연도이고 커버리지는 2015~2027
   열세 연도 + `DEFAULT`다. 처음에는 2023~2027이었는데, 백필 바닥이 2021-09로 내려간 뒤 2021·2022 투찰 약 890만
   행이 `DEFAULT`에 몰려 2015까지의 6년 백필 전에 연도를 열었다(2026-10-07, EAT-306). **백필 바닥을 연도 파티션보다
@@ -535,7 +536,8 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
 있고 하한율·품목·지역·기관 이름·제목·공고번호가 없어서, 빌더가 같은 `auction_attempt`의 **최신
 `core.auction_revision`**을 조인해 `floor_rate`·`item_label`·`region_sido_code_value_id`·
 `region_sigungu_code_value_id`·`announced_at`·`title`·`display_bid_no`를 함께 싣는다(`mart-r4`, EAT-247·248).
-"최신"은 `auction_revision_id` 최대값이며 replay가 관측 시각을 되돌려도 append 순서는 단조롭다. 그 값을
+"최신"은 관측 번호 순이다(`mart-r12`, [ADR 0065](../adr/0065-latest-revision-is-latest-observation.md)). 개정본 번호는 투영 순서라
+재처리가 옛 관측을 늦게 앉히면 더 큰 번호를 얻어(2026-09 회차 11,162건 중 10,849건) 번호 최대값은 최신이 아니다. 그 값을
 어느 해석에서 읽었는지는 `terms_revision_id`가 가리키고, 상세를 아직 따지 않은 공고는 이 열들과 계보가 모두
 null이다. `title`은 검색 술어가 읽는 열이고 `display_bid_no`는 표시·복사용 문자열이지 조인 키가 아니다
 (AGENTS 2).
@@ -598,7 +600,7 @@ build마다 발행 제외 원장에서 파생한 부속 표 둘이 함께 실린
 | 표 | grain | 파생 근거 | 읽는 자리 |
 |---|---|---|---|
 | `mart.build_exclusion_month` | `(build_id, month_kst)` | published 발행의 원장 행 → 관측의 run이 속한 release의 목록 창(`P_BID_BGNG_DT`) 시작 달, 공고(`ELCTRN_BID_ID`) 단위로 센 `excluded_auction_count`와 그중 revision을 못 얻은 `unresolved_auction_count` | 분석 응답 `meta.periodCoverage[].exclusions` |
-| `mart.build_stale_auction` | `(build_id, auction_attempt_id)` | 해소 안 된 제외 관측이 같은 공고의 현행 revision(id 최대) 관측보다 늦게 받은 것일 때, 현행 `auction_revision_id`와 두 수신 시각 | 공고 응답 `latestObservation`(열린 공고 스냅샷의 활성 build, ADR 0060 결정 3) |
+| `mart.build_stale_auction` | `(build_id, auction_attempt_id)` | 해소 안 된 제외 관측이 같은 공고의 현행 revision(관측 번호 순 최신, ADR 0065) 관측보다 늦게 받은 것일 때, 현행 `auction_revision_id`와 두 수신 시각 | 공고 응답 `latestObservation`(열린 공고 스냅샷의 활성 build, ADR 0060 결정 3) |
 
 제외 수는 보유율 판정이나 표본 수와 한 비율로 접지 않는다. 해소 판정은 `ingest.backfill_coverage`와 같다(그 관측의
 정규화 레코드 하나라도 revision을 얻으면 해소). 미반영 행은 서버가 지금 보여 주는 revision과 `auction_revision_id`가

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from eatbid.mart.latest_revision import latest_revision_order
 from eatbid.mart.models import MartBuildPlan
 from eatbid.source.eat.registry import require
 
@@ -108,7 +109,7 @@ select %(build_id)s::bigint,
       from core.auction_revision rev
       join ingest.raw_observation reflected on reflected.observation_id = rev.observation_id
      where rev.auction_attempt_id = attempt.auction_attempt_id
-     order by rev.auction_revision_id desc
+     order by {latest_revision_order("rev")}
      limit 1
   ) current_revision on true
  where not ob.resolved
