@@ -1,6 +1,6 @@
 /**
- * @module 책임: 등록 사업자 한 건의 소유 판정과 원본 대조 결과를 호출자의 읽기 스냅샷 안에서 돌려주는
- * port를 정의한다.
+ * @module 책임: 등록 사업자의 소유 판정·워크스페이스 목록과 원본 대조 결과를 호출자의 읽기 스냅샷 안에서
+ * 돌려주는 port를 정의한다.
  *
  * 목록 port(`AccountRepository.listBusinesses`)와 나눈 이유는 소비자가 다르기 때문이다. 목록은 설정
  * 화면이 자기 워크스페이스 전체를 보는 조회이고, 이 port는 다른 모듈이 "이 요청자가 이 사업자를
@@ -27,4 +27,10 @@ export interface RegisteredBusinessLookupInput {
 
 export interface RegisteredBusinessReader {
   find(snapshot: TransactionHandle, input: RegisteredBusinessLookupInput): Promise<RegisteredBusinessLookup>;
+  /**
+   * 워크스페이스의 활성 등록 전부와 각각의 원본 대조 결과다. 다른 모듈이 "이 요청자의 사업자들"을 기준으로 삼을 때 자기
+   * 조회와 같은 스냅샷에서 부른다. 증거 불일치는 등록마다 상태로 남는다 — 하나가 갈렸다고 목록 전체를 실패시키면 나머지
+   * 등록의 기준까지 사라진다.
+   */
+  list(snapshot: TransactionHandle, workspaceId: bigint): Promise<readonly RegisteredBusinessRecord[]>;
 }

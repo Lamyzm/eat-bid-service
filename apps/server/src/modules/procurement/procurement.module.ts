@@ -28,6 +28,7 @@ import { MyBidObservationsController } from "./presentation/http/my-bid-observat
 import { AnalysisController } from "./presentation/http/analysis.controller";
 import { FindMyBidObservations } from "./application/find-my-bid-observations";
 import type { OwnBidReader } from "./application/own-bid-reader";
+import type { MarketRoundReader } from "./application/market-round-reader";
 import type { RegisteredBusinessReader } from "../account/application/registered-business-reader";
 import type { UnitOfWork } from "../../platform/database/unit-of-work";
 import {
@@ -41,6 +42,7 @@ import {
   OPEN_AUCTION_READER,
   OPEN_AUCTION_SUMMARY_READER,
   OWN_BID_READER,
+  MARKET_ROUND_READER,
   READ_SNAPSHOT,
   REGISTERED_BUSINESS_READER,
 } from "../../platform/database/database.tokens";
@@ -75,10 +77,17 @@ const findAuctionProvider = {
   useFactory: (reader: AuctionReader) => new FindAuction(reader),
 };
 
+// 내 시장 맞춤 금액은 등록 판정과 시장 조회를 한 읽기 스냅샷에서 하고, 창의 양끝을 주입된 clock으로 정한다(AGENTS 17).
 const findAuctionBidPositionProvider = {
   provide: FindAuctionBidPosition,
-  inject: [AUCTION_READER],
-  useFactory: (reader: AuctionReader) => new FindAuctionBidPosition(reader),
+  inject: [AUCTION_READER, READ_SNAPSHOT, REGISTERED_BUSINESS_READER, MARKET_ROUND_READER, CLOCK],
+  useFactory: (
+    reader: AuctionReader,
+    snapshot: UnitOfWork,
+    businesses: RegisteredBusinessReader,
+    marketRounds: MarketRoundReader,
+    clock: Clock,
+  ) => new FindAuctionBidPosition(reader, snapshot, businesses, marketRounds, clock),
 };
 
 // 열린 공고의 "열림" 판정은 현재 시각의 함수라 clock을 요구한다. `Temporal.Now` 직접 호출은 금지이며

@@ -2,6 +2,8 @@
 import { BadRequestException, Controller, Get, NotFoundException, Param, ServiceUnavailableException, UseGuards, VERSION_NEUTRAL } from "@nestjs/common";
 import { ApiOperation, ApiResponse } from "@nestjs/swagger";
 import { auctionV1Operations, type AuctionBidPositionV1Response } from "@eatbid/contracts";
+import { CurrentPrincipal } from "../../../../platform/auth/principal.decorator";
+import type { ResolvedPrincipal } from "../../../../platform/auth/principal-reader";
 import { OperatorGuard } from "../../../../platform/auth/session.guard";
 import { EffectRunner } from "../../../../platform/effect/effect-runner";
 import { ResponseSchema } from "../../../../platform/http/response-schema.interceptor";
@@ -33,6 +35,7 @@ export class AuctionBidPositionController {
   @ApiResponse({ status: 503, description: operation.problemResponses[503].description })
   @ResponseSchema(operation.successResponses[200].schema)
   async find(
+    @CurrentPrincipal() principal: ResolvedPrincipal,
     @Param("auctionId", new StandardSchemaPipe(operation.pathSchema.shape.auctionId)) rawId: string,
   ): Promise<AuctionBidPositionV1Response> {
     let id: bigint;
@@ -43,7 +46,11 @@ export class AuctionBidPositionController {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
     }
     try {
-      return toAuctionBidPositionResponse(await this.runner.run(this.findBidPosition.execute({ auctionId: auctionId(id) })));
+      // 내 시장 맞춤 금액은 요청자 워크스페이스의 등록 사업자로 시장을 정한다. 운영자 guard가 해소한 principal을 그대로 쓴다.
+      return toAuctionBidPositionResponse(await this.runner.run(this.findBidPosition.execute({
+        auctionId: auctionId(id),
+        workspaceId: principal.workspace.workspaceId,
+      })));
     } catch (error) {
       if (error instanceof AuctionNotFound) throw new NotFoundException({ code: "AUCTION_NOT_FOUND" });
       if (error instanceof AuctionDependencyUnavailable) throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });

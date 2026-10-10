@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { AuctionBidPositionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
 import { findBannedCopy } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/banned-copy';
+import { octoberMarketPick } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/market-pick';
 import { presentBidPosition, type BidPositionView } from './present-bid-position';
 
 type Result = AuctionBidPositionV1Response['result'];
@@ -51,7 +52,8 @@ const response: AuctionBidPositionV1Response = {
     validatedFrom: '2026-01',
     validatedThrough: '2026-08'
   },
-  result: applicable
+  result: applicable,
+  marketPick: octoberMarketPick
 };
 
 const withResult = (result: Result) =>
@@ -131,6 +133,15 @@ describe('추천 투찰가 표시', () => {
       '규칙은 하한율 90%·88% 회차에서만 검증했어요. 참여 업체 수를 아직 확인하지 못했어요. 그래서 이 회차는 계산하지 않았어요.'
     );
     expect(JSON.stringify(view)).not.toContain('15,227,341원');
+  });
+
+  test('전국 규칙이 계산하지 않은 회차에도 내 사업자 맞춤 금액은 따로 판정해 함께 싣는다', () => {
+    const view = withResult({ state: 'not-applicable', reasons: ['participation-unobserved'] });
+    if (view?.kind !== 'not-applicable') throw new Error('규칙 밖이어야 한다');
+    expect(view.market.kind).toBe('applicable');
+    expect(view.market.kind === 'applicable' && view.market.rows[0]?.amount).toBe('15,210,353원');
+    const national = applicableView(presentBidPosition({ kind: 'position', response }));
+    expect(national.market.title).toBe('10월 내 사업자 맞춤 금액');
   });
 
   test('패널 문구는 NeaT 입력 지시·안전 단정·확정형 낙찰 같은 금지 문형을 쓰지 않는다', () => {

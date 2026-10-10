@@ -102,6 +102,13 @@ describe("추천 투찰가 HTTP 경계", () => {
         baseRelativeRate: { value: "88.7400", unit: "percentage-points" },
       });
       expect(response.body.participation).toEqual({ bidCount: 52, observedAt: "2026-10-07T01:00:00Z" });
+      // 이 시험은 DB 없이 돈다. 내 시장 조회가 실패해도 전국 규칙은 살아 있고, 맞춤 금액만 계산하지 못했다고 말한다.
+      expect(response.body.marketPick).toMatchObject({
+        version: "2026-10-10",
+        windowMonths: 3,
+        minimumRounds: 70,
+        result: { state: "not-applicable", reasons: ["market-data-unavailable"], marketRounds: null },
+      });
     });
   });
 
