@@ -11,7 +11,8 @@
 - 분석에는 표본 수, 기간/cohort, `as_of`, 계산 버전, 산출 시각과 원본 provenance를 함께
   표현한다. `unknown`, stale, 부분 수집을 정상값처럼 숨기지 않는다.
 - 자동 NeaT 입력으로 해석될 기본값을 만들지 않는다. 추천 투찰가는 근거(규칙 버전·검증 기간·예상 승률)와 함께
-  원 단위 금액으로 보인다([ADR 0062](../../docs/adr/0062-recommended-bid-in-scope.md)).
+  eaT에 넣는 사정률을 앞에, 기초금액 대비 %와 원 단위 금액을 이름 붙여 함께 보인다([ADR 0062](../../docs/adr/0062-recommended-bid-in-scope.md),
+  [ADR 0066](../../docs/adr/0066-recommended-bid-shows-assessment-rate.md)).
 
 ## 현재 기술 계약
 

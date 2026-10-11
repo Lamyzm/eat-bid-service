@@ -6,6 +6,7 @@
  */
 import type { BidBoardRowWire, MyBidBoardV1Response } from '@eatbid/contracts/api/v1/me';
 
+import { bidFigure, type BidFigure } from '@/entities/bid-figure/bid-figure';
 import { marketPickRecord, type MarketPickBar } from '@/entities/market-pick-record/market-pick-record';
 import { decimalScale, scaledText, sumAtScale } from '@/shared/lib/decimal-sum';
 import { groupLabel, hourMinuteText, kstOf, relativeText } from './closing-time';
@@ -17,10 +18,8 @@ type RuleCell = NonNullable<BidBoardRowWire['rule']>;
 
 export interface AmountLine {
   readonly label: string;
-  /** "13,304,243원"처럼 보이는 금액이다. */
-  readonly amount: string;
-  /** 복사하는 값이다. 쉼표·단위 없는 원 단위 숫자다. */
-  readonly copyValue: string;
+  /** eaT에 넣는 사정률·기초금액 대비 %와 확인용 금액이다(entities/bid-figure). */
+  readonly figure: BidFigure;
 }
 
 export type AmountCell =
@@ -79,7 +78,9 @@ export type BoardView =
 const GROUPING = /\B(?=(\d{3})+(?!\d))/g;
 const wholeWon = (amount: string) => amount.split('.')[0]!;
 const wonText = (amount: string) => `${wholeWon(amount).replace(GROUPING, ',')}원`;
-const line = (label: string, amount: string): AmountLine => ({ label, amount: wonText(amount), copyValue: wholeWon(amount) });
+type Position = Parameters<typeof bidFigure>[0];
+const line = (label: string, position: Position, floorRate: string | null): AmountLine =>
+  ({ label, figure: bidFigure(position, floorRate) });
 
 const MARKET_REASONS: Record<Extract<MarketCell, { state: 'not-applicable' }>['reasons'][number], string> = {
   'market-data-unavailable': '지금은 계산하지 못했어요',
@@ -138,7 +139,8 @@ function marketCellOf(row: BidBoardRowWire): AmountCell {
   if (row.market.state === 'not-applicable') {
     return { kind: 'reason', text: row.market.reasons.map((reason) => MARKET_REASONS[reason]).join(' · ') };
   }
-  return { kind: 'amounts', lead: true, lines: row.market.positions.map((position) => line(`${position.order}번`, position.amount.amount)) };
+  const floor = row.floorRate?.value ?? null;
+  return { kind: 'amounts', lead: true, lines: row.market.positions.map((position) => line(`${position.order}번`, position, floor)) };
 }
 
 function ruleCellOf(row: BidBoardRowWire, marketLead: boolean): AmountCell {
@@ -149,13 +151,14 @@ function ruleCellOf(row: BidBoardRowWire, marketLead: boolean): AmountCell {
   return {
     kind: 'amounts',
     lead: !marketLead,
-    lines: row.rule.positions.slice(0, 2).map((position) => line(`${position.order}번`, position.amount.amount))
+    lines: row.rule.positions.slice(0, 2).map((position) => line(`${position.order}번`, position, row.floorRate?.value ?? null))
   };
 }
 
 function moreOf(row: BidBoardRowWire, head: MarketHead): BoardRowView['more'] {
   const market = row.market?.state === 'applicable' && head.state === 'picked' ? row.market : null;
   const rule = row.rule?.state === 'applicable' ? row.rule : null;
+  const floor = row.floorRate?.value ?? null;
   const band = rule === null ? null : rule.band.maxBidCount === null
     ? `전국 공식은 참여 ${rule.band.minBidCount}곳 이상 표를 썼어요`
     : `전국 공식은 참여 ${rule.band.minBidCount}~${rule.band.maxBidCount}곳 표를 썼어요`;
@@ -163,13 +166,13 @@ function moreOf(row: BidBoardRowWire, head: MarketHead): BoardRowView['more'] {
     market: market === null ? null : {
       title: `${marketMonth(head)}월 맞춤 더 보기`,
       single: {
-        ...line('한 곳만 넣을 때', market.single.amount.amount),
+        ...line('한 곳만 넣을 때', market.single, floor),
         note: market.single.amount.amount === market.positions[0]!.amount.amount ? '이번 달은 1번과 같은 금액' : null
       },
-      spares: market.spares.map((spare) => line(`예비 ${spare.order}순위`, spare.amount.amount)),
+      spares: market.spares.map((spare) => line(`예비 ${spare.order}순위`, spare, floor)),
       basis: `${windowText(head)} 내 사업자 공고 ${(head.marketRounds ?? 0).toLocaleString('ko-KR')}건으로 고른 배수예요`
     },
-    ruleExtras: rule?.positions.slice(2).map((position) => line(`전국 공식 ${position.order}번`, position.amount.amount)) ?? [],
+    ruleExtras: rule?.positions.slice(2).map((position) => line(`전국 공식 ${position.order}번`, position, floor)) ?? [],
     band
   };
 }
@@ -185,9 +188,9 @@ function recordOf(head: MarketHead): Extract<BoardView, { kind: 'board' }>['reco
 
 function guideOf(head: MarketHead): readonly string[] {
   return [
-    `오른쪽 두 칸은 방법마다 낸 1번·2번 금액이에요. 파란 테두리가 지금 근거가 가장 강한 방법이에요. ${marketMonth(head)}월 맞춤이 나오면 그 칸, 아니면 전국 공식이에요.`,
+    `오른쪽 두 칸은 방법마다 낸 1번·2번이에요. 큰 숫자가 eaT에 넣는 사정률이고, 아래에 기초금액 대비 %와 금액을 함께 적었어요. 파란 테두리가 지금 근거가 가장 강한 방법이에요. ${marketMonth(head)}월 맞춤이 나오면 그 칸, 아니면 전국 공식이에요.`,
     '칸 머리의 숫자는 같은 공고에 대어 본 낙찰 수예요(두 장, 예정가격 추첨 평균).',
-    '금액 옆 복사를 누르면 쉼표 없는 숫자가 복사돼요. 넣을지와 언제 넣을지는 직접 정하세요.',
+    '사정률 옆 복사를 누르면 그 숫자가 복사돼요. 기초 대비 %와 금액도 눌러서 복사할 수 있어요. 넣을지와 언제 넣을지는 직접 정하세요.',
     '하한율 88% 공고는 금액 없이 직접 판단만 달아요.'
   ];
 }

@@ -46,17 +46,18 @@ describe('오늘 투찰 표시', () => {
       {
         kind: 'amounts',
         lead: true,
+        // eaT에 넣는 사정률이 앞이다. 기초금액 대비 88.641을 하한율 90으로 나누면 98.490이다.
         lines: [
-          { label: '1번', amount: '13,304,243원', copyValue: '13304243' },
-          { label: '2번', amount: '13,362,329원', copyValue: '13362329' }
+          { label: '1번', figure: { assessmentRate: '98.490', baseRelative: '88.641', amount: '13,304,243원', amountCopy: '13304243' } },
+          { label: '2번', figure: { assessmentRate: '98.920', baseRelative: '89.028', amount: '13,362,329원', amountCopy: '13362329' } }
         ]
       },
       {
         kind: 'amounts',
         lead: false,
         lines: [
-          { label: '1번', amount: '13,285,332원', copyValue: '13285332' },
-          { label: '2번', amount: '13,359,627원', copyValue: '13359627' }
+          { label: '1번', figure: { assessmentRate: '98.350', baseRelative: '88.515', amount: '13,285,332원', amountCopy: '13285332' } },
+          { label: '2번', figure: { assessmentRate: '98.900', baseRelative: '89.010', amount: '13,359,627원', amountCopy: '13359627' } }
         ]
       }
     ]);
@@ -64,11 +65,11 @@ describe('오늘 투찰 표시', () => {
     expect(row.facts).toEqual([{ label: '기초금액', value: '15,009,130원' }, { label: '참여', value: '93곳' }]);
     expect(row.more.market).toEqual({
       title: '10월 맞춤 더 보기',
-      single: { label: '한 곳만 넣을 때', amount: '13,304,243원', copyValue: '13304243', note: '이번 달은 1번과 같은 금액' },
+      single: { label: '한 곳만 넣을 때', figure: { assessmentRate: '98.490', baseRelative: '88.641', amount: '13,304,243원', amountCopy: '13304243' }, note: '이번 달은 1번과 같은 금액' },
       spares: [
-        { label: '예비 3순위', amount: '13,289,384원', copyValue: '13289384' },
-        { label: '예비 4순위', amount: '13,319,102원', copyValue: '13319102' },
-        { label: '예비 5순위', amount: '13,333,962원', copyValue: '13333962' }
+        { label: '예비 3순위', figure: { assessmentRate: '98.380', baseRelative: '88.542', amount: '13,289,384원', amountCopy: '13289384' } },
+        { label: '예비 4순위', figure: { assessmentRate: '98.600', baseRelative: '88.740', amount: '13,319,102원', amountCopy: '13319102' } },
+        { label: '예비 5순위', figure: { assessmentRate: '98.710', baseRelative: '88.839', amount: '13,333,962원', amountCopy: '13333962' } }
       ],
       basis: '7~9월 내 사업자 공고 164건으로 고른 배수예요'
     });
@@ -90,9 +91,9 @@ describe('오늘 투찰 표시', () => {
   test('읽는 법은 두 칸·파란 테두리·칸 머리 숫자·복사·88% 공고를 이번 달 이름으로 풀어 쓴다', () => {
     const view = boardView();
     expect(view.guide).toEqual([
-      '오른쪽 두 칸은 방법마다 낸 1번·2번 금액이에요. 파란 테두리가 지금 근거가 가장 강한 방법이에요. 10월 맞춤이 나오면 그 칸, 아니면 전국 공식이에요.',
+      '오른쪽 두 칸은 방법마다 낸 1번·2번이에요. 큰 숫자가 eaT에 넣는 사정률이고, 아래에 기초금액 대비 %와 금액을 함께 적었어요. 파란 테두리가 지금 근거가 가장 강한 방법이에요. 10월 맞춤이 나오면 그 칸, 아니면 전국 공식이에요.',
       '칸 머리의 숫자는 같은 공고에 대어 본 낙찰 수예요(두 장, 예정가격 추첨 평균).',
-      '금액 옆 복사를 누르면 쉼표 없는 숫자가 복사돼요. 넣을지와 언제 넣을지는 직접 정하세요.',
+      '사정률 옆 복사를 누르면 그 숫자가 복사돼요. 기초 대비 %와 금액도 눌러서 복사할 수 있어요. 넣을지와 언제 넣을지는 직접 정하세요.',
       '하한율 88% 공고는 금액 없이 직접 판단만 달아요.'
     ]);
   });

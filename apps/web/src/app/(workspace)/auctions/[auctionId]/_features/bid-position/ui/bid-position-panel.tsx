@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 
 import type { BidPositionView } from '../model/present-bid-position';
 import type { MarketPickRecord } from '@/entities/market-pick-record/market-pick-record';
+import { BidFigureLine } from '@/entities/bid-figure/bid-figure-line';
 import { RecordBarList } from '@/entities/market-pick-record/record-bar-list';
 import type { MarketPickRow, MarketPickView } from '../model/present-market-pick';
 
@@ -33,9 +34,9 @@ function AmountRow({ row }: { readonly row: MarketPickRow }) {
     <>
       <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
         <span className='text-sm text-muted-foreground'>{row.label}</span>
-        <span className='text-xl font-bold tabular-nums'>{row.amount}</span>
+        <BidFigureLine label={row.label} figure={row.figure} showLabel={false} />
       </div>
-      <p className='mt-0.5 text-xs text-muted-foreground tabular-nums'>{row.baseRelative}</p>
+      {row.note === null ? null : <p className='mt-0.5 text-xs text-muted-foreground'>{row.note}</p>}
     </>
   );
 }
@@ -142,9 +143,8 @@ export function BidPositionPanel({ view }: { readonly view: BidPositionView }) {
             <li key={row.label} className='rounded-md border border-border px-3 py-2'>
               <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
                 <span className='text-sm text-muted-foreground'>{row.label}</span>
-                <span className='text-lg font-semibold tabular-nums md:text-xl'>{row.amount}</span>
+                <BidFigureLine label={row.label} figure={row.figure} showLabel={false} />
               </div>
-              <p className='mt-1 text-xs text-muted-foreground tabular-nums'>{row.baseRelative}</p>
               <p className='mt-1 text-xs leading-relaxed text-muted-foreground tabular-nums'>
                 {row.evidence}
               </p>

@@ -5,6 +5,7 @@
  * 냈을 때의 값과 나란히 쓴다. 고른 뒤 처음 본 달의 결과와 근거가 약한 대역의 경고, 추정한 참여 수를 함께 쓴다(ADR 0062).
  */
 import { Temporal } from '@eatbid/domain';
+import { bidFigure, type BidFigure } from '@/entities/bid-figure/bid-figure';
 import type { AuctionBidPositionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
 import { presentMarketPick, type MarketPickView } from './present-market-pick';
@@ -16,8 +17,8 @@ export type BidPositionLoad =
 
 export type BidPositionRow = {
   readonly label: string;
-  readonly amount: string;
-  readonly baseRelative: string;
+  /** eaT에 넣는 사정률·기초금액 대비 %와 확인용 금액이다(entities/bid-figure). */
+  readonly figure: BidFigure;
   readonly evidence: string;
 };
 
@@ -174,7 +175,7 @@ export function presentBidPosition(load: BidPositionLoad): BidPositionView | nul
   const { response } = load;
   const { result } = response;
   // 내 시장 금액은 전국 규칙과 따로 판정된다. 전국 규칙이 이 회차를 계산하지 않아도 맞춤 금액은 있을 수 있다.
-  const market = presentMarketPick(response.marketPick);
+  const market = presentMarketPick(response.marketPick, response.floorRate?.value ?? null);
   if (result.state === 'not-applicable') {
     return {
       kind: 'not-applicable',
@@ -199,8 +200,7 @@ export function presentBidPosition(load: BidPositionLoad): BidPositionView | nul
         : null,
     rows: result.positions.map((position) => ({
       label: `${position.order}번 사업자`,
-      amount: wonText(position.amount.amount),
-      baseRelative: `기초금액 대비 ${position.baseRelativeRate.value}%`,
+      figure: bidFigure(position, response.floorRate?.value ?? null),
       evidence: evidenceText(result, position)
     })),
     calibration: calibrationText(response, result),
