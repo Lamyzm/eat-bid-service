@@ -8,6 +8,8 @@ import type { RegionPreferenceRecord, RegionPreferenceRepository } from "../../a
 import type { RegisteredBusinessReader } from "../../account/application/registered-business-reader";
 import { MARKET_PICK_FIXTURE } from "../domain/__fixtures__/market-position-pick";
 import { floorRelativeRatio, type MarketRound } from "../domain/market-position-pick";
+import { DecideMorningHabitPick } from "./decide-morning-habit-pick";
+import type { MorningHabitReader } from "./morning-habit-reader";
 import { DecideMarketPick } from "./decide-market-pick";
 import { GetMyBidBoard } from "./get-my-bid-board";
 import type { MarketRoundReader } from "./market-round-reader";
@@ -63,6 +65,7 @@ function board(options: {
   /** 여러 쪽으로 나뉜 목록이다. 쪽 번호를 cursor로 쓴다. 주면 `auctions`를 무시한다. */
   readonly pages?: readonly (readonly OpenAuctionRecord[])[];
   readonly market?: MarketRoundReader;
+  readonly habit?: MorningHabitReader;
   readonly asked?: OpenAuctionQuery[];
   readonly now?: string;
 }) {
@@ -92,11 +95,16 @@ function board(options: {
   const snapshot = createUnitOfWork({ transaction: (work) => work({ execute: async () => [] }) });
   const market = options.market ?? { findRounds: async () => rounds };
   const decide = new DecideMarketPick(snapshot, businesses, market, clock);
-  return new GetMyBidBoard(reader, regions, decide, clock);
+  const habitReader: MorningHabitReader = options.habit ?? { findMarketRounds: async () => [], findFirmBids: async () => [] };
+  const habit = new DecideMorningHabitPick(snapshot, businesses, habitReader, clock);
+  return new GetMyBidBoard(reader, regions, decide, habit, clock);
 }
 
-const run = (subject: GetMyBidBoard, items: Parameters<GetMyBidBoard["execute"]>[0]["itemAtoms"] = null) =>
-  new EffectRunner().run(subject.execute({ principal, itemAtoms: items, includeUnknownItem: false }));
+const run = (
+  subject: GetMyBidBoard,
+  items: Parameters<GetMyBidBoard["execute"]>[0]["itemAtoms"] = null,
+  includeMorningHabit = false,
+) => new EffectRunner().run(subject.execute({ principal, itemAtoms: items, includeUnknownItem: false, includeMorningHabit }));
 
 describe("오늘 투찰 한 장 use case", () => {
   test("관심 지역을 확인하지 않았으면 공고를 읽지 않고 unconfirmed로 답한다", async () => {
@@ -190,5 +198,24 @@ describe("오늘 투찰 한 장 use case", () => {
     expect(result.rows[0]!.market?.result).toEqual({ state: "not-applicable", reasons: ["market-data-unavailable"], marketRounds: null });
     expect(result.rows[0]!.market?.spares).toEqual([]);
     expect(result.rows[0]!.rule?.state).toBe("applicable");
+  });
+});
+
+describe("오늘 투찰 아침 갱신", () => {
+  test("요청하지 않으면 결정과 행의 아침 갱신 칸이 모두 비어 있다", async () => {
+    const record = await run(board({ auctions: [auction({ auctionAttemptId: 1n })] }));
+    if (record.state !== "confirmed") throw new Error("확인된 관심 지역이어야 한다");
+    expect(record.habit).toBeNull();
+    expect(record.rows.map((row) => row.morningHabit)).toEqual([null]);
+  });
+
+  test("요청하면 결정을 한 번 내리고 행마다 공고 금액으로 바꾼다", async () => {
+    let read = 0;
+    const habit: MorningHabitReader = { findMarketRounds: async () => { read += 1; return []; }, findFirmBids: async () => [] };
+    const record = await run(board({ auctions: [auction({ auctionAttemptId: 1n }), auction({ auctionAttemptId: 2n })], habit }), null, true);
+    if (record.state !== "confirmed") throw new Error("확인된 관심 지역이어야 한다");
+    expect(read).toBe(1);
+    expect(record.habit?.kind).toBe("not-applicable");
+    expect(record.rows.map((row) => row.morningHabit?.state)).toEqual(["not-applicable", "not-applicable"]);
   });
 });

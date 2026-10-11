@@ -81,6 +81,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0064](0064-results-only-collection-lane.md) | Accepted | 개찰 결과는 평일 오전 5분마다 도는 전용 수집 줄(`poll-results`)이 받는다 — 목록은 다 읽고 상태 라벨이 바뀐 공고의 상세만 부르며, 기준 release를 모드별로 골라 정시 수집 기준을 흐리지 않고, 자기 semaphore key를 쓰고 marts는 잇지 않는다 (0037의 기준 선택을 보충) |
 | [0065](0065-latest-revision-is-latest-observation.md) | Accepted | 공고 시도의 최신 개정본은 개정본 번호가 아니라 관측 번호 순으로 고른다 — 재처리가 옛 관측을 늦게 투영해 2026-09 회차 대부분이 낙찰 전 상태로 보였다. 서버·mart 규칙을 한곳에 두고 mart 계산 판을 `mart-r12`로 올린다 (domain-and-data의 "최신은 id 최대" 문장을 대체) |
 | [0066](0066-recommended-bid-shows-assessment-rate.md) | Accepted | 추천 투찰가는 eaT에 넣는 사정률을 앞에 두고 기초금액 대비 %·원 단위 금액을 이름 붙여 함께 보인다 — 사정률은 응답 값으로 정확히 나눠 계산하고 나누어떨어지지 않으면 지어내지 않는다 (0062의 "원 단위 금액으로 낸다" 문장을 대체) |
+| [0067](0067-morning-habit-pick-computed-on-request.md) | Accepted | 아침 갱신은 요청 때 그때까지 보인 사실로 서버가 계산하고 저장하지 않는다 — 단골은 고정 목록 대신 직전 180일 시장 공고의 30% 이상에 나온 업체로 정하며, 분석 엔진과 1,204건 같은 답을 내도록 fixture로 묶는다(서버 규칙 성적 +6.59) |
 
 ## 새 ADR 형식
 

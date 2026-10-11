@@ -22,7 +22,9 @@ export async function getAuctionBidPositionWith(
   const operation = auctionV1Operations.bidPosition;
   const path = operation.pathSchema.parse({ auctionId: input.auctionId });
   try {
-    return { kind: 'position', response: await request({ operation, path, signal: input.signal }) };
+    // 아침 갱신은 요청할 때만 실린다. 옛 server는 이 query를 무시하므로 배포 순서와 무관하게 안전하다(ADR 0067).
+    const query = { include: 'morning-habit' as const };
+    return { kind: 'position', response: await request({ operation, path, query, signal: input.signal }) };
   } catch (error) {
     if (request.isProblem(error) && error.status === 403) return { kind: 'forbidden' };
     throw mapAuctionResourceError(request, error, path.auctionId);

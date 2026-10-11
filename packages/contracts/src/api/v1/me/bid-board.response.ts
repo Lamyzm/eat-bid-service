@@ -1,4 +1,4 @@
-/** @module 책임: 오늘 투찰 화면 한 장의 공개 응답(관심 지역 상태·마감 창·맞춤 방법 머리·공고 행)을 소유한다. */
+/** @module 책임: 오늘 투찰 화면 한 장의 공개 응답(관심 지역 상태·마감 창·맞춤과 아침 갱신 방법 머리·공고 행)을 소유한다. */
 import { z } from "zod";
 
 import { kstDateTextSchema } from "../../../atoms/calendar";
@@ -14,6 +14,8 @@ import {
   bidPositionResultSchema,
   bidPositionRuleSchema,
   bidPositionSchema,
+  morningHabitCellSchema,
+  morningHabitMethodSchema,
 } from "../auctions/get-auction-bid-position.response";
 
 const marketPositionSchema = bidPositionSchema.pick({ order: true, amount: true, baseRelativeRate: true });
@@ -53,6 +55,8 @@ export const bidBoardRowSchema = z.strictObject({
   // 없는 값을 지어내면 계약이 거짓이 된다 — 화면은 `baseAmount: null`을 보고 "기초금액 미확인"이라고 말한다.
   rule: bidPositionResultSchema.nullable(),
   market: bidBoardMarketCellSchema.nullable(),
+  // `include=morning-habit`으로 요청할 때만 싣는다. 기초금액이 없는 공고는 금액을 만들 수 없어 null이다.
+  morningHabit: morningHabitCellSchema.nullable().optional(),
 }).meta({ id: "BidBoardRow" });
 
 /**
@@ -79,6 +83,8 @@ export const myBidBoardV1ResponseSchema = z.discriminatedUnion("regionPreference
     closesBeforeDate: kstDateTextSchema,
     rule: bidPositionRuleSchema,
     marketPick: bidBoardMarketPickSchema,
+    // `include=morning-habit`으로 요청할 때만 싣는다. 결정 시각과 근거는 공고와 무관해 머리에 한 번 싣는다.
+    morningHabit: morningHabitMethodSchema.optional(),
     // 서버가 열린 공고 목록을 쪽 상한(200건 × 5쪽)까지 따라 읽고 하한율로 거른 결과다.
     rows: z.array(bidBoardRowSchema).max(1000),
     // 쪽 상한에 닿아 늦게 마감하는 공고 일부를 읽지 못했다. 빠졌다는 사실은 화면이 말해야 한다.

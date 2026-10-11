@@ -42,6 +42,7 @@ export class MyBidBoardController {
         principal,
         itemAtoms: query.items ?? null,
         includeUnknownItem: query.itemUnknown !== undefined,
+        includeMorningHabit: query.include === "morning-habit",
       })));
     } catch (error) {
       if (error instanceof ProcurementDependencyUnavailable) {

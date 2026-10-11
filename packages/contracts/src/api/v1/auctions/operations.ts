@@ -5,6 +5,7 @@ import { auctionIdPathSchema } from "../../../atoms/identifier";
 import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation, pathParameter } from "../../operation";
 import { auctionV1ResponseSchema } from "./get-auction.response";
+import { auctionBidPositionQuerySchema } from "./get-auction-bid-position.query";
 import { auctionBidPositionV1ResponseSchema } from "./get-auction-bid-position.response";
 import { auctionRosterV1ResponseSchema } from "./get-auction-roster.response";
 import { auctionRosterQuerySchema } from "./get-auction-roster.query";
@@ -108,13 +109,13 @@ export const auctionV1Operations = {
     summary: "공고 회차의 추천 투찰가를 규칙 버전·검증 표본과 함께 조회한다",
     tags: ["공고와 분석"],
     pathSchema: z.strictObject({ auctionId: auctionIdPathSchema }),
-    querySchema: z.undefined(),
+    querySchema: auctionBidPositionQuerySchema.default({}),
     bodySchema: z.undefined(),
     successResponses: {
       200: { description: "추천 투찰가 또는 규칙 적용 밖 사유", schema: auctionBidPositionV1ResponseSchema },
     },
     problemResponses: {
-      400: { description: "공고 ID가 유효하지 않음", schema: problemDetailsSchema },
+      400: { description: "공고 ID나 query가 유효하지 않음", schema: problemDetailsSchema },
       ...unauthenticatedProblemResponse,
       403: { description: "운영자 권한이 없음", schema: problemDetailsSchema },
       404: { description: "공고를 찾을 수 없음", schema: problemDetailsSchema },
