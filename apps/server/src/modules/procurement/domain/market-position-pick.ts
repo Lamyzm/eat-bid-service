@@ -222,7 +222,8 @@ export type MarketPickResult =
     readonly marketRounds: number | null;
   };
 
-function positionsOf(baseAmount: Money, floorRate: BidRate, multiples: readonly string[]): MarketPickPosition[] {
+/** 고른 배수를 순서대로 금액·기초금액 대비율 자리로 바꾼다. 아침 습관 맞춤도 같은 식으로 금액을 낸다. */
+export function positionsOf(baseAmount: Money, floorRate: BidRate, multiples: readonly string[]): MarketPickPosition[] {
   return multiples.map((multiple, index) => ({
     order: index + 1,
     amount: positionAmount(baseAmount, floorRate, multiple),

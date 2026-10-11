@@ -35,6 +35,11 @@ export interface MorningHabitMethod {
   readonly plannedGrid: { readonly fromTenThousandths: number; readonly belowTenThousandths: number; readonly stepTenThousandths: number };
   /** 단골: 결정 시각 전 이 기간 시장 공고의 이 몫 이상에 나온 업체다. 시장 공고가 최소 수보다 적으면 단골을 정하지 않는다. */
   readonly regulars: { readonly lookbackSeconds: number; readonly minimumShare: number; readonly minimumRounds: number };
+  /**
+   * 단골 전국 이력은 시장 창보다 이만큼 더 앞에서부터 읽는다. 창 첫머리 공고에서 "그 전 마지막 자리"를 찾으려면 그 앞 이력이
+   * 필요하다. 분석은 2023-10부터 전부 읽었다 — 이 여유로 줄여 읽어도 같은 1,204건 성적이 바뀌지 않는지 재고 정했다(ADR 0067).
+   */
+  readonly historyMarginSeconds: number;
 }
 
 export const MORNING_HABIT_PICK = {
@@ -52,4 +57,5 @@ export const MORNING_HABIT_PICK = {
   candidates: { fromTenThousandths: 9800, toTenThousandths: 10040, stepTenThousandths: 1 },
   plannedGrid: { fromTenThousandths: 9700, belowTenThousandths: 10041, stepTenThousandths: 0.2 },
   regulars: { lookbackSeconds: 180 * DAY_SECONDS, minimumShare: 0.3, minimumRounds: 30 },
+  historyMarginSeconds: 30 * DAY_SECONDS,
 } as const satisfies MorningHabitMethod;

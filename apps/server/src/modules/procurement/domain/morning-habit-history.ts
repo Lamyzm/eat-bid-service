@@ -73,6 +73,8 @@ export type SameDayKind = "single" | "repeated" | "mixed" | "earlier";
 export interface SameDayAnchor {
   /** 기준 자리다. 오늘 것이 보이면 오늘 마지막으로 보인 자리, 아니면 마지막으로 보인 자리다. */
   readonly ratio: number;
+  /** 기준 자리 투찰의 개찰 시각(epoch 초)이다. 화면이 "몇 시 결과까지 반영했는지"를 보이는 데 쓴다. */
+  readonly openedAt: number;
   readonly kind: SameDayKind;
   /** 오늘 보인 자리들이다(보인 순). `earlier`면 비어 있다. */
   readonly sameDayRatios: readonly number[];
@@ -92,12 +94,15 @@ export function sameDayAnchor(
     if (history.deadlineDay[index] === input.deadlineDay) sameDay.push(index);
   }
   if (last < 0) return null;
-  if (sameDay.length === 0) return { ratio: history.ratio[last]!, kind: "earlier", sameDayRatios: [] };
+  if (sameDay.length === 0) {
+    return { ratio: history.ratio[last]!, openedAt: history.openedAt[last]!, kind: "earlier", sameDayRatios: [] };
+  }
   const ratios = sameDay.map((index) => history.ratio[index]!);
-  const anchor = history.ratio[sameDay.at(-1)!]!;
-  if (ratios.length === 1) return { ratio: anchor, kind: "single", sameDayRatios: ratios };
+  const anchor = sameDay.at(-1)!;
+  const base = { ratio: history.ratio[anchor]!, openedAt: history.openedAt[anchor]!, sameDayRatios: ratios };
+  if (ratios.length === 1) return { ...base, kind: "single" };
   const kind = ratios.every((ratio) => Math.abs(ratio - ratios[0]!) < input.keepTolerance) ? "repeated" : "mixed";
-  return { ratio: anchor, kind, sameDayRatios: ratios };
+  return { ...base, kind };
 }
 
 /** 결정 시각 전 `windowSeconds` 안에 개찰되어 보인 자리들이다(개찰 순). 오늘 자리를 지키지 않을 때 이 안에서 고른다고 본다. */
