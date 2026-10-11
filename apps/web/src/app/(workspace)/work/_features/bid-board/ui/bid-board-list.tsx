@@ -5,7 +5,7 @@
 import Link from 'next/link';
 
 import { RecordBarList } from '@/entities/market-pick-record/record-bar-list';
-import { CopyValue } from '@/shared/ui/copy-value';
+import { BidFigureLine } from '@/entities/bid-figure/bid-figure-line';
 import type { AmountCell, AmountLine, BoardRowView, BoardView, ClosingGroupView } from '../model/present-bid-board';
 
 type Board = Extract<BoardView, { kind: 'board' }>;
@@ -18,27 +18,17 @@ const CELLS = 'sm:grid-cols-[minmax(0,1fr)_204px_204px]';
 // 방법인지 말한다 — 그래서 이름은 좁은 화면에서만 보이고 넓은 화면에서는 읽기 도구에만 남는다.
 const METHOD_NAME = 'sm:sr-only';
 
-/** 투찰 금액은 손으로 옮겨 치면 사고가 나므로 복사 표시를 늘 보인다. 근거가 가장 강한 칸의 금액은 테두리와 같은 색이다. */
+/** 투찰 소수는 손으로 옮겨 치면 사고가 나므로 복사 표시를 늘 보인다. 근거가 가장 강한 칸의 큰 숫자는 테두리와 같은 색이다. */
 function AmountLines({ lines, lead = false, showLabel = true }: {
   readonly lines: readonly AmountLine[];
   readonly lead?: boolean;
-  /** 더 보기 목록은 이름을 왼쪽 칸에 따로 적으므로 금액 옆에서는 감춘다. 읽기 이름에는 그대로 남는다. */
+  /** 더 보기 목록은 이름을 왼쪽 칸에 따로 적으므로 숫자 옆에서는 감춘다. 읽기 이름에는 그대로 남는다. */
   readonly showLabel?: boolean;
 }) {
   return (
     <>
       {lines.map((line) => (
-        <span key={line.label} className='flex items-baseline justify-end gap-1.5 whitespace-nowrap'>
-          {showLabel ? <span className={`text-[12px] font-semibold ${HINT}`}>{line.label}</span> : null}
-          <CopyValue
-            value={line.copyValue}
-            label={`${line.label} 금액 ${line.amount}`}
-            chip
-            className={`inline-flex items-baseline gap-1.5 rounded text-[16px] font-extrabold tracking-[-0.02em] tabular-nums hover:underline ${lead ? 'text-primary' : ''}`}
-          >
-            <span>{line.amount}</span>
-          </CopyValue>
-        </span>
+        <BidFigureLine key={line.label} label={line.label} figure={line.figure} lead={lead} showLabel={showLabel} />
       ))}
     </>
   );

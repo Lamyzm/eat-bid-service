@@ -65,14 +65,15 @@ function applicableView(view: BidPositionView | null) {
 }
 
 describe('추천 투찰가 표시', () => {
-  test('사업자별 금액을 원 단위로 끊고 누적 낙찰률을 무작위 자리와 나란히 쓴다', () => {
+  test('사업자별로 eaT에 넣는 사정률과 확인용 금액을 쓰고 누적 낙찰률을 무작위 자리와 나란히 쓴다', () => {
     const view = applicableView(presentBidPosition({ kind: 'position', response }));
-    expect(view.rows.map((row) => row.amount)).toEqual([
+    expect(view.rows.map((row) => row.figure.amount)).toEqual([
       '15,227,341원',
       '15,320,002원',
       '15,374,076원'
     ]);
-    expect(view.rows[0]?.baseRelative).toBe('기초금액 대비 88.7400%');
+    // 응답의 하한율 90%로 나눈 사정률이다. 88.740% ÷ 90% = 98.600%.
+    expect(view.rows[0]?.figure).toMatchObject({ assessmentRate: '98.600', baseRelative: '88.740' });
     expect(view.rows[1]?.evidence).toBe(
       '1~2번 함께: 검증 3,450회차 중 145회 낙찰(4.20%) · 무작위 자리 3.45%'
     );
@@ -139,7 +140,7 @@ describe('추천 투찰가 표시', () => {
     const view = withResult({ state: 'not-applicable', reasons: ['participation-unobserved'] });
     if (view?.kind !== 'not-applicable') throw new Error('규칙 밖이어야 한다');
     expect(view.market.kind).toBe('applicable');
-    expect(view.market.kind === 'applicable' && view.market.rows[0]?.amount).toBe('15,210,353원');
+    expect(view.market.kind === 'applicable' && view.market.rows[0]?.figure.amount).toBe('15,210,353원');
     const national = applicableView(presentBidPosition({ kind: 'position', response }));
     expect(national.market.title).toBe('10월 내 사업자 맞춤 금액');
   });

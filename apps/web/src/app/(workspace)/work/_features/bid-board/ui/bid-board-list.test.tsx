@@ -25,15 +25,19 @@ describe('오늘 투찰 목록 칸', () => {
     }
   });
 
-  test('금액마다 복사 표시가 보이고 목록 아래에 읽는 법이 있다', () => {
-    // 금액 자체가 단추라는 것은 눈으로 알 수 없다. 복사 표시가 없으면 일곱 자리 금액을 손으로 옮겨 치게 된다.
+  test('자리마다 eaT에 넣는 사정률이 크게 복사 표시와 함께 보이고 목록 아래에 읽는 법이 있다', () => {
+    // 아버지는 금액이 아니라 사정률을 넣는다. 숫자 자체가 단추라는 것은 눈으로 알 수 없어 복사 표시를 늘 보인다.
     const { container, getByRole } = render(<BidBoardList view={view} />);
     const amountCells = [...container.querySelectorAll('[data-cell="amounts"]')];
     expect(amountCells.length).toBeGreaterThan(0);
     for (const cell of amountCells) {
-      const lines = cell.querySelectorAll('button');
-      expect(cell.querySelectorAll('[data-slot="copy-chip"]').length).toBe(lines.length);
+      const figures = cell.querySelectorAll('[data-slot="bid-figure"]');
+      expect(figures.length).toBeGreaterThan(0);
+      expect(cell.querySelectorAll('[data-slot="copy-chip"]').length).toBe(figures.length);
     }
+    expect(amountCells[0]!.textContent).toContain('사정률');
+    expect(amountCells[0]!.textContent).toContain('98.490');
+    expect(amountCells[0]!.textContent).toContain('88.641%');
     expect(getByRole('heading', { name: '읽는 법' })).toBeTruthy();
   });
 

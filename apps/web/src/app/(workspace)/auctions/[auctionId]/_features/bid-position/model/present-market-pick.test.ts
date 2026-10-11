@@ -17,15 +17,15 @@ function applicableView(view: MarketPickView) {
 }
 
 const withResult = (result: MarketPick['result'], window = octoberMarketPick.window) =>
-  presentMarketPick({ ...octoberMarketPick, window, result });
+  presentMarketPick({ ...octoberMarketPick, window, result }, '90.000');
 
 describe('내 사업자 맞춤 금액 표시', () => {
-  test('창 다음 달을 제목으로 쓰고 사업자별 금액을 원 단위로 끊어 기초금액 대비율과 함께 쓴다', () => {
-    const view = applicableView(presentMarketPick(octoberMarketPick));
+  test('창 다음 달을 제목으로 쓰고 사업자별로 eaT에 넣는 사정률을 기초금액 대비 %·금액과 함께 쓴다', () => {
+    const view = applicableView(presentMarketPick(octoberMarketPick, '90.000'));
     expect(view.title).toBe('10월 내 사업자 맞춤 금액');
     expect(view.rows).toEqual([
-      { label: '1번 사업자', amount: '15,210,353원', baseRelative: '기초금액 대비 88.6410%' },
-      { label: '2번 사업자', amount: '15,276,760원', baseRelative: '기초금액 대비 89.0280%' }
+      { label: '1번 사업자', figure: { assessmentRate: '98.490', baseRelative: '88.641', amount: '15,210,353원', amountCopy: '15210353' }, note: null },
+      { label: '2번 사업자', figure: { assessmentRate: '98.920', baseRelative: '89.028', amount: '15,276,760원', amountCopy: '15276760' }, note: null }
     ]);
     expect(view.basis).toContain('7~9월 내 사업자가 넣은 하한율 90% 공고 158건에서');
     expect(view.basis).toContain('건수와 금액이 바뀔 수 있어요');
@@ -33,20 +33,12 @@ describe('내 사업자 맞춤 금액 표시', () => {
   });
 
   test('한 장 금액이 두 장의 1번과 같으면 같다고 적고 다르면 그대로 쓴다', () => {
-    const same = applicableView(presentMarketPick(octoberMarketPick));
-    expect(same.single).toEqual({
-      label: '한 곳만 넣을 때',
-      amount: '15,210,353원',
-      baseRelative: '기초금액 대비 88.6410% · 이번 달은 1번과 같은 금액'
-    });
+    const same = applicableView(presentMarketPick(octoberMarketPick, '90.000'));
+    expect(same.single).toEqual({ label: '한 곳만 넣을 때', figure: { assessmentRate: '98.490', baseRelative: '88.641', amount: '15,210,353원', amountCopy: '15210353' }, note: '이번 달은 1번과 같은 금액' });
     const different = applicableView(
       withResult({ ...octoberMarketResult, single: marketPosition(1, '15218076.00', '88.6860') })
     );
-    expect(different.single).toEqual({
-      label: '한 곳만 넣을 때',
-      amount: '15,218,076원',
-      baseRelative: '기초금액 대비 88.6860%'
-    });
+    expect(different.single).toEqual({ label: '한 곳만 넣을 때', figure: { assessmentRate: '98.540', baseRelative: '88.686', amount: '15,218,076원', amountCopy: '15218076' }, note: null });
   });
 
   test('등록 사업자가 하나면 한 장 줄을 따로 두지 않고 두 번째 사업자를 등록하라고 알린다', () => {

@@ -9,6 +9,7 @@
  */
 import type { AuctionBidPositionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
+import { bidFigure, type BidFigure } from '@/entities/bid-figure/bid-figure';
 import { marketPickRecord, type MarketPickRecord } from '@/entities/market-pick-record/market-pick-record';
 
 type MarketPick = AuctionBidPositionV1Response['marketPick'];
@@ -17,8 +18,9 @@ type Reason = Extract<MarketPick['result'], { state: 'not-applicable' }>['reason
 
 export type MarketPickRow = {
   readonly label: string;
-  readonly amount: string;
-  readonly baseRelative: string;
+  /** eaT에 넣는 사정률·기초금액 대비 %와 확인용 금액이다(entities/bid-figure). */
+  readonly figure: BidFigure;
+  readonly note: string | null;
 };
 
 export type MarketPickView =
@@ -32,13 +34,6 @@ export type MarketPickView =
       readonly pairNote: string | null;
       readonly record: MarketPickRecord;
     };
-
-const GROUPING = /\B(?=(\d{3})+(?!\d))/g;
-
-function wonText(amount: string): string {
-  const [whole] = amount.split('.');
-  return whole.replace(GROUPING, ',') + '원';
-}
 
 function monthNumber(month: string): number {
   return Number(month.slice(5, 7));
@@ -60,12 +55,8 @@ function monthSpan(from: string, through: string): string {
     : `${yearMonthText(from)}~${yearMonthText(through)}`;
 }
 
-function rowOf(label: string, position: Applicable['single']): MarketPickRow {
-  return {
-    label,
-    amount: wonText(position.amount.amount),
-    baseRelative: `기초금액 대비 ${position.baseRelativeRate.value}%`
-  };
+function rowOf(label: string, position: Applicable['single'], floorRate: string | null): MarketPickRow {
+  return { label, figure: bidFigure(position, floorRate), note: null };
 }
 
 function reasonText(reasons: readonly Reason[], marketRounds: number | null, minimumRounds: number): string {
@@ -81,7 +72,7 @@ function reasonText(reasons: readonly Reason[], marketRounds: number | null, min
   return reasons.map((reason) => text[reason]).join(' ');
 }
 
-export function presentMarketPick(pick: MarketPick): MarketPickView {
+export function presentMarketPick(pick: MarketPick, floorRate: string | null = null): MarketPickView {
   const title = `${usingMonth(pick.window.throughMonth)}월 내 사업자 맞춤 금액`;
   const { result } = pick;
   if (result.state === 'not-applicable') {
@@ -98,8 +89,8 @@ export function presentMarketPick(pick: MarketPick): MarketPickView {
       `${monthSpan(pick.window.fromMonth, pick.window.throughMonth)} 내 사업자가 넣은 하한율 90% 공고 ` +
       `${result.marketRounds.toLocaleString('ko-KR')}건에서, 다른 업체 금액 사이 빈틈 가운데 예정가격이 자주 떨어지는 ` +
       `자리를 골랐어요. 매달 다시 고르고, 늦게 들어온 개찰 결과가 더해지면 건수와 금액이 바뀔 수 있어요.`,
-    rows: result.positions.map((position) => rowOf(`${position.order}번 사업자`, position)),
-    single: singleRow(result),
+    rows: result.positions.map((position) => rowOf(`${position.order}번 사업자`, position, floorRate)),
+    single: singleRow(result, floorRate),
     pairNote:
       result.positions.length === 1 ? '두 번째 사업자를 등록하면 2번 금액이 같이 나와요.' : null,
     record: marketPickRecord(result.evidence, { version: pick.version, mineLabel: '이 방법' })
@@ -110,10 +101,10 @@ export function presentMarketPick(pick: MarketPick): MarketPickView {
  * 사업자가 하나면 두 장 금액이 곧 한 장 금액이라 따로 보이지 않는다. 두 장의 1번과 같은 달도 있는데, 그때 같은 금액을 다른 줄로
  * 말없이 보이면 둘이 다른 값으로 읽히므로 같다고 적는다.
  */
-function singleRow(result: Applicable): MarketPickRow | null {
+function singleRow(result: Applicable, floorRate: string | null): MarketPickRow | null {
   if (result.positions.length < 2) return null;
-  const row = rowOf('한 곳만 넣을 때', result.single);
+  const row = rowOf('한 곳만 넣을 때', result.single, floorRate);
   return result.single.amount.amount === result.positions[0]!.amount.amount
-    ? { ...row, baseRelative: `${row.baseRelative} · 이번 달은 1번과 같은 금액` }
+    ? { ...row, note: '이번 달은 1번과 같은 금액' }
     : row;
 }

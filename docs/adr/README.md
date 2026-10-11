@@ -80,6 +80,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0063](0063-supplier-label-lives-on-the-submission.md) | Accepted | 업체명(`SHIPPER_NM`)은 그 이름이 관측된 투찰 행의 `core.bid_submission.supplier_label`에 둔다 — 이름 관측 표의 93%(약 4,750만 행·색인 셋)가 투찰 한 줄마다 이름 한 줄이었고 읽는 곳은 같은 관측으로 다시 만나는 명단 조회 하나였다. 기관·지역 라벨은 그대로이며, 기존 행은 마이그레이션이 아니라 업체 범위로 나눠 커밋하는 `backfill-supplier-labels`가 채운다 (0033 §1의 업체명 자리 문장을 대체) |
 | [0064](0064-results-only-collection-lane.md) | Accepted | 개찰 결과는 평일 오전 5분마다 도는 전용 수집 줄(`poll-results`)이 받는다 — 목록은 다 읽고 상태 라벨이 바뀐 공고의 상세만 부르며, 기준 release를 모드별로 골라 정시 수집 기준을 흐리지 않고, 자기 semaphore key를 쓰고 marts는 잇지 않는다 (0037의 기준 선택을 보충) |
 | [0065](0065-latest-revision-is-latest-observation.md) | Accepted | 공고 시도의 최신 개정본은 개정본 번호가 아니라 관측 번호 순으로 고른다 — 재처리가 옛 관측을 늦게 투영해 2026-09 회차 대부분이 낙찰 전 상태로 보였다. 서버·mart 규칙을 한곳에 두고 mart 계산 판을 `mart-r12`로 올린다 (domain-and-data의 "최신은 id 최대" 문장을 대체) |
+| [0066](0066-recommended-bid-shows-assessment-rate.md) | Accepted | 추천 투찰가는 eaT에 넣는 사정률을 앞에 두고 기초금액 대비 %·원 단위 금액을 이름 붙여 함께 보인다 — 사정률은 응답 값으로 정확히 나눠 계산하고 나누어떨어지지 않으면 지어내지 않는다 (0062의 "원 단위 금액으로 낸다" 문장을 대체) |
 
 ## 새 ADR 형식
 
