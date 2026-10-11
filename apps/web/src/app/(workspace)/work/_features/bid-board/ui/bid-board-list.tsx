@@ -12,8 +12,9 @@ type Board = Extract<BoardView, { kind: 'board' }>;
 
 // 글자 위계는 오늘 화면(U9)과 같다. 기관 17/700, 금액 16/800, 본문 14, 묶음 머리 14/700.
 const HINT = 'text-muted-foreground/70';
-// 금액 칸 수에 따른 격자다. 세 칸은 시안(W1)대로 넓은 화면(1100px 이상)에서만 한 줄에 두고, 그보다 좁으면 공고 줄 아래
-// 세 칸을 나란히, 폰에서는 세로로 쌓는다. 클래스 이름을 문자열로 다 적어야 Tailwind가 만든다.
+// 금액 칸 수에 따른 격자다. 세 칸은 넓은 화면(1280px 이상)에서만 한 줄에 두고, 그보다 좁으면 공고 줄 아래 세 칸을 나란히,
+// 폰에서는 세로로 쌓는다. 칸 폭은 시안(W1)의 184px이 아니라 두 칸 화면과 같은 204px이다 — 기초금액 1,000만 원대 공고의
+// "기초대비 % · 금액" 줄이 184px을 넘는다. 클래스 이름을 문자열로 다 적어야 Tailwind가 만든다.
 const LAYOUTS = {
   2: {
     cells: 'sm:grid-cols-[minmax(0,1fr)_204px_204px]',
@@ -24,12 +25,12 @@ const LAYOUTS = {
     selfJudged: 'sm:col-span-2'
   },
   3: {
-    cells: 'sm:grid-cols-3 min-[1100px]:grid-cols-[minmax(0,1fr)_184px_184px_184px]',
-    info: 'sm:col-span-3 min-[1100px]:col-span-1',
-    header: 'min-[1100px]:grid',
-    methodName: 'min-[1100px]:sr-only',
-    hideUnlessLead: 'min-[1100px]:hidden',
-    selfJudged: 'sm:col-span-3 min-[1100px]:col-span-3'
+    cells: 'sm:grid-cols-3 min-[1280px]:grid-cols-[minmax(0,1fr)_204px_204px_204px]',
+    info: 'sm:col-span-3 min-[1280px]:col-span-1',
+    header: 'min-[1280px]:grid',
+    methodName: 'min-[1280px]:sr-only',
+    hideUnlessLead: 'min-[1280px]:hidden',
+    selfJudged: 'sm:col-span-3 min-[1280px]:col-span-3'
   }
 } as const;
 type Layout = (typeof LAYOUTS)[2 | 3];
