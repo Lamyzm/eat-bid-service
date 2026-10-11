@@ -59,7 +59,7 @@ export interface MarketPick {
   readonly inSampleExpectedWins: number;
 }
 
-function multipleText(tenThousandths: number): string {
+export function multipleText(tenThousandths: number): string {
   return `${Math.floor(tenThousandths / 10000)}.${String(tenThousandths % 10000).padStart(4, "0")}`;
 }
 
@@ -67,7 +67,7 @@ function multipleText(tenThousandths: number): string {
  * 누적분포를 선형 보간으로 읽는다. 확률 적분은 근사 계산이라 부동소수로 한다 — 금액은 여기서 나온 배수를 정수 계수로만
  * 곱하므로 이 근사가 금액의 원 단위에 새지 않는다.
  */
-function cumulativeAt(distribution: PlannedRatioDistribution, value: number): number {
+export function cumulativeAt(distribution: PlannedRatioDistribution, value: number): number {
   const parts = distribution.cumulativePartsPerMillion;
   const position = value * 10000 - distribution.firstKnotTenThousandths;
   const last = parts.length - 1;
@@ -78,7 +78,7 @@ function cumulativeAt(distribution: PlannedRatioDistribution, value: number): nu
   return (parts[knot]! + fraction * (parts[knot + 1]! - parts[knot]!)) / 1e6;
 }
 
-function gridOf(candidates: CandidateMultiples): number[] {
+export function gridOf(candidates: CandidateMultiples): number[] {
   const grid: number[] = [];
   for (let value = candidates.fromTenThousandths; value <= candidates.toTenThousandths; value += candidates.stepTenThousandths) {
     grid.push(value);

@@ -20,15 +20,15 @@ type MarketRoundRow = Readonly<{
 }>;
 
 /**
- * 투찰률(예정가격 대비 %)을 하한 기준액 대비로 옮긴다: x = 투찰률 ÷ 하한율 × 예정가격 ÷ 기초금액. 실격 투찰의 금액 열은
- * 자리표시자라 쓰지 않고 투찰률로 계산한다(실험 기록 §2). 예정가격이 기초금액 ±3.1% 밖이면 추첨 장치 밖의 값이라 뺀다.
+ * 등록 사업자 시장의 회차 정의(`own`, `latest` CTE)다. 매달 맞춤과 아침 습관 맞춤이 같은 시장을 보도록 한곳에 둔다 — 둘이
+ * 다른 회차를 세면 두 방법의 성적을 같은 공고에 대어 볼 수 없다. 우리 투찰이 마지막 revision에 있는지는 호출자가 `having`으로 본다.
  */
-export function marketRoundQuery(query: MarketRoundQuery): SQL {
+export function ownMarketRevisions(query: MarketRoundQuery): SQL {
   const parties = bigintArrayLiteral(query.supplierPartyIds);
   const from = query.openedFrom.toString();
   const before = query.openedBefore.toString();
   return sql`
-    with own as (
+    own as (
       -- (업체, 개찰 시각) 색인으로 먼저 좁힌다. 회차 전체를 훑고 나서 업체를 고르면 창 안의 모든 투찰을 읽는다.
       select distinct own_bid.auction_attempt_id
         from core.bid_submission own_bid
@@ -38,7 +38,8 @@ export function marketRoundQuery(query: MarketRoundQuery): SQL {
     ), latest as (
       select distinct on (revision.auction_attempt_id)
              revision.auction_attempt_id, revision.auction_revision_id,
-             revision.base_amount, revision.planned_amount, revision.floor_rate
+             revision.base_amount, revision.planned_amount, revision.floor_rate,
+             revision.opened_at, revision.deadline_at
         from core.auction_revision revision
         join own on own.auction_attempt_id = revision.auction_attempt_id
        where revision.opened_at >= ${from}::timestamptz
@@ -48,7 +49,17 @@ export function marketRoundQuery(query: MarketRoundQuery): SQL {
          and revision.floor_rate = ${query.floorRate}::numeric
        -- 최신은 관측 번호 순이다(latest-revision-order.ts). 번호 순으로 고르면 2026-09 시장 공고가 크게 빠졌다.
        order by revision.auction_attempt_id, ${latestRevisionOrder("revision")}
-    )
+    )`;
+}
+
+/**
+ * 투찰률(예정가격 대비 %)을 하한 기준액 대비로 옮긴다: x = 투찰률 ÷ 하한율 × 예정가격 ÷ 기초금액. 실격 투찰의 금액 열은
+ * 자리표시자라 쓰지 않고 투찰률로 계산한다(실험 기록 §2). 예정가격이 기초금액 ±3.1% 밖이면 추첨 장치 밖의 값이라 뺀다.
+ */
+export function marketRoundQuery(query: MarketRoundQuery): SQL {
+  const parties = bigintArrayLiteral(query.supplierPartyIds);
+  return sql`
+    with ${ownMarketRevisions(query)}
     select latest.auction_attempt_id,
            array_agg(round((bid.bid_rate / latest.floor_rate) * (latest.planned_amount / latest.base_amount),
                            ${FLOOR_RELATIVE_RATIO_SCALE}::int)::text
