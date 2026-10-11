@@ -1,8 +1,8 @@
 /**
  * @module 책임: 오늘 투찰 응답을 마감 묶음·행·방법별 금액 칸·더 보기 문장으로 바꾸는 표시 모델을 소유한다.
  *
- * 방법을 하나로 고르지 않고 이름 붙여 나란히 둔다(PDR-0008). 근거가 가장 강한 칸에만 표시를 단다 — 맞춤이 나오면 맞춤, 아니면
- * 전국 공식. 금액은 문자열 그대로 자릿수를 끊고 Number로 바꾸지 않는다(AGENTS 15). 확률은 보이지 않는다.
+ * 방법을 하나로 고르지 않고 이름 붙여 나란히 둔다(PDR-0008). 근거가 가장 강한 칸에만 표시를 단다 — 아침 갱신이 켜지면 그 칸,
+ * 아니면 맞춤이 나오면 맞춤, 아니면 전국 공식. 금액은 문자열 그대로 자릿수를 끊고 Number로 바꾸지 않는다(AGENTS 15). 확률은 보이지 않는다.
  */
 import type { BidBoardRowWire, MyBidBoardV1Response } from '@eatbid/contracts/api/v1/me';
 
@@ -10,9 +10,11 @@ import { bidFigure, type BidFigure } from '@/entities/bid-figure/bid-figure';
 import { marketPickRecord, type MarketPickBar } from '@/entities/market-pick-record/market-pick-record';
 import { decimalScale, scaledText, sumAtScale } from '@/shared/lib/decimal-sum';
 import { groupLabel, hourMinuteText, kstOf, relativeText } from './closing-time';
+import { habitCellOf, habitGuide, habitHeadRecord } from './morning-habit-cell';
 
 type Confirmed = Extract<MyBidBoardV1Response, { regionPreference: 'confirmed' }>;
 type MarketHead = Confirmed['marketPick'];
+type HabitHead = Confirmed['morningHabit'];
 type MarketCell = NonNullable<BidBoardRowWire['market']>;
 type RuleCell = NonNullable<BidBoardRowWire['rule']>;
 
@@ -23,7 +25,13 @@ export interface AmountLine {
 }
 
 export type AmountCell =
-  | { readonly kind: 'amounts'; readonly lead: boolean; readonly lines: readonly AmountLine[] }
+  | {
+      readonly kind: 'amounts';
+      readonly lead: boolean;
+      readonly lines: readonly AmountLine[];
+      /** 아침 갱신 칸만 쓴다 — 몇 시 결과로 바뀌었는지다. */
+      readonly note?: string;
+    }
   | { readonly kind: 'reason'; readonly text: string };
 
 export interface BoardRowView {
@@ -36,7 +44,7 @@ export interface BoardRowView {
   readonly facts: readonly { readonly label: string; readonly value: string }[];
   /** 하한율 88% 공고다. 금액 없이 직접 판단으로 표시한다(PDR-0008). */
   readonly selfJudged: boolean;
-  /** [이번 달 맞춤, 전국 공식] 순서가 고정이다. 직접 판단 행은 비어 있다. */
+  /** [아침 갱신(요청했을 때만), 이번 달 맞춤, 전국 공식] 순서가 고정이다. 직접 판단 행은 비어 있다. */
   readonly cells: readonly AmountCell[];
   readonly more: {
     readonly market: {
@@ -64,6 +72,8 @@ export type BoardView =
     readonly lede: string;
     readonly stamp: string;
     readonly columns: readonly { readonly label: string; readonly record: string }[];
+    /** 금액 칸 수다. 아침 갱신이 실린 응답이면 3이다 — 화면이 격자를 바꾼다. */
+    readonly methods: 2 | 3;
     readonly columnCaption: string;
     readonly groups: readonly ClosingGroupView[];
     /** 더 보기 안의 성적 막대다. 공고마다 같은 값이라 한 번 만들어 행마다 그린다. 잰 기간과 계산 판을 함께 단다(AGENTS 7). */
@@ -117,7 +127,7 @@ function marketStamp(head: MarketHead): string {
   return '지금은 맞춤 금액을 계산하지 못했어요. 잠시 뒤 새로고침해 주세요.';
 }
 
-function columnsOf(head: MarketHead) {
+function columnsOf(head: MarketHead, habit: HabitHead) {
   const evidence = head.evidence;
   const sum = (field: 'expectedWins' | 'ruleExpectedWins') => {
     const values = evidence.map((entry) => entry[field]);
@@ -125,7 +135,21 @@ function columnsOf(head: MarketHead) {
     return `${scaledText(sumAtScale(values, scale), scale)}건`;
   };
   const rounds = evidence.reduce((total, entry) => total + entry.rounds, 0);
+  if (habit !== undefined) {
+    // 아침 갱신 성적은 다른 공고 수로 쟀으므로 칸마다 공고 수를 붙인다. 한 줄 설명으로 묶으면 다른 표본을 나란히 견주게 된다.
+    const roundsText = `/${rounds.toLocaleString('ko-KR')}건`;
+    return {
+      methods: 3 as const,
+      columns: [
+        { label: '아침 갱신', record: habitHeadRecord(habit) },
+        { label: `${marketMonth(head)}월 맞춤`, record: sum('expectedWins') + roundsText },
+        { label: '전국 공식', record: sum('ruleExpectedWins') + roundsText }
+      ],
+      columnCaption: '같은 공고에 대어 본 낙찰 수(두 장)'
+    };
+  }
   return {
+    methods: 2 as const,
     columns: [
       { label: `${marketMonth(head)}월 맞춤`, record: sum('expectedWins') },
       { label: '전국 공식', record: sum('ruleExpectedWins') }
@@ -134,23 +158,23 @@ function columnsOf(head: MarketHead) {
   };
 }
 
-function marketCellOf(row: BidBoardRowWire): AmountCell {
+function marketCellOf(row: BidBoardRowWire, leadTaken: boolean): AmountCell {
   if (row.market === null) return { kind: 'reason', text: '기초금액 미확인' };
   if (row.market.state === 'not-applicable') {
     return { kind: 'reason', text: row.market.reasons.map((reason) => MARKET_REASONS[reason]).join(' · ') };
   }
   const floor = row.floorRate?.value ?? null;
-  return { kind: 'amounts', lead: true, lines: row.market.positions.map((position) => line(`${position.order}번`, position, floor)) };
+  return { kind: 'amounts', lead: !leadTaken, lines: row.market.positions.map((position) => line(`${position.order}번`, position, floor)) };
 }
 
-function ruleCellOf(row: BidBoardRowWire, marketLead: boolean): AmountCell {
+function ruleCellOf(row: BidBoardRowWire, leadTaken: boolean): AmountCell {
   if (row.rule === null) return { kind: 'reason', text: '기초금액 미확인' };
   if (row.rule.state === 'not-applicable') {
     return { kind: 'reason', text: row.rule.reasons.map((reason) => RULE_REASONS[reason]).join(' · ') };
   }
   return {
     kind: 'amounts',
-    lead: !marketLead,
+    lead: !leadTaken,
     lines: row.rule.positions.slice(0, 2).map((position) => line(`${position.order}번`, position, row.floorRate?.value ?? null))
   };
 }
@@ -186,18 +210,29 @@ function recordOf(head: MarketHead): Extract<BoardView, { kind: 'board' }>['reco
   };
 }
 
-function guideOf(head: MarketHead): readonly string[] {
+function guideOf(head: MarketHead, habit: HabitHead): readonly string[] {
+  const lead = habit === undefined
+    ? `오른쪽 두 칸은 방법마다 낸 1번·2번이에요. 큰 숫자가 eaT에 넣는 사정률이고, 아래에 기초금액 대비 %와 금액을 함께 적었어요. 파란 테두리가 지금 근거가 가장 강한 방법이에요. ${marketMonth(head)}월 맞춤이 나오면 그 칸, 아니면 전국 공식이에요.`
+    : `오른쪽 세 칸은 방법마다 낸 1번·2번이에요. 큰 숫자가 eaT에 넣는 사정률이고, 아래에 기초금액 대비 %와 금액을 함께 적었어요. 파란 테두리가 지금 근거가 가장 강한 방법이에요. 아침 갱신이 켜지면 그 칸, 아니면 ${marketMonth(head)}월 맞춤, 그것도 없으면 전국 공식이에요.`;
   return [
-    `오른쪽 두 칸은 방법마다 낸 1번·2번이에요. 큰 숫자가 eaT에 넣는 사정률이고, 아래에 기초금액 대비 %와 금액을 함께 적었어요. 파란 테두리가 지금 근거가 가장 강한 방법이에요. ${marketMonth(head)}월 맞춤이 나오면 그 칸, 아니면 전국 공식이에요.`,
+    lead,
+    ...(habit === undefined ? [] : [habitGuide(habit)]),
     '칸 머리의 숫자는 같은 공고에 대어 본 낙찰 수예요(두 장, 예정가격 추첨 평균).',
     '사정률 옆 복사를 누르면 그 숫자가 복사돼요. 기초대비 %와 금액도 눌러서 복사할 수 있어요. 넣을지와 언제 넣을지는 직접 정하세요.',
     '하한율 88% 공고는 금액 없이 직접 판단만 달아요.'
   ];
 }
 
-function rowOf(row: BidBoardRowWire, head: MarketHead): BoardRowView {
+function habitAmountCellOf(row: BidBoardRowWire, asOf: string): AmountCell {
+  const cell = habitCellOf(row, asOf);
+  return cell.kind === 'reason' ? cell : { kind: 'amounts', lead: true, lines: cell.lines, note: cell.note };
+}
+
+function rowOf(row: BidBoardRowWire, head: MarketHead, habit: HabitHead, asOf: string): BoardRowView {
   const selfJudged = row.floorRate?.value === '88.000';
-  const market = marketCellOf(row);
+  const morning = habit === undefined ? null : habitAmountCellOf(row, asOf);
+  const habitLead = morning?.kind === 'amounts';
+  const market = marketCellOf(row, habitLead);
   const marketLead = market.kind === 'amounts';
   return {
     auctionId: row.auctionId,
@@ -210,7 +245,7 @@ function rowOf(row: BidBoardRowWire, head: MarketHead): BoardRowView {
       { label: '참여', value: row.bidCount === null ? '미확인' : `${row.bidCount.toLocaleString('ko-KR')}곳` }
     ],
     selfJudged,
-    cells: selfJudged ? [] : [market, ruleCellOf(row, marketLead)],
+    cells: selfJudged ? [] : [...(morning === null ? [] : [morning]), market, ruleCellOf(row, habitLead || marketLead)],
     more: selfJudged ? { market: null, ruleExtras: [], band: null } : moreOf(row, head)
   };
 }
@@ -230,18 +265,18 @@ export function presentBidBoard(response: MyBidBoardV1Response): BoardView {
     else tomorrow += 1;
     const key = closes.toString();
     const group = groups.get(key) ?? { label: groupLabel(asOf, closes), relative: relativeText(asOf, closes), rows: [] };
-    group.rows.push(rowOf(row, response.marketPick));
+    group.rows.push(rowOf(row, response.marketPick, response.morningHabit, response.asOf));
     groups.set(key, group);
   }
   return {
     kind: 'board',
     lede: today + tomorrow === 0 ? '오늘·내일 마감 공고가 없어요.' : `오늘 마감 ${today}건, 내일 마감 ${tomorrow}건이에요.`,
     stamp: `${hourMinuteText(asOf)} 기준 · ${marketStamp(response.marketPick)}`,
-    ...columnsOf(response.marketPick),
+    ...columnsOf(response.marketPick, response.morningHabit),
     groups: [...groups.values()],
     record: recordOf(response.marketPick),
     ruleBasis: `전국 공식 규칙 ${response.rule.version} · 학습 ~${response.rule.trainedThrough} · 검증 ${response.rule.validatedFrom}~${response.rule.validatedThrough}`,
     truncatedNote: response.truncated ? '공고가 많아 늦게 마감하는 공고 일부를 불러오지 못했어요. 품목을 골라 좁혀 보세요.' : null,
-    guide: guideOf(response.marketPick)
+    guide: guideOf(response.marketPick, response.morningHabit)
   };
 }
