@@ -49,7 +49,7 @@ export function CopyValue({
         <span
           data-slot='copy-chip'
           aria-hidden='true'
-          className='self-center rounded bg-primary/10 px-1.5 py-px text-[11px] font-bold tracking-normal text-primary'
+          className='self-center rounded bg-primary/10 px-1.5 py-1 text-[11px] leading-none font-bold tracking-normal text-primary sm:py-px sm:leading-normal'
         >
           {copied ? '복사됨' : '복사'}
         </span>

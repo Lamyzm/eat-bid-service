@@ -131,7 +131,7 @@ function bandText(band: Applicable['band']): string {
 
 function ruleText(response: Response): string {
   const { rule } = response;
-  return `규칙 ${rule.version} · 학습 ~${rule.trainedThrough} · 검증 ${rule.validatedFrom}~${rule.validatedThrough} · 금액 = 기초금액 × 하한율 × 배수, 원 단위 올림`;
+  return `규칙 ${rule.version} · 학습 ~${rule.trainedThrough} · 검증 ${rule.validatedFrom}~${rule.validatedThrough} · 금액 = 기초금액 × 하한율 × 사정률 ÷ 100, 원 단위 올림`;
 }
 
 type Reason = Extract<Response['result'], { state: 'not-applicable' }>['reasons'][number];
@@ -163,8 +163,8 @@ function calibrationText(response: Response, result: Applicable): string {
   const period = `${response.rule.validatedFrom}~${response.rule.validatedThrough}`;
   const head =
     result.selection === 'training'
-      ? `배수는 ~${response.rule.trainedThrough} 자료로만 골랐어요. 위 낙찰률은 고를 때 보지 않은 ${period} 회차의 결과예요.`
-      : `이 표의 배수는 ${period} 성적을 보고 골라서 위 낙찰률이 실제보다 높게 나왔을 수 있어요.`;
+      ? `사정률은 ~${response.rule.trainedThrough} 자료로만 골랐어요. 위 낙찰률은 고를 때 보지 않은 ${period} 회차의 결과예요.`
+      : `이 표의 사정률은 ${period} 성적을 보고 골라서 위 낙찰률이 실제보다 높게 나왔을 수 있어요.`;
   return head + holdoutText(result.holdout);
 }
 

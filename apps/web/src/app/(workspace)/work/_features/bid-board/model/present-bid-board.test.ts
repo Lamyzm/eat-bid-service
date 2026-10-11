@@ -71,7 +71,7 @@ describe('오늘 투찰 표시', () => {
         { label: '예비 4순위', figure: { assessmentRate: '98.600', baseRelative: '88.740', amount: '13,319,102원', amountCopy: '13319102' } },
         { label: '예비 5순위', figure: { assessmentRate: '98.710', baseRelative: '88.839', amount: '13,333,962원', amountCopy: '13333962' } }
       ],
-      basis: '7~9월 내 사업자 공고 164건으로 고른 배수예요'
+      basis: '7~9월 내 사업자 공고 164건으로 고른 사정률이에요'
     });
     expect(row.more.ruleExtras).toEqual([]);
     expect(row.more.band).toBe('전국 공식은 참여 70곳 이상 표를 썼어요');

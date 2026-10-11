@@ -28,7 +28,7 @@ export function BidFigureLine({
 }) {
   const big = `${BIG} ${lead ? 'text-primary' : ''}`;
   return (
-    <span data-slot='bid-figure' className='grid justify-items-end gap-0.5'>
+    <span data-slot='bid-figure' className='grid justify-items-end gap-1'>
       <span className='flex items-baseline justify-end gap-1.5 whitespace-nowrap'>
         {showLabel ? <span className='text-[12px] font-semibold text-muted-foreground/70'>{label}</span> : null}
         {figure.assessmentRate === null ? (
@@ -45,7 +45,7 @@ export function BidFigureLine({
         )}
       </span>
       <span className='flex items-baseline justify-end gap-1 whitespace-nowrap text-[11.5px] text-muted-foreground'>
-        <span>기초</span>
+        <span>기초대비</span>
         <CopyValue value={figure.baseRelative} label={`${label} 기초금액 대비 ${figure.baseRelative}%`} className={SMALL}>
           <span>{figure.baseRelative}%</span>
         </CopyValue>

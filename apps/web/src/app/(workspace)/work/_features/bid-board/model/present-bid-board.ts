@@ -170,7 +170,7 @@ function moreOf(row: BidBoardRowWire, head: MarketHead): BoardRowView['more'] {
         note: market.single.amount.amount === market.positions[0]!.amount.amount ? '이번 달은 1번과 같은 금액' : null
       },
       spares: market.spares.map((spare) => line(`예비 ${spare.order}순위`, spare, floor)),
-      basis: `${windowText(head)} 내 사업자 공고 ${(head.marketRounds ?? 0).toLocaleString('ko-KR')}건으로 고른 배수예요`
+      basis: `${windowText(head)} 내 사업자 공고 ${(head.marketRounds ?? 0).toLocaleString('ko-KR')}건으로 고른 사정률이에요`
     },
     ruleExtras: rule?.positions.slice(2).map((position) => line(`전국 공식 ${position.order}번`, position, floor)) ?? [],
     band
