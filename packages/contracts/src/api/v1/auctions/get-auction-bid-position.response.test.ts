@@ -111,6 +111,42 @@ describe("추천 투찰가 공개 계약", () => {
     expect(auctionBidPositionV1ResponseSchema.safeParse(smuggled).success).toBe(false);
   });
 
+  test("아침 갱신은 요청할 때만 싣고, 켜진 공고는 덮임·단골 수·마지막 결과 시각과 두 자리를 싣는다", () => {
+    expect(auctionBidPositionV1ResponseSchema.parse(applicableFixture())).not.toHaveProperty("morningHabit");
+    const morningHabit = {
+      version: "2026-10-11",
+      decidedAt: "2026-10-12T01:50:00Z",
+      coverageThreshold: { value: "0.300000", unit: "ratio" },
+      validatedLeadMinutes: 10,
+      evidence: [{ from: "2025-01", through: "2025-12", rounds: 681, expectedWins: "41.48", monthlyExpectedWins: "39.57" }],
+      result: {
+        state: "applicable",
+        coverage: { value: "0.734210", unit: "ratio" },
+        regulars: 55,
+        sameDayRegulars: 31,
+        latestSameDayOpenedAt: "2026-10-12T01:00:00Z",
+        competitorCount: 44,
+        positions: [marketPosition(1, "15195000.00", "88.6500"), marketPosition(2, "15287000.00", "89.1900")],
+        single: marketPosition(1, "15195000.00", "88.6500"),
+      },
+    };
+    const parsed = auctionBidPositionV1ResponseSchema.parse({ ...applicableFixture(), morningHabit });
+    expect(parsed.morningHabit).toEqual(morningHabit);
+    const closed = { ...morningHabit, result: { state: "not-applicable", reasons: ["same-day-coverage-below-threshold"], coverage: { value: "0.120000", unit: "ratio" } } };
+    expect(auctionBidPositionV1ResponseSchema.parse({ ...applicableFixture(), morningHabit: closed }).morningHabit?.result)
+      .toEqual(closed.result);
+    expect(() => auctionBidPositionV1ResponseSchema.parse({
+      ...applicableFixture(), morningHabit: { ...morningHabit, result: { ...closed.result, reasons: [] } },
+    })).toThrow();
+  });
+
+  test("추천 투찰가 query는 아침 갱신 opt-in만 받고 비우면 아무것도 더하지 않는다", () => {
+    const operation = auctionV1Operations.bidPosition;
+    expect(operation.querySchema.parse(undefined)).toEqual({});
+    expect(operation.querySchema.parse({ include: "morning-habit" })).toEqual({ include: "morning-habit" });
+    expect(() => operation.querySchema.parse({ include: "everything" })).toThrow();
+  });
+
   test("공고 아래 bid-position 경로를 operation 하나에서 파생한다", () => {
     const operation = auctionV1Operations.bidPosition;
     expect(operation.buildPath({ path: { auctionId: "5270" } })).toBe("/api/v1/auctions/5270/bid-position");

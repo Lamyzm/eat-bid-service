@@ -6,7 +6,7 @@ import { bidRateWire, bigintText, instantText } from "../../../../platform/http/
 import type { MarketPickDecision } from "../../application/decide-market-pick";
 import type { MyBidBoardRecord, MyBidBoardRowRecord } from "../../application/get-my-bid-board";
 import { BID_POSITION_RULE } from "../../domain/bid-position-rule";
-import { marketPositionWire, ruleResultWire } from "./auction-bid-position.presenter";
+import { marketPositionWire, morningHabitCellWire, morningHabitMethodWire, ruleResultWire } from "./auction-bid-position.presenter";
 
 function marketPickHeadWire(decision: MarketPickDecision): BidBoardMarketPickWire {
   const { method, window } = decision;
@@ -23,7 +23,8 @@ function marketPickHeadWire(decision: MarketPickDecision): BidBoardMarketPickWir
   };
 }
 
-function rowWire(row: MyBidBoardRowRecord): BidBoardRowWire {
+/** 아침 갱신을 요청했을 때만 행에 그 칸을 싣는다. 요청하지 않았으면 key가 없어야 옛 web이 응답을 거부하지 않는다. */
+function rowWire(row: MyBidBoardRowRecord, includeMorningHabit: boolean): BidBoardRowWire {
   const { auction, market } = row;
   return {
     auctionId: bigintText(auction.auctionAttemptId),
@@ -47,6 +48,9 @@ function rowWire(row: MyBidBoardRowRecord): BidBoardRowWire {
           single: marketPositionWire(market.result.single),
           spares: market.spares.map((spare) => ({ ...marketPositionWire(spare), order: spare.order })),
         },
+    ...(includeMorningHabit
+      ? { morningHabit: row.morningHabit === null ? null : morningHabitCellWire(row.morningHabit) }
+      : {}),
   };
 }
 
@@ -65,7 +69,8 @@ export function toMyBidBoardResponse(record: MyBidBoardRecord): MyBidBoardV1Resp
       validatedThrough: BID_POSITION_RULE.validatedThrough,
     },
     marketPick: marketPickHeadWire(record.decision),
-    rows: record.rows.map(rowWire),
+    ...(record.habit === null ? {} : { morningHabit: morningHabitMethodWire(record.habit.method, record.habit.decidedAt) }),
+    rows: record.rows.map((row) => rowWire(row, record.habit !== null)),
     truncated: record.truncated,
   };
 }

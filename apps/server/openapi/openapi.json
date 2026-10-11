@@ -1128,6 +1128,13 @@
           "marketPick": {
             "$ref": "#/components/schemas/BidPositionMarketPick"
           },
+          "morningHabit": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidPositionMorningHabit"
+              }
+            ]
+          },
           "participation": {
             "allOf": [
               {
@@ -1931,6 +1938,14 @@
             ],
             "nullable": true
           },
+          "morningHabit": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MorningHabitCell"
+              }
+            ],
+            "nullable": true
+          },
           "observedAt": {
             "$ref": "#/components/schemas/InstantText"
           },
@@ -2291,6 +2306,42 @@
           "market-data-unavailable"
         ],
         "type": "string"
+      },
+      "BidPositionMorningHabit": {
+        "additionalProperties": false,
+        "properties": {
+          "coverageThreshold": {
+            "$ref": "#/components/schemas/Ratio"
+          },
+          "decidedAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/MorningHabitEvidence"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "result": {
+            "$ref": "#/components/schemas/MorningHabitCell"
+          },
+          "validatedLeadMinutes": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "version": {
+            "$ref": "#/components/schemas/KstDateText"
+          }
+        },
+        "required": [
+          "version",
+          "decidedAt",
+          "coverageThreshold",
+          "validatedLeadMinutes",
+          "evidence",
+          "result"
+        ],
+        "type": "object"
       },
       "BidPositionNotApplicableReason": {
         "enum": [
@@ -3600,6 +3651,209 @@
         ],
         "type": "object"
       },
+      "MorningHabitCell": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "competitorCount": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              },
+              "coverage": {
+                "$ref": "#/components/schemas/Ratio"
+              },
+              "latestSameDayOpenedAt": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/InstantText"
+                  }
+                ],
+                "nullable": true
+              },
+              "positions": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "$ref": "#/components/schemas/Money"
+                    },
+                    "baseRelativeRate": {
+                      "$ref": "#/components/schemas/BaseRelativeBidRate"
+                    },
+                    "order": {
+                      "maximum": 3,
+                      "minimum": 1,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "order",
+                    "amount",
+                    "baseRelativeRate"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 2,
+                "minItems": 1,
+                "type": "array"
+              },
+              "regulars": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              },
+              "sameDayRegulars": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              },
+              "single": {
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "$ref": "#/components/schemas/Money"
+                  },
+                  "baseRelativeRate": {
+                    "$ref": "#/components/schemas/BaseRelativeBidRate"
+                  },
+                  "order": {
+                    "maximum": 3,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "order",
+                  "amount",
+                  "baseRelativeRate"
+                ],
+                "type": "object"
+              },
+              "state": {
+                "enum": [
+                  "applicable"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "coverage",
+              "regulars",
+              "sameDayRegulars",
+              "latestSameDayOpenedAt",
+              "competitorCount",
+              "positions",
+              "single"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "coverage": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Ratio"
+                  }
+                ],
+                "nullable": true
+              },
+              "reasons": {
+                "items": {
+                  "$ref": "#/components/schemas/MorningHabitReason"
+                },
+                "maxItems": 9,
+                "minItems": 1,
+                "type": "array"
+              },
+              "state": {
+                "enum": [
+                  "not-applicable"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "reasons",
+              "coverage"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      },
+      "MorningHabitEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedWins": {
+            "$ref": "#/components/schemas/CanonicalDecimalText"
+          },
+          "from": {
+            "$ref": "#/components/schemas/KstMonthText"
+          },
+          "monthlyExpectedWins": {
+            "$ref": "#/components/schemas/CanonicalDecimalText"
+          },
+          "rounds": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "through": {
+            "$ref": "#/components/schemas/KstMonthText"
+          }
+        },
+        "required": [
+          "from",
+          "through",
+          "rounds",
+          "expectedWins",
+          "monthlyExpectedWins"
+        ],
+        "type": "object"
+      },
+      "MorningHabitMethod": {
+        "additionalProperties": false,
+        "properties": {
+          "coverageThreshold": {
+            "$ref": "#/components/schemas/Ratio"
+          },
+          "decidedAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/MorningHabitEvidence"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "validatedLeadMinutes": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "version": {
+            "$ref": "#/components/schemas/KstDateText"
+          }
+        },
+        "required": [
+          "version",
+          "decidedAt",
+          "coverageThreshold",
+          "validatedLeadMinutes",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "MorningHabitReason": {
+        "enum": [
+          "floor-rate-unobserved",
+          "floor-rate-outside-habit-pick",
+          "no-linked-business",
+          "market-rounds-below-minimum",
+          "market-data-unavailable",
+          "deadline-unobserved",
+          "deadline-passed",
+          "participation-unobserved",
+          "same-day-coverage-below-threshold"
+        ],
+        "type": "string"
+      },
       "MyAttemptBidObservation": {
         "additionalProperties": false,
         "properties": {
@@ -3736,6 +3990,13 @@
               },
               "marketPick": {
                 "$ref": "#/components/schemas/BidBoardMarketPick"
+              },
+              "morningHabit": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/MorningHabitMethod"
+                  }
+                ]
               },
               "regionPreference": {
                 "enum": [
@@ -4913,6 +5174,32 @@
           "status"
         ],
         "type": "object"
+      },
+      "Ratio": {
+        "additionalProperties": false,
+        "description": "A rate expressed on a 1.0 scale.",
+        "properties": {
+          "unit": {
+            "enum": [
+              "ratio"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/RatioText"
+          }
+        },
+        "required": [
+          "value",
+          "unit"
+        ],
+        "type": "object"
+      },
+      "RatioText": {
+        "description": "Canonical ratio text from 0.000000 through 1.000000.",
+        "maxLength": 8,
+        "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)$",
+        "type": "string"
       },
       "ReadyHealth": {
         "additionalProperties": false,
@@ -6655,6 +6942,16 @@
             "schema": {
               "$ref": "#/components/schemas/AuctionId"
             }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "enum": [
+                "morning-habit"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -6676,7 +6973,7 @@
                 }
               }
             },
-            "description": "공고 ID가 유효하지 않음"
+            "description": "공고 ID나 query가 유효하지 않음"
           },
           "401": {
             "content": {
@@ -7244,6 +7541,16 @@
             "schema": {
               "enum": [
                 "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "enum": [
+                "morning-habit"
               ],
               "type": "string"
             }

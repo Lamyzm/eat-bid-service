@@ -112,6 +112,26 @@ describe("추천 투찰가 HTTP 경계", () => {
     });
   });
 
+  test("include=morning-habit을 보낼 때만 아침 갱신 칸을 싣고, 모르는 include는 400이다", async () => {
+    await withServer({ grants: granted }, async (server) => {
+      const plain = await request(server).get(path);
+      expect(plain.status).toBe(200);
+      // 요청하지 않으면 key 자체가 없어야 옛 web의 strict 응답 검증이 통과한다.
+      expect(Object.keys(plain.body)).not.toContain("morningHabit");
+      const habit = await request(server).get(path).query({ include: "morning-habit" });
+      expect(habit.status).toBe(200);
+      // 이 시험은 DB 없이 돈다. 시장을 못 읽어도 다른 금액은 살아 있고 이 칸만 계산하지 못했다고 말한다.
+      expect(habit.body.morningHabit).toMatchObject({
+        version: "2026-10-11",
+        coverageThreshold: { value: "0.300000", unit: "ratio" },
+        validatedLeadMinutes: 10,
+        result: { state: "not-applicable", reasons: ["market-data-unavailable"], coverage: null },
+      });
+      expect(habit.body.morningHabit.evidence).toHaveLength(3);
+      expect((await request(server).get(path).query({ include: "everything" })).status).toBe(400);
+    });
+  });
+
   test("운영자 권한이 없으면 403이고 공고를 읽지 않는다", async () => {
     let reads = 0;
     await withServer({

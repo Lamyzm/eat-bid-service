@@ -7,6 +7,8 @@ import { GetAuctionRoster } from "./application/get-auction-roster";
 import { AuctionRosterController } from "./presentation/http/auction-roster.controller";
 import { AuctionBidPositionController } from "./presentation/http/auction-bid-position.controller";
 import { DecideMarketPick } from "./application/decide-market-pick";
+import { DecideMorningHabitPick } from "./application/decide-morning-habit-pick";
+import type { MorningHabitReader } from "./application/morning-habit-reader";
 import { FindAuctionBidPosition } from "./application/find-auction-bid-position";
 import { GetMyBidBoard } from "./application/get-my-bid-board";
 import { MyBidBoardController } from "./presentation/http/my-bid-board.controller";
@@ -47,6 +49,7 @@ import {
   OPEN_AUCTION_SUMMARY_READER,
   OWN_BID_READER,
   MARKET_ROUND_READER,
+  MORNING_HABIT_READER,
   READ_SNAPSHOT,
   REGION_PREFERENCE_REPOSITORY,
   REGISTERED_BUSINESS_READER,
@@ -95,11 +98,23 @@ const decideMarketPickProvider = {
   ) => new DecideMarketPick(snapshot, businesses, marketRounds, clock),
 };
 
+// 아침 갱신도 등록 판정과 시장·이력 조회를 한 읽기 스냅샷에서 하고, 결정 시각을 주입된 clock으로 정한다(AGENTS 17, ADR 0067).
+const decideMorningHabitPickProvider = {
+  provide: DecideMorningHabitPick,
+  inject: [READ_SNAPSHOT, REGISTERED_BUSINESS_READER, MORNING_HABIT_READER, CLOCK],
+  useFactory: (
+    snapshot: UnitOfWork,
+    businesses: RegisteredBusinessReader,
+    reader: MorningHabitReader,
+    clock: Clock,
+  ) => new DecideMorningHabitPick(snapshot, businesses, reader, clock),
+};
+
 const findAuctionBidPositionProvider = {
   provide: FindAuctionBidPosition,
-  inject: [AUCTION_READER, DecideMarketPick],
-  useFactory: (reader: AuctionReader, decideMarketPick: DecideMarketPick) =>
-    new FindAuctionBidPosition(reader, decideMarketPick),
+  inject: [AUCTION_READER, DecideMarketPick, DecideMorningHabitPick],
+  useFactory: (reader: AuctionReader, decideMarketPick: DecideMarketPick, decideMorningHabit: DecideMorningHabitPick) =>
+    new FindAuctionBidPosition(reader, decideMarketPick, decideMorningHabit),
 };
 
 // 열린 공고의 "열림" 판정은 현재 시각의 함수라 clock을 요구한다. `Temporal.Now` 직접 호출은 금지이며
@@ -154,9 +169,14 @@ const previewRegionCoverageProvider = {
 // 오늘 투찰은 관심 지역을 query가 아니라 저장소에서 읽고(조합 건수와 같은 이유), 맞춤 배수는 공고 상세와 같은 결정 하나를 쓴다.
 const getMyBidBoardProvider = {
   provide: GetMyBidBoard,
-  inject: [OPEN_AUCTION_READER, REGION_PREFERENCE_REPOSITORY, DecideMarketPick, CLOCK],
-  useFactory: (reader: OpenAuctionReader, regions: RegionPreferenceRepository, decideMarketPick: DecideMarketPick, clock: Clock) =>
-    new GetMyBidBoard(reader, regions, decideMarketPick, clock),
+  inject: [OPEN_AUCTION_READER, REGION_PREFERENCE_REPOSITORY, DecideMarketPick, DecideMorningHabitPick, CLOCK],
+  useFactory: (
+    reader: OpenAuctionReader,
+    regions: RegionPreferenceRepository,
+    decideMarketPick: DecideMarketPick,
+    decideMorningHabit: DecideMorningHabitPick,
+    clock: Clock,
+  ) => new GetMyBidBoard(reader, regions, decideMarketPick, decideMorningHabit, clock),
 };
 
 const listOpenAuctionsProvider = {
@@ -194,6 +214,7 @@ const findMyBidObservationsProvider = {
     getAuctionRosterProvider,
     findAuctionProvider,
     decideMarketPickProvider,
+    decideMorningHabitPickProvider,
     findAuctionBidPositionProvider,
     getMyBidBoardProvider,
     findAnalysisTimeSeriesProvider,

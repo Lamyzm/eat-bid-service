@@ -8,6 +8,8 @@ import { auctionId } from "../domain/auction-id";
 import { MARKET_PICK_FIXTURE } from "../domain/__fixtures__/market-position-pick";
 import { floorRelativeRatio, type MarketRound } from "../domain/market-position-pick";
 import type { AuctionRecord } from "./auction-reader";
+import { DecideMorningHabitPick } from "./decide-morning-habit-pick";
+import type { MorningHabitReader } from "./morning-habit-reader";
 import { DecideMarketPick } from "./decide-market-pick";
 import { FindAuctionBidPosition } from "./find-auction-bid-position";
 import type { MarketRoundQuery, MarketRoundReader } from "./market-round-reader";
@@ -52,6 +54,7 @@ function useCase(options: {
   readonly market?: MarketRoundReader;
   readonly floor?: string;
   readonly asked?: MarketRoundQuery[];
+  readonly habit?: MorningHabitReader;
 }) {
   const snapshot = createUnitOfWork({ transaction: (work) => work({ execute: async () => [] }) });
   const reader: RegisteredBusinessReader = {
@@ -64,13 +67,17 @@ function useCase(options: {
   const record: AuctionRecord = options.floor === undefined ? auction : {
     ...auction, terms: { floorRate: bidRate(canonicalDecimal(options.floor, 3)), awardMethod: null },
   };
+  const clock = fixedClock(Temporal.Instant.from("2026-10-12T03:00:00Z"));
+  const habitReader: MorningHabitReader = options.habit ?? { findMarketRounds: async () => [], findFirmBids: async () => [] };
   return new FindAuctionBidPosition(
     { findById: async () => record },
-    new DecideMarketPick(snapshot, reader, market, fixedClock(Temporal.Instant.from("2026-10-12T03:00:00Z"))),
+    new DecideMarketPick(snapshot, reader, market, clock),
+    new DecideMorningHabitPick(snapshot, reader, habitReader, clock),
   );
 }
 
-const run = (target: FindAuctionBidPosition) => new EffectRunner().run(target.execute({ auctionId: auction.auctionId, workspaceId: 4n }));
+const run = (target: FindAuctionBidPosition, includeMorningHabit = false) =>
+  new EffectRunner().run(target.execute({ auctionId: auction.auctionId, workspaceId: 4n, includeMorningHabit }));
 
 describe("내 시장 맞춤 금액 use case", () => {
   test("등록 사업자가 둘이면 두 장 금액과 한 장 금액을 따로 고르고, 창은 직전 3개월 KST 달이다", async () => {
@@ -119,5 +126,22 @@ describe("내 시장 맞춤 금액 use case", () => {
     const result = await run(useCase({ businesses: [business(101n), business(102n)], market: broken }));
     expect(result.marketPick.result).toEqual({ state: "not-applicable", reasons: ["market-data-unavailable"], marketRounds: null });
     expect(result.result.state).toBe("applicable");
+  });
+});
+
+describe("공고 상세 아침 갱신 use case", () => {
+  test("요청하지 않으면 아침 갱신 시장을 읽지 않고 그 칸을 비운다", async () => {
+    let read = 0;
+    const habit: MorningHabitReader = { findMarketRounds: async () => { read += 1; return []; }, findFirmBids: async () => [] };
+    const record = await run(useCase({ businesses: [business(101n)], habit }));
+    expect(record.morningHabit).toBeNull();
+    expect(read).toBe(0);
+  });
+
+  test("요청하면 결정 시각과 방법 판을 함께 싣고, 시장 공고가 모자라면 그 이유로 닫는다", async () => {
+    const record = await run(useCase({ businesses: [business(101n)] }), true);
+    expect(record.morningHabit?.decidedAt.toString()).toBe("2026-10-12T03:00:00Z");
+    expect(record.morningHabit?.method.version).toBe("2026-10-11");
+    expect(record.morningHabit?.result).toEqual({ state: "not-applicable", reasons: ["market-rounds-below-minimum"], coverage: null });
   });
 });

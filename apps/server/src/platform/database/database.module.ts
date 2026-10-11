@@ -15,6 +15,7 @@ import type { EligibilityAreaReader } from "../../modules/procurement/applicatio
 import { DrizzleEligibilityAreaReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-eligibility-area-reader";
 import { DrizzleOwnBidReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-own-bid-reader";
 import { DrizzleMarketRoundReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-market-round-reader";
+import { DrizzleMorningHabitReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-morning-habit-reader";
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
 import type { AuctionRosterReader } from "../../modules/procurement/application/auction-roster-reader";
 import { DrizzleAuctionRosterReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
@@ -52,6 +53,7 @@ import {
   OPEN_AUCTION_SUMMARY_READER,
   OWN_BID_READER,
   MARKET_ROUND_READER,
+  MORNING_HABIT_READER,
   READ_SNAPSHOT,
   REGION_PREFERENCE_REPOSITORY,
   REGISTERED_BUSINESS_READER,
@@ -138,6 +140,11 @@ export class DatabaseModule {
         // 스냅샷 handle만 받아 읽으므로 연결을 직접 들지 않는다.
         provide: MARKET_ROUND_READER,
         useValue: new DrizzleMarketRoundReader(),
+      },
+      {
+        // 매달 맞춤 읽기와 같이 스냅샷 handle만 받아 읽는다.
+        provide: MORNING_HABIT_READER,
+        useValue: new DrizzleMorningHabitReader(),
       },
       {
         provide: AUCTION_READER,
@@ -248,6 +255,7 @@ export class DatabaseModule {
         REGISTERED_BUSINESS_READER,
         OWN_BID_READER,
         MARKET_ROUND_READER,
+        MORNING_HABIT_READER,
         AUCTION_READER,
         AUCTION_ROSTER_READER,
         OPEN_AUCTION_READER,

@@ -1,6 +1,6 @@
 /**
- * @module 책임: 한 회차의 추천 투찰가(전국 규칙과 최근 3개월 맞춤)와 그 근거(규칙 버전·검증 표본·운 기준선)를 공개 응답
- * 하나로 구성한다.
+ * @module 책임: 한 회차의 추천 투찰가(전국 규칙·최근 3개월 맞춤·아침 갱신)와 그 근거(규칙 버전·검증 표본·운 기준선)를 공개
+ * 응답 하나로 구성한다.
  */
 import { z } from "zod";
 
@@ -10,7 +10,12 @@ import { canonicalDecimalTextSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
 import { moneyWireSchema } from "../../../values/money";
-import { baseRelativeBidRateWireSchema, bidRateWireSchema, percentagePointsWireSchema } from "../../../values/rate";
+import {
+  baseRelativeBidRateWireSchema,
+  bidRateWireSchema,
+  percentagePointsWireSchema,
+  ratioWireSchema,
+} from "../../../values/rate";
 import { auctionParticipationObservationSchema } from "./participation.resource";
 
 /**
@@ -153,6 +158,70 @@ export const bidPositionMarketPickSchema = z.strictObject({
   ]),
 }).meta({ id: "BidPositionMarketPick" });
 
+const habitPositionSchema = bidPositionSchema.pick({ order: true, amount: true, baseRelativeRate: true });
+
+/**
+ * 아침 갱신 금액을 내지 않은 이유다. 결정 시각(요청 시각)에 보인 결과로 공고마다 다시 고르므로, 오늘 자리가 보인 단골 몫(덮임)이
+ * 문턱보다 작으면 "오늘 정보 부족"으로 닫고 그 몫을 함께 싣는다(ADR 0067).
+ */
+export const morningHabitReasonSchema = z.enum([
+  "floor-rate-unobserved",
+  "floor-rate-outside-habit-pick",
+  "no-linked-business",
+  "market-rounds-below-minimum",
+  "market-data-unavailable",
+  "deadline-unobserved",
+  "deadline-passed",
+  "participation-unobserved",
+  "same-day-coverage-below-threshold",
+]).meta({ id: "MorningHabitReason" });
+
+/**
+ * 기간별로 같은 공고에 이번 달 맞춤과 "켜지면 아침 갱신, 아니면 이번 달 맞춤"을 대어 본 기대 낙찰이다(두 장, 추첨 운을 뺐다).
+ * 각 공고의 결정 시각까지 보인 사실만 썼다. 근거는 한 시장(두 사업자가 넣은 하한율 90% 공고)에서만 쟀다.
+ */
+export const morningHabitEvidenceSchema = z.strictObject({
+  from: kstMonthTextSchema,
+  through: kstMonthTextSchema,
+  rounds: nonNegativeCountSchema,
+  expectedWins: canonicalDecimalTextSchema,
+  monthlyExpectedWins: canonicalDecimalTextSchema,
+}).meta({ id: "MorningHabitEvidence" });
+
+/** 아침 갱신의 방법 판·근거·결정 시각이다. 공고와 무관해 오늘 투찰에서는 머리에 한 번 싣는다. */
+export const morningHabitMethodSchema = z.strictObject({
+  version: kstDateTextSchema,
+  decidedAt: instantTextSchema,
+  coverageThreshold: ratioWireSchema,
+  // 근거 성적은 마감 이 분 전에 넣었을 때로 쟀다. 더 일찍 넣으면 그때까지 보인 결과만 반영된다.
+  validatedLeadMinutes: nonNegativeCountSchema,
+  evidence: z.array(morningHabitEvidenceSchema).min(1),
+}).meta({ id: "MorningHabitMethod" });
+
+/** 공고 하나의 아침 갱신 결과다. 단골 수와 오늘 자리가 보인 단골 수, 반영한 마지막 결과의 개찰 시각을 금액과 함께 싣는다. */
+export const morningHabitCellSchema = z.discriminatedUnion("state", [
+  z.strictObject({
+    state: z.literal("applicable"),
+    coverage: ratioWireSchema,
+    regulars: nonNegativeCountSchema,
+    sameDayRegulars: nonNegativeCountSchema,
+    latestSameDayOpenedAt: instantTextSchema.nullable(),
+    competitorCount: nonNegativeCountSchema,
+    positions: z.array(habitPositionSchema).min(1).max(2),
+    single: habitPositionSchema,
+  }),
+  z.strictObject({
+    state: z.literal("not-applicable"),
+    reasons: z.array(morningHabitReasonSchema).min(1).max(9),
+    // 덮임을 쟀으면(문턱 아래로 닫힌 공고) 그 값이다. 재지 않았으면 null이다.
+    coverage: ratioWireSchema.nullable(),
+  }),
+]).meta({ id: "MorningHabitCell" });
+
+export const bidPositionMorningHabitSchema = morningHabitMethodSchema
+  .safeExtend({ result: morningHabitCellSchema })
+  .meta({ id: "BidPositionMorningHabit" });
+
 /**
  * 계산에 쓴 입력을 결과와 함께 되돌린다. 참여 수는 관측 시각과 짝이고, 대역을 고른 수가 그 관측인지 추정인지는
  * `result.bidCountBasis`가 말한다.
@@ -167,6 +236,8 @@ export const auctionBidPositionV1ResponseSchema = z.strictObject({
   rule: bidPositionRuleSchema,
   result: bidPositionResultSchema,
   marketPick: bidPositionMarketPickSchema,
+  // `include=morning-habit`으로 요청할 때만 싣는다. 새 key를 늘 실으면 배포 중 옛 web이 응답을 통째로 거부한다.
+  morningHabit: bidPositionMorningHabitSchema.optional(),
 }).meta({ id: "AuctionBidPositionV1Response" });
 
 export type AuctionBidPositionV1Response = z.infer<typeof auctionBidPositionV1ResponseSchema>;
@@ -175,3 +246,7 @@ export type BidPositionNotApplicableReason = z.infer<typeof bidPositionNotApplic
 export type BidCountBasisWire = z.infer<typeof bidCountBasisSchema>;
 export type BidPositionMarketPickWire = z.infer<typeof bidPositionMarketPickSchema>;
 export type BidPositionMarketPickReason = z.infer<typeof bidPositionMarketPickReasonSchema>;
+export type BidPositionMorningHabitWire = z.infer<typeof bidPositionMorningHabitSchema>;
+export type MorningHabitMethodWire = z.infer<typeof morningHabitMethodSchema>;
+export type MorningHabitCellWire = z.infer<typeof morningHabitCellSchema>;
+export type MorningHabitReason = z.infer<typeof morningHabitReasonSchema>;

@@ -13,6 +13,9 @@ import { myBidBoardV1ResponseSchema } from "./bid-board.response";
 export const myBidBoardQuerySchema = z.strictObject({
   items: itemsFilterSchema.optional(),
   itemUnknown: itemUnknownFilterSchema.optional(),
+  // 아침 갱신은 요청할 때만 싣는다(응답 key 추가가 배포 중 옛 web을 깨지 않게). 이 query를 모르는 옛 server는 400을 내므로
+  // web은 server가 먼저 배포된 뒤에 보낸다(ADR 0067).
+  include: z.literal("morning-habit").optional(),
 }).meta({ id: "MyBidBoardQuery" });
 
 export const myBidBoardV1Operations = {

@@ -1,6 +1,6 @@
 /**
- * @module 책임: 요청자 워크스페이스의 관심 지역에서 오늘·내일 마감하는 하한율 90·88 공고를 고르고, 공고마다 전국 공식과 이번 달 맞춤
- * 금액(두 장·한 장·예비)을 계산하는 오늘 투찰 use case와 그 내부 record를 소유한다.
+ * @module 책임: 요청자 워크스페이스의 관심 지역에서 오늘·내일 마감하는 하한율 90·88 공고를 고르고, 공고마다 전국 공식·이번 달 맞춤
+ * 금액(두 장·한 장·예비)과 요청하면 아침 갱신 금액을 계산하는 오늘 투찰 use case와 그 내부 record를 소유한다.
  */
 import type { AuctionItemAtom } from "@eatbid/contracts";
 import { Temporal, type Clock } from "@eatbid/domain";
@@ -12,6 +12,13 @@ import { positionAmount, positionBaseRelativeRate, positionBids, type BidPositio
 import { KST_TIME_ZONE } from "../domain/kst-month";
 import type { MarketPickPosition, MarketPickResult } from "../domain/market-position-pick";
 import { marketPickFor, type DecideMarketPick, type MarketPickDecision } from "./decide-market-pick";
+import {
+  habitCompetitorCount,
+  morningHabitPickFor,
+  type DecideMorningHabitPick,
+  type MorningHabitDecision,
+  type MorningHabitPickResult,
+} from "./decide-morning-habit-pick";
 import { ProcurementDependencyUnavailable } from "./failures";
 import type { OpenAuctionReader, OpenAuctionRecord } from "./open-auction-reader";
 
@@ -30,6 +37,8 @@ export interface MyBidBoardRowRecord {
   /** 기초금액이 관측되지 않았으면 null이다. 행을 빼면 공고를 놓친다. */
   readonly rule: BidPositionResult | null;
   readonly market: { readonly result: MarketPickResult; readonly spares: readonly MarketPickPosition[] } | null;
+  /** 아침 갱신을 요청하지 않았거나 기초금액이 관측되지 않았으면 null이다. */
+  readonly morningHabit: MorningHabitPickResult | null;
 }
 
 export type MyBidBoardRecord =
@@ -40,6 +49,8 @@ export type MyBidBoardRecord =
     /** 이 KST 날짜 0시 전에 마감하는 공고만 담았다 — 오늘과 내일이다. */
     readonly closesBeforeDate: string;
     readonly decision: MarketPickDecision;
+    /** 요청이 아침 갱신을 고르지 않았으면 null이다. */
+    readonly habit: MorningHabitDecision | null;
     readonly rows: readonly MyBidBoardRowRecord[];
     /** 쪽 상한에 닿아 늦게 마감하는 공고 일부를 읽지 못했다. */
     readonly truncated: boolean;
@@ -49,6 +60,7 @@ export interface GetMyBidBoardInput {
   readonly principal: ResolvedPrincipal;
   readonly itemAtoms: readonly AuctionItemAtom[] | null;
   readonly includeUnknownItem: boolean;
+  readonly includeMorningHabit: boolean;
 }
 
 /**
@@ -60,6 +72,7 @@ export class GetMyBidBoard {
     private readonly reader: OpenAuctionReader,
     private readonly regions: RegionPreferenceRepository,
     private readonly decideMarketPick: DecideMarketPick,
+    private readonly decideMorningHabit: DecideMorningHabitPick,
     private readonly clock: Clock,
   ) {}
 
@@ -126,28 +139,29 @@ export class GetMyBidBoard {
       // 하한율 미관측 공고는 남긴다. 하한율은 상세 수집에서만 오므로 그 수집이 밀린 날 행을 빼면 공고가 흔적 없이 사라진다.
       && (auction.floorRate === null || BOARD_FLOOR_RATES.includes(auction.floorRate)));
 
-    // 배수는 공고와 무관해 한 번만 고른다. 하한율이 섞여 있어 하한율을 넘기지 않는다.
-    const decision = await this.decideMarketPick.decide({ workspaceId: input.principal.workspace.workspaceId });
+    // 배수는 공고와 무관해 한 번만 고른다. 하한율이 섞여 있어 하한율을 넘기지 않는다. 두 결정은 서로 기다릴 이유가 없다.
+    const workspaceId = input.principal.workspace.workspaceId;
+    const [decision, habit] = await Promise.all([
+      this.decideMarketPick.decide({ workspaceId }),
+      input.includeMorningHabit ? this.decideMorningHabit.decide({ workspaceId }) : Promise.resolve(null),
+    ]);
     return {
       state: "confirmed",
       asOf,
       closesBeforeDate: closesBeforeDate.toString(),
       decision,
-      rows: auctions.map((auction) => rowOf(auction, decision)),
+      habit,
+      rows: auctions.map((auction) => rowOf(auction, decision, habit)),
       truncated,
     };
   }
 }
 
-function rowOf(auction: OpenAuctionRecord, decision: MarketPickDecision): MyBidBoardRowRecord {
+function rowOf(auction: OpenAuctionRecord, decision: MarketPickDecision, habit: MorningHabitDecision | null): MyBidBoardRowRecord {
   const { baseAmount, floorRate } = auction;
-  if (baseAmount === null) return { auction, rule: null, market: null };
-  const rule = positionBids({
-    baseAmount,
-    floorRate,
-    participation: auction.bidCount === null ? null : { bidCount: auction.bidCount, observedAt: auction.observedAt },
-    deadlineAt: auction.closesAt,
-  });
+  if (baseAmount === null) return { auction, rule: null, market: null, morningHabit: null };
+  const participation = auction.bidCount === null ? null : { bidCount: auction.bidCount, observedAt: auction.observedAt };
+  const rule = positionBids({ baseAmount, floorRate, participation, deadlineAt: auction.closesAt });
   const result = marketPickFor(decision, { baseAmount, floorRate });
   const spares = result.state === "applicable" && decision.kind === "picked" && floorRate !== null
     ? decision.spares.map((multiple, index): MarketPickPosition => ({
@@ -156,5 +170,11 @@ function rowOf(auction: OpenAuctionRecord, decision: MarketPickDecision): MyBidB
       baseRelativeRate: positionBaseRelativeRate(floorRate, multiple),
     }))
     : [];
-  return { auction, rule, market: { result, spares } };
+  const morningHabit = habit === null ? null : morningHabitPickFor(habit, {
+    baseAmount,
+    floorRate,
+    deadlineAt: auction.closesAt,
+    competitorCount: habitCompetitorCount({ floorRate, deadlineAt: auction.closesAt, participation }),
+  });
+  return { auction, rule, market: { result, spares }, morningHabit };
 }

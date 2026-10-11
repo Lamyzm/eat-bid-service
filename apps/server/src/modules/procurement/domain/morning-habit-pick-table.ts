@@ -9,6 +9,20 @@ import type { CandidateMultiples } from "./market-position-pick";
 
 const DAY_SECONDS = 86_400;
 
+/**
+ * 기간별로 같은 공고에 이번 달 맞춤과 "켜지면 아침 갱신, 아니면 이번 달 맞춤"을 대어 본 기대 낙찰이다(두 장, 예정가격 추첨을
+ * 적분해 운을 뺐다). 서버 단골 규칙으로 각 공고의 결정 시각(마감 10분 전)까지 보인 사실만 써서 채점했고, 과거 공개 시각은
+ * 2026-09 실수집 패턴을 날짜째 옮겨 붙인 가정이다(반복 6번 평균, 9월은 실측 한 번). 근거는 한 시장(두 사업자가 넣은 하한율
+ * 90% 공고)에서만 쟀다(ADR 0067).
+ */
+export interface MorningHabitEvidence {
+  readonly from: string;
+  readonly through: string;
+  readonly rounds: number;
+  readonly expectedWins: string;
+  readonly monthlyExpectedWins: string;
+}
+
 export interface MorningHabitMethod {
   readonly version: string;
   readonly floorRate: string;
@@ -40,6 +54,9 @@ export interface MorningHabitMethod {
    * 필요하다. 분석은 2023-10부터 전부 읽었다 — 이 여유로 줄여 읽어도 같은 1,204건 성적이 바뀌지 않는지 재고 정했다(ADR 0067).
    */
   readonly historyMarginSeconds: number;
+  /** 근거 성적을 잰 결정 시각(마감 몇 분 전)이다. 화면이 "언제 넣을 때의 성적인지"를 말하는 데 쓴다. */
+  readonly validatedLeadMinutes: number;
+  readonly evidence: readonly MorningHabitEvidence[];
 }
 
 export const MORNING_HABIT_PICK = {
@@ -58,4 +75,10 @@ export const MORNING_HABIT_PICK = {
   plannedGrid: { fromTenThousandths: 9700, belowTenThousandths: 10041, stepTenThousandths: 0.2 },
   regulars: { lookbackSeconds: 180 * DAY_SECONDS, minimumShare: 0.3, minimumRounds: 30 },
   historyMarginSeconds: 30 * DAY_SECONDS,
+  validatedLeadMinutes: 10,
+  evidence: [
+    { from: "2025-01", through: "2025-12", rounds: 681, expectedWins: "41.5", monthlyExpectedWins: "39.6" },
+    { from: "2026-01", through: "2026-08", rounds: 450, expectedWins: "23.3", monthlyExpectedWins: "19.3" },
+    { from: "2026-09", through: "2026-09", rounds: 73, expectedWins: "4.1", monthlyExpectedWins: "3.4" },
+  ],
 } as const satisfies MorningHabitMethod;

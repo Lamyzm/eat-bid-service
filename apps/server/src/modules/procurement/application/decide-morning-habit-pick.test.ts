@@ -79,7 +79,7 @@ describe("아침 습관 맞춤 결정", () => {
     if (applied.state !== "applicable") throw new Error("켜져야 한다");
     expect(applied.positions).toEqual(positionsOf(tenMillion, ninety, target.pair));
     expect(applied.single).toEqual(positionsOf(tenMillion, ninety, [target.single])[0]!);
-    expect(applied.coverage).toBe(canonicalDecimal(target.coverage.toFixed(4), 4) as never);
+    expect(applied.coverage).toBe(canonicalDecimal(target.coverage.toFixed(6), 6) as never);
     expect(applied.sameDayRegulars).toBe(target.regulars.filter((view) => view.kind !== "earlier").length);
   });
 
@@ -107,7 +107,7 @@ describe("아침 습관 맞춤 결정", () => {
     // 다음 날 마감 공고는 아직 그날 결과가 하나도 없다.
     const tomorrow = targetDeadline.add({ hours: 24 });
     expect(morningHabitPickFor(decision, { baseAmount: tenMillion, floorRate: ninety, deadlineAt: tomorrow, competitorCount: 9 }))
-      .toEqual({ state: "not-applicable", reasons: ["same-day-coverage-below-threshold"], coverage: canonicalDecimal("0.0000", 4) as never });
+      .toEqual({ state: "not-applicable", reasons: ["same-day-coverage-below-threshold"], coverage: canonicalDecimal("0.000000", 6) as never });
   });
 
   test("마감이 지났거나 참여 수·하한율·마감을 모르는 공고는 그 이유로 닫는다", async () => {

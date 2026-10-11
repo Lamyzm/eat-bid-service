@@ -10,6 +10,7 @@ import { canonicalDecimal, ratio, Temporal, type BidRate, type Clock, type Money
 
 import type { RegisteredBusinessReader } from "../../account/application/registered-business-reader";
 import type { UnitOfWork } from "../../../platform/database/unit-of-work";
+import { bidCountBasisOf } from "../domain/bid-position-rule";
 import { positionsOf, type MarketPickPosition } from "../domain/market-position-pick";
 import { habitCompetitors, habitField, sameDayCoverage, type HabitField } from "../domain/morning-habit-field";
 import { habitFirmHistory, kstDayNumber, type HabitBidInput, type HabitFirmHistory } from "../domain/morning-habit-history";
@@ -211,7 +212,7 @@ export type MorningHabitPickResult =
   | {
     readonly state: "applicable";
     readonly decidedAt: Temporal.Instant;
-    /** 단골 참여율로 가중한, 오늘 자리가 보인 단골의 몫이다(소수 넷째 자리). */
+    /** 단골 참여율로 가중한, 오늘 자리가 보인 단골의 몫이다(소수 여섯째 자리, 공개 ratio 계약과 같다). */
     readonly coverage: Ratio;
     readonly regulars: number;
     readonly sameDayRegulars: number;
@@ -230,7 +231,26 @@ export type MorningHabitPickResult =
     readonly coverage: Ratio | null;
   };
 
-const coverageRatio = (value: number) => ratio(canonicalDecimal(value.toFixed(4), 4));
+/**
+ * 경쟁 배치를 그릴 참여 수다. 전국 공식과 같은 마감 1시간 전 참여 수(관측 또는 보정 추정)를 쓴다 — 분석은 마감 직전까지 들어온
+ * 참여 수로 그렸다. 참여를 관측하지 못했으면 `null`이다.
+ */
+export function habitCompetitorCount(auction: {
+  readonly floorRate: BidRate | null;
+  readonly deadlineAt: Temporal.Instant | null;
+  readonly participation: { readonly bidCount: number; readonly observedAt: Temporal.Instant } | null;
+}): number | null {
+  if (auction.floorRate === null || auction.participation === null) return null;
+  const basis = bidCountBasisOf({
+    floorRate: auction.floorRate,
+    bidCount: auction.participation.bidCount,
+    observedAt: auction.participation.observedAt,
+    deadlineAt: auction.deadlineAt,
+  });
+  return basis.kind === "observed" ? basis.bidCount : basis.estimatedBidCount;
+}
+
+const coverageRatio = (value: number) => ratio(canonicalDecimal(value.toFixed(6), 6));
 
 /**
  * 결정을 공고 하나의 금액으로 바꾼다. 참여 수는 전국 공식과 같은 마감 1시간 전 참여 수(관측 또는 보정 추정)다 — 분석은 마감

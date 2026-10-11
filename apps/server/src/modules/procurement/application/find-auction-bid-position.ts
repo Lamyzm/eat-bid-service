@@ -1,6 +1,6 @@
 /**
- * @module 책임: 공고 한 건의 관측값으로 전국 추천 투찰가 규칙을 적용하고, 요청자 워크스페이스의 이번 달 맞춤 결정을 그 공고의
- * 금액으로 바꾸는 use case와 그 내부 record를 소유한다.
+ * @module 책임: 공고 한 건의 관측값으로 전국 추천 투찰가 규칙을 적용하고, 요청자 워크스페이스의 이번 달 맞춤·아침 갱신 결정을
+ * 그 공고의 금액으로 바꾸는 use case와 그 내부 record를 소유한다.
  */
 import { Effect } from "effect";
 import { Temporal, type BidRate, type Money } from "@eatbid/domain";
@@ -12,6 +12,13 @@ import type { MarketPickResult } from "../domain/market-position-pick";
 import type { MarketPositionPickMethod } from "../domain/market-position-pick-table";
 import type { AuctionReader, ParticipationObservationRecord } from "./auction-reader";
 import { marketPickFor, type DecideMarketPick } from "./decide-market-pick";
+import {
+  habitCompetitorCount,
+  morningHabitPickFor,
+  type DecideMorningHabitPick,
+  type MorningHabitPickResult,
+} from "./decide-morning-habit-pick";
+import type { MorningHabitMethod } from "../domain/morning-habit-pick-table";
 import { AuctionDependencyUnavailable, AuctionNotFound } from "./find-auction";
 
 export interface MarketPickRecord {
@@ -19,6 +26,12 @@ export interface MarketPickRecord {
   /** 고르는 데 쓴 개찰 달 `[fromMonth, throughMonth]`다. 요청한 달은 아직 끝나지 않아 넣지 않는다. */
   readonly window: { readonly fromMonth: KstMonth; readonly throughMonth: KstMonth };
   readonly result: MarketPickResult;
+}
+
+export interface MorningHabitRecord {
+  readonly method: MorningHabitMethod;
+  readonly decidedAt: Temporal.Instant;
+  readonly result: MorningHabitPickResult;
 }
 
 export interface AuctionBidPositionRecord {
@@ -31,6 +44,8 @@ export interface AuctionBidPositionRecord {
   readonly rule: BidPositionRuleTable;
   readonly result: BidPositionResult;
   readonly marketPick: MarketPickRecord;
+  /** 요청이 아침 갱신을 고르지 않았으면 `null`이다. */
+  readonly morningHabit: MorningHabitRecord | null;
 }
 
 /**
@@ -45,9 +60,14 @@ export class FindAuctionBidPosition {
   constructor(
     private readonly reader: AuctionReader,
     private readonly decideMarketPick: DecideMarketPick,
+    private readonly decideMorningHabit: DecideMorningHabitPick,
   ) {}
 
-  execute(input: { readonly auctionId: AuctionId; readonly workspaceId: bigint }): Effect.Effect<
+  execute(input: {
+    readonly auctionId: AuctionId;
+    readonly workspaceId: bigint;
+    readonly includeMorningHabit: boolean;
+  }): Effect.Effect<
     AuctionBidPositionRecord,
     AuctionNotFound | AuctionDependencyUnavailable,
     never
@@ -60,8 +80,15 @@ export class FindAuctionBidPosition {
         if (auction === null) return Effect.fail(new AuctionNotFound(input.auctionId));
         const floorRate = auction.terms?.floorRate ?? null;
         const participation = auction.participation?.latest ?? null;
-        return Effect.promise(() => this.decideMarketPick.decide({ workspaceId: input.workspaceId, floorRate }))
-          .pipe(Effect.map((decision): AuctionBidPositionRecord => ({
+        // 두 결정은 서로 기다릴 이유가 없어 함께 읽는다. 둘 다 실패를 던지지 않고 결정으로 닫는다.
+        const decisions = Promise.all([
+          this.decideMarketPick.decide({ workspaceId: input.workspaceId, floorRate }),
+          input.includeMorningHabit
+            ? this.decideMorningHabit.decide({ workspaceId: input.workspaceId, floorRate })
+            : Promise.resolve(null),
+        ]);
+        return Effect.promise(() => decisions)
+          .pipe(Effect.map(([decision, habit]): AuctionBidPositionRecord => ({
             auctionId: auction.auctionId,
             revisionId: auction.revisionId,
             baseAmount: auction.baseAmount,
@@ -74,6 +101,16 @@ export class FindAuctionBidPosition {
               method: decision.method,
               window: { fromMonth: decision.window.fromMonth, throughMonth: decision.window.throughMonth },
               result: marketPickFor(decision, { baseAmount: auction.baseAmount, floorRate }),
+            },
+            morningHabit: habit === null ? null : {
+              method: habit.method,
+              decidedAt: habit.decidedAt,
+              result: morningHabitPickFor(habit, {
+                baseAmount: auction.baseAmount,
+                floorRate,
+                deadlineAt: auction.deadlineAt,
+                competitorCount: habitCompetitorCount({ floorRate, deadlineAt: auction.deadlineAt, participation }),
+              }),
             },
           })));
       }),

@@ -1,7 +1,7 @@
 /** @module 책임: 추천 투찰가 operation의 운영자 인가·입력·응답과 application 실패를 HTTP 상태로 연결한다. */
-import { BadRequestException, Controller, Get, NotFoundException, Param, ServiceUnavailableException, UseGuards, VERSION_NEUTRAL } from "@nestjs/common";
+import { BadRequestException, Controller, Get, NotFoundException, Param, Query, ServiceUnavailableException, UseGuards, VERSION_NEUTRAL } from "@nestjs/common";
 import { ApiOperation, ApiResponse } from "@nestjs/swagger";
-import { auctionV1Operations, type AuctionBidPositionV1Response } from "@eatbid/contracts";
+import { auctionV1Operations, type AuctionBidPositionQuery, type AuctionBidPositionV1Response } from "@eatbid/contracts";
 import { CurrentPrincipal } from "../../../../platform/auth/principal.decorator";
 import type { ResolvedPrincipal } from "../../../../platform/auth/principal-reader";
 import { OperatorGuard } from "../../../../platform/auth/session.guard";
@@ -37,6 +37,7 @@ export class AuctionBidPositionController {
   async find(
     @CurrentPrincipal() principal: ResolvedPrincipal,
     @Param("auctionId", new StandardSchemaPipe(operation.pathSchema.shape.auctionId)) rawId: string,
+    @Query(new StandardSchemaPipe(operation.querySchema)) query: AuctionBidPositionQuery,
   ): Promise<AuctionBidPositionV1Response> {
     let id: bigint;
     try {
@@ -50,6 +51,7 @@ export class AuctionBidPositionController {
       return toAuctionBidPositionResponse(await this.runner.run(this.findBidPosition.execute({
         auctionId: auctionId(id),
         workspaceId: principal.workspace.workspaceId,
+        includeMorningHabit: query.include === "morning-habit",
       })));
     } catch (error) {
       if (error instanceof AuctionNotFound) throw new NotFoundException({ code: "AUCTION_NOT_FOUND" });
