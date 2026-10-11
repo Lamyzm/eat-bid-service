@@ -9,6 +9,7 @@ import { bidFigure, type BidFigure } from '@/entities/bid-figure/bid-figure';
 import type { AuctionBidPositionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
 import { presentMarketPick, type MarketPickView } from './present-market-pick';
+import { presentMorningHabit, type MorningHabitView } from './present-morning-habit';
 
 export type BidPositionLoad =
   | { readonly kind: 'position'; readonly response: AuctionBidPositionV1Response }
@@ -26,6 +27,8 @@ export type BidPositionView =
   | { readonly kind: 'unavailable' }
   | {
       readonly kind: 'not-applicable';
+      /** 응답에 아침 갱신이 없으면(옛 server) null이다. */
+      readonly habit: MorningHabitView | null;
       readonly market: MarketPickView;
       readonly inputs: string;
       readonly reason: string;
@@ -33,6 +36,7 @@ export type BidPositionView =
     }
   | {
       readonly kind: 'applicable';
+      readonly habit: MorningHabitView | null;
       readonly market: MarketPickView;
       readonly inputs: string;
       readonly band: string;
@@ -176,9 +180,14 @@ export function presentBidPosition(load: BidPositionLoad): BidPositionView | nul
   const { result } = response;
   // 내 시장 금액은 전국 규칙과 따로 판정된다. 전국 규칙이 이 회차를 계산하지 않아도 맞춤 금액은 있을 수 있다.
   const market = presentMarketPick(response.marketPick, response.floorRate?.value ?? null);
+  const habit =
+    response.morningHabit === undefined
+      ? null
+      : presentMorningHabit(response.morningHabit, response.floorRate?.value ?? null);
   if (result.state === 'not-applicable') {
     return {
       kind: 'not-applicable',
+      habit,
       market,
       inputs: inputsText(response),
       reason: [
@@ -190,6 +199,7 @@ export function presentBidPosition(load: BidPositionLoad): BidPositionView | nul
   }
   return {
     kind: 'applicable',
+    habit,
     market,
     inputs: inputsText(response),
     band: bandText(result.band),
