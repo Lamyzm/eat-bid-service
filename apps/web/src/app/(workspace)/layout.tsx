@@ -4,20 +4,17 @@
  */
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { connection } from 'next/server';
 import { Suspense } from 'react';
 
 import { getCurrentSessionFromServer } from '@/api/account/server';
-import { AccountHubSlot } from '@/capabilities/account/server';
+import { AccountHubSlot, OperatorNavSlot } from '@/capabilities/account/server';
 import {
   RETURN_PATH_HEADER,
   loginRouteWithReturn,
   setupRouteWithReturn
 } from '@/shell/auth/return-path';
 import { ApplicationShell } from '@/shell/layout/application-shell';
-import { NavGroupMenus } from '@/shell/layout/nav-group-menu';
 
-import { operatorNavGroup } from './_model/operator-nav';
 import { workspaceGateDecision } from './_model/session-gate';
 
 /**
@@ -45,18 +42,6 @@ async function WorkspaceSessionGate() {
     case 'allow':
       return null;
   }
-}
-
-/**
- * 게이트와 같은 요청 범위 memo 조회를 쓰므로 세션 계약 조회가 늘지 않는다. 묶음이 없는 동안(static shell, 조회 전)은
- * 아무것도 그리지 않는다 — 권한의 권위는 operation guard라서 늦게 나타나는 것은 정확성 문제가 아니다.
- */
-async function OperatorNavSlot() {
-  // 계정 슬롯과 같은 이유로 요청에 닿았음을 먼저 알린다. 없으면 prerender가 API_URL 없는 origin 해석에서 throw해
-  // 빌드가 멈춘다(EAT-163, account-hub-slot.tsx).
-  await connection();
-  const group = operatorNavGroup(await getCurrentSessionFromServer());
-  return group === null ? null : <NavGroupMenus groups={[group]} />;
 }
 
 export default function WorkspaceLayout({ children }: { readonly children: React.ReactNode }) {

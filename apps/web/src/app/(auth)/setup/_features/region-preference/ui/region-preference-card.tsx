@@ -122,7 +122,8 @@ export function RegionPreferenceCard({
   });
 
   return (
-    <Card>
+    // 오늘 투찰의 "관심 지역 칸으로 가기"가 이 칸으로 바로 온다(EAT-338). 고정 머리말 아래로 숨지 않게 여백을 둔다.
+    <Card id='region-preference' className='scroll-mt-20'>
       <CardHeader>
         <CardTitle className='flex flex-wrap items-center gap-2 text-base'>
           내 지역
