@@ -1,19 +1,18 @@
 /**
- * @module 책임: canonical 업무 route를 공통 application chrome에 연결하고, 그 안에서는 세션이 항상
- * 활성이 되도록 세션 계약을 읽어 로그인·설정으로 돌려보내는 게이트와 운영자에게만 보이는 탐색 묶음을 함께 건다.
+ * @module 책임: canonical 업무 route를 공통 계정 chrome에 연결하고, 그 안에서는 세션이 항상 활성이 되도록 세션 계약을
+ * 읽어 로그인·설정으로 돌려보내는 게이트를 건다.
  */
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { getCurrentSessionFromServer } from '@/api/account/server';
-import { AccountHubSlot, OperatorNavSlot } from '@/capabilities/account/server';
+import { AccountShell } from '@/capabilities/account/server';
 import {
   RETURN_PATH_HEADER,
   loginRouteWithReturn,
   setupRouteWithReturn
 } from '@/shell/auth/return-path';
-import { ApplicationShell } from '@/shell/layout/application-shell';
 
 import { workspaceGateDecision } from './_model/session-gate';
 
@@ -46,18 +45,11 @@ async function WorkspaceSessionGate() {
 
 export default function WorkspaceLayout({ children }: { readonly children: React.ReactNode }) {
   return (
-    <ApplicationShell
-      sidebarFooter={<AccountHubSlot />}
-      sidebarExtraNav={
-        <Suspense fallback={null}>
-          <OperatorNavSlot />
-        </Suspense>
-      }
-    >
+    <AccountShell>
       <Suspense fallback={null}>
         <WorkspaceSessionGate />
       </Suspense>
       {children}
-    </ApplicationShell>
+    </AccountShell>
   );
 }
