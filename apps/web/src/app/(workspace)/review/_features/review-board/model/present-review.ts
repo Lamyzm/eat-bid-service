@@ -4,6 +4,9 @@
  * 눈금은 하나다 — 금액 ÷ (기초금액 × 하한율). 화면 사정률은 그 100배이고 그날 하한(예정가격 ÷ 기초금액)도 같은 눈금에 놓인다. 축은
  * 화면 전체가 같아서 우리 값은 세로로 줄 서고, 하한과 1등 자리만 날마다 움직인다. 문구는 관측 사실끼리만 견준다 — 우리가 들어가면
  * 예정가격 추첨이 바뀌므로 "넣었다면 낙찰"이라고 말하지 않는다.
+ *
+ * 1등 자리 끝은 낙찰이 아니라 다른 업체의 가장 낮은 유효 투찰이다. 판정 칩이 그 기준으로 나오므로 칸도 같은 기준으로 그려야 그림과
+ * 문장이 어긋나지 않는다(우리가 낙찰한 공고, 가장 낮은 투찰이 심사에서 빠진 공고).
  */
 import { Temporal } from '@eatbid/domain';
 import type { BidReviewRoundWire, MyBidReviewV1Response } from '@eatbid/contracts/api/v1/me';
@@ -21,7 +24,7 @@ const VERDICT_TEXT: Record<Verdict, string> = {
   won: '낙찰',
   'below-floor': '하한 미달',
   first: '1등 자리',
-  'above-winner': '낙찰보다 높음'
+  'above-first': '1등 자리보다 높음'
 };
 
 export interface ReviewMark {
@@ -37,9 +40,10 @@ export interface ReviewRowView {
   readonly meta: readonly string[];
   readonly won: boolean;
   readonly facts: string;
-  readonly floor: number;
-  /** 하한부터 1등 자리 끝(낙찰)까지다. 유효 투찰이 없으면 null이다. */
-  readonly band: { readonly from: number; readonly to: number } | null;
+  /** 하한부터 1등 자리 끝(다른 업체 가장 낮은 유효 투찰)까지다. 그런 투찰이 없으면 축 끝까지다. */
+  readonly band: { readonly from: number; readonly to: number };
+  /** 실제 낙찰 자리다. 1등 자리 끝과 다를 수 있다. 유효 투찰이 없었으면 null이다. */
+  readonly winner: number | null;
   readonly lanes: Readonly<Record<'own' | 'market-pick' | 'national-rule' | 'morning-habit', readonly ReviewMark[]>>;
   readonly verdicts: readonly { readonly name: string; readonly text: string; readonly first: boolean }[];
   readonly anyFirst: boolean;
@@ -51,11 +55,13 @@ export interface ReviewSummaryRow {
   readonly name: string;
   readonly note: string;
   readonly values: string;
+  /** 이 달에 값이 있던 공고가 없다. 숫자 칸을 0이 아니라 빈 칸으로 보인다 — 0은 성적이고 기록 없음은 성적이 아니다. */
+  readonly empty: boolean;
   readonly rounds: number;
   readonly first: number;
   readonly firstText: string;
   readonly allBelowFloor: number;
-  readonly allAboveWinner: number;
+  readonly allAboveFirst: number;
   readonly expected: string;
   readonly lead: boolean;
 }
@@ -80,6 +86,7 @@ export type ReviewView =
       readonly summary: readonly ReviewSummaryRow[];
       readonly notes: readonly string[];
       readonly rows: readonly ReviewRowView[];
+      readonly hasHabit: boolean;
     };
 
 /** 비율(`1.009115`)을 사정률 소수 셋째 자리(`100.912`)로 옮긴다. 문자열 그대로 반올림해 Number 오차를 화면에 들이지 않는다. */
@@ -99,7 +106,8 @@ export function axisPosition(ratio: string): number {
 }
 
 const monthNumber = (month: string) => Number(month.slice(5, 7));
-const wonText = (amount: string) => `${amount.split('.')[0]!.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}원`;
+const grouped = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const wonText = (amount: string) => `${grouped(amount.split('.')[0]!)}원`;
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
@@ -138,9 +146,12 @@ function summaryRows(selected: Selected): readonly ReviewSummaryRow[] {
     ?.method;
   return selected.summaries.map((summary) => {
     const recomputed = summary.recomputedRounds > 0 ? ' · 다시 계산' : '';
+    const empty = summary.method !== 'own' && summary.rounds === 0;
     const note = summary.method === 'own'
       ? ownLabels(selected.rounds)
-      : summary.method === 'market-pick'
+      : empty
+        ? '이 달엔 기록 없음'
+        : summary.method === 'market-pick'
         ? `${window} ${selected.marketPick.marketRounds ?? 0}건으로 고름${recomputed}`
         : summary.method === 'national-rule'
           ? `참여 수에 따라 표에서${recomputed}`
@@ -153,12 +164,13 @@ function summaryRows(selected: Selected): readonly ReviewSummaryRow[] {
       key: summary.method,
       name: methodName(summary.method, selected.month),
       note,
-      values,
+      values: empty ? '–' : values,
+      empty,
       rounds: summary.rounds,
       first: summary.first,
       firstText: wins === null ? `${summary.first}` : `${summary.first} · 실제 낙찰 ${wins}`,
       allBelowFloor: summary.allBelowFloor,
-      allAboveWinner: summary.allAboveWinner,
+      allAboveFirst: summary.allAboveFirst,
       expected: Number(summary.expectedWins).toFixed(1),
       lead: summary.method === leadKey
     };
@@ -197,6 +209,9 @@ function rowView(round: BidReviewRoundWire): ReviewRowView {
   const winner = round.winner === null
     ? '유효 투찰 없음'
     : `${round.winner.mine ? '우리 낙찰' : '낙찰'} ${round.winner.label ?? '업체명 없음'} ${assessmentText(round.winner.ratio.value)}`;
+  const best = round.bestCompetitorRatio?.value ?? null;
+  // 낙찰이 다른 업체 최저와 같으면 한 번만 말한다. 다르면(우리 낙찰, 심사 탈락) 1등 자리 끝을 따로 밝혀 칸과 칩을 맞춘다.
+  const bestFact = best === null || best === round.winner?.ratio.value ? '' : ` · 다른 업체 최저 ${assessmentText(best)}`;
   return {
     id: round.auctionId,
     href: `/auctions/${encodeURIComponent(round.auctionId)}`,
@@ -208,9 +223,9 @@ function rowView(round: BidReviewRoundWire): ReviewRowView {
       `기초 ${wonText(round.baseAmount.amount)}`
     ],
     won: round.winner?.mine === true,
-    facts: `하한 ${assessmentText(round.floorRatio.value)} · ${winner}`,
-    floor: axisPosition(round.floorRatio.value),
-    band: round.winner === null ? null : { from: axisPosition(round.floorRatio.value), to: axisPosition(round.winner.ratio.value) },
+    facts: `하한 ${assessmentText(round.floorRatio.value)} · ${winner}${bestFact}`,
+    band: { from: axisPosition(round.floorRatio.value), to: best === null ? 100 : axisPosition(best) },
+    winner: round.winner === null ? null : axisPosition(round.winner.ratio.value),
     lanes: {
       own: marks(own),
       'market-pick': marks(method('market-pick')),
@@ -233,6 +248,8 @@ export function presentReview(response: MyBidReviewV1Response): ReviewView {
   const market = summary.find((row) => row.key === 'market-pick');
   const ownWins = selected.rounds.filter((round) => round.winner?.mine === true).length;
   const recomputed = selected.summaries.some((entry) => entry.recomputedRounds > 0);
+  const rows = selected.rounds.map(rowView);
+  const distribution = selected.plannedDistribution;
   return {
     kind: 'review',
     month: selected.month,
@@ -243,12 +260,13 @@ export function presentReview(response: MyBidReviewV1Response): ReviewView {
       .map((month) => ({ month: month.month, label: `${monthNumber(month.month)}월`, rounds: month.rounds, wins: month.wins })),
     lede: `${monthNumber(selected.month)}월 공고 ${selected.rounds.length}건에 내 사업자가 넣었고, 실제 낙찰은 ${ownWins}건이에요.`
       + (market === undefined || market.rounds === 0 ? '' : ` 같은 공고에서 맞춤 값이 1등 자리에 든 공고는 ${market.first}건이에요.`),
-    stamp: `맞춤 ${selected.marketPick.version}판 · 전국 공식 ${selected.nationalRuleVersion}판 · 예정가격 추첨 평균으로 기대를 셌어요`,
+    stamp: `맞춤 ${selected.marketPick.version}판 · 전국 공식 ${selected.nationalRuleVersion}판 · 기대는 예정가격 추첨 평균(${distribution.version}판, 공고 ${grouped(String(distribution.sourceRounds))}건)`,
     summary,
     notes: [
-      ...(recomputed ? ['이 달 맞춤·전국 공식 값은 그때 화면에 없던 값이에요. 지금 규칙을 그 달 자료에 다시 돌린 것이에요. 화면에 실제로 보인 값과의 대조는 화면 장부를 켠 뒤부터 쌓여요.'] : []),
+      ...(recomputed ? ['이 달 맞춤·전국 공식 값은 그때 화면에 없던 값이에요. 지금 규칙을 그 달 자료에 다시 돌린 것이에요. 화면에 실제로 보였던 값과의 대조는 그 값을 기록하기 시작한 뒤의 공고부터 쌓여요.'] : []),
       ...(selected.unplannedRounds > 0 ? [`예정가격이 아직 안 나온 공고 ${selected.unplannedRounds}건은 대조에서 뺐어요.`] : [])
     ],
-    rows: selected.rounds.map(rowView)
+    rows,
+    hasHabit: rows.some((row) => row.lanes['morning-habit'].length > 0)
   };
 }

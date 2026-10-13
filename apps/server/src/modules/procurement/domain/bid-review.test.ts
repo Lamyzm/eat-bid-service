@@ -37,7 +37,7 @@ describe("복기 판정", () => {
     expect(classifyRatio(facts, "0.984900")).toBe("below-floor");
     expect(classifyRatio(facts, "0.995000")).toBe("first");
     expect(classifyRatio(facts, "0.996000")).toBe("first");
-    expect(classifyRatio(facts, "0.997000")).toBe("above-winner");
+    expect(classifyRatio(facts, "0.997000")).toBe("above-first");
     // 유효 투찰이 하나도 없으면 하한 위는 모두 1등 자리다.
     expect(classifyRatio({ ...facts, competitorRates: ["89.000"] }, "1.020000")).toBe("first");
   });
@@ -45,7 +45,7 @@ describe("복기 판정", () => {
   test("실제 낸 투찰률도 같은 규칙으로 가리되 예정가격 대비 축 그대로 비교한다", () => {
     expect(classifyRate(facts, "89.900")).toBe("below-floor");
     expect(classifyRate(facts, "90.050")).toBe("first");
-    expect(classifyRate(facts, "90.100")).toBe("above-winner");
+    expect(classifyRate(facts, "90.100")).toBe("above-first");
   });
 
   test("화면의 기초금액 대비 %는 하한율로 나눠 같은 눈금에 앉는다", () => {

@@ -52,11 +52,11 @@ export function ReviewScreen({ view }: { readonly view: ReviewScreenView }) {
         </p>
         <p>
           <b className='text-foreground'>맞춤 값이 하한 미달로 자주 보이는 이유.</b> 예정가격이 낮게 뽑힌 날에 1등이 되도록 고른 값이라 보통 날에는 하한
-          아래예요. 대신 한 달을 모으면 1등 자리가 가장 많아요. 추첨 평균 기대는 예정가격 추첨을 평균한 낙찰 수예요.
+          아래예요. 그래서 공고 하나하나보다 한 달을 모은 위 표로 견줘요. 추첨 평균 기대는 예정가격 추첨을 평균한 낙찰 수예요.
         </p>
         {view.notes.map((note) => <p key={note}>{note}</p>)}
       </section>
-      <ReviewRows rows={view.rows} />
+      <ReviewRows rows={view.rows} hasHabit={view.hasHabit} />
     </ReviewFrame>
   );
 }

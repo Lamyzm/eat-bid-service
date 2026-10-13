@@ -28,14 +28,15 @@ export function MonthNav({
   const [, setSearch] = useQueryStates(reviewSearchParsers, { shallow: false, history: 'push', scroll: false, startTransition });
   return (
     <nav aria-label='기간' aria-busy={pending} className='mt-5 grid gap-3'>
-      <div role='group' aria-label='연도' className='flex flex-wrap gap-1.5'>
+      {/* 연도는 여러 해가 쌓이면 휴대폰 첫 화면을 두 줄 넘게 밀어 표를 가린다. 한 줄로 두고 옆으로 민다(최근 해가 왼쪽). */}
+      <div role='group' aria-label='연도' className='-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1'>
         {years.map((entry) => (
           <button
             key={entry.year}
             type='button'
             aria-current={entry.year === year ? 'page' : undefined}
             onClick={() => void setSearch({ month: entry.latestMonth })}
-            className='rounded-md px-2.5 py-1 text-[15px] font-extrabold text-muted-foreground aria-[current=page]:bg-accent aria-[current=page]:text-foreground'
+            className='shrink-0 rounded-md px-2.5 py-1 text-[15px] font-extrabold text-muted-foreground aria-[current=page]:bg-accent aria-[current=page]:text-foreground'
           >
             {entry.year}년
           </button>

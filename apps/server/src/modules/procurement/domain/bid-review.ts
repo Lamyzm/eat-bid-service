@@ -7,7 +7,7 @@
  */
 import { cumulativeAt, type PlannedRatioDistribution } from "./market-position-pick";
 
-export type ReviewVerdict = "below-floor" | "first" | "above-winner";
+export type ReviewVerdict = "below-floor" | "first" | "above-first";
 
 export interface ReviewRoundFacts {
   /** 원 단위 두 자리 문자열이다(`8255500.00`). */
@@ -80,7 +80,7 @@ export function classifyRatio(facts: ReviewRoundFacts, ratio: string): ReviewVer
   const best = bestCompetitorRate(facts);
   if (best === null) return "first";
   // 좌변 scale: 배율 1e6 · 하한율 1e3 · 기초 1e2, 우변: 투찰률 1e3 · 예정 1e2 · 1e6.
-  return value * floor * base < scaled(best, 3) * planned * unit ? "first" : "above-winner";
+  return value * floor * base < scaled(best, 3) * planned * unit ? "first" : "above-first";
 }
 
 /** 실제 낸 투찰률 하나를 가린다. 둘 다 예정가격 대비 축이라 그대로 비교한다. */
@@ -88,7 +88,7 @@ export function classifyRate(facts: ReviewRoundFacts, rate: string): ReviewVerdi
   const value = scaled(rate, 3);
   if (value < scaled(facts.floorRate, 3)) return "below-floor";
   const best = bestCompetitorRate(facts);
-  return best === null || value < scaled(best, 3) ? "first" : "above-winner";
+  return best === null || value < scaled(best, 3) ? "first" : "above-first";
 }
 
 /**

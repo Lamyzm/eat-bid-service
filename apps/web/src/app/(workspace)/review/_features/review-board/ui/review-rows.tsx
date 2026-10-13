@@ -14,64 +14,73 @@ const FILTERS: readonly { readonly key: Filter; readonly label: string; readonly
   { key: 'won', label: '우리 낙찰', keep: (row) => row.won }
 ];
 
-const LANES: readonly { readonly key: keyof ReviewRowView['lanes']; readonly name: string; readonly mark: string }[] = [
-  { key: 'own', name: '낸 값', mark: 'size-3 rotate-45 scale-75 bg-foreground' },
+type LaneKey = keyof ReviewRowView['lanes'];
+
+const OWN_MARK = 'size-3 rotate-45 scale-75 bg-foreground';
+
+const METHOD_LANES: readonly { readonly key: Exclude<LaneKey, 'own'>; readonly name: string; readonly mark: string }[] = [
   { key: 'market-pick', name: '맞춤', mark: 'size-3 rounded-full bg-primary' },
   { key: 'national-rule', name: '전국', mark: 'size-0 border-x-[7px] border-b-[12px] border-x-transparent border-b-muted-foreground' },
   { key: 'morning-habit', name: '아침', mark: 'size-3 rounded-[2px] bg-teal-600 dark:bg-teal-400' }
 ];
 
+const BAND = 'border-l-2 border-destructive bg-emerald-600/20 dark:bg-emerald-400/20';
+const WINNER_LINE = 'w-0.5 bg-emerald-700 dark:bg-emerald-300';
+const LANE_NAME = 'text-[12px] font-bold text-muted-foreground';
+
 const tickPosition = (value: number) => ((value - AXIS.from) / (AXIS.to - AXIS.from)) * 100;
 
-function Marks({ marks, shape }: { readonly marks: readonly ReviewMark[]; readonly shape: string }) {
+function Lane({ name, marks, shape }: { readonly name: string; readonly marks: readonly ReviewMark[]; readonly shape: string }) {
   return (
     <>
-      {marks.map((mark) => (
-        <i
-          key={mark.label}
-          title={mark.label}
-          className={`absolute top-0.5 -translate-x-1/2 ${shape} ${mark.first ? 'outline-2 outline-offset-1 outline-emerald-600 dark:outline-emerald-400' : ''}`}
-          style={{ left: `${mark.position}%` }}
-        />
-      ))}
+      <span className={LANE_NAME}>{name}</span>
+      <div className='relative h-4'>
+        {marks.map((mark, index) => (
+          <i
+            // 두 업체가 같은 사정률을 넣으면 문구가 같아 문구만으로는 표시 하나가 사라진다.
+            key={`${index}-${mark.label}`}
+            title={mark.label}
+            className={`absolute top-0.5 -translate-x-1/2 ${shape} ${mark.first ? 'outline-2 outline-offset-1 outline-emerald-600 dark:outline-emerald-400' : ''}`}
+            style={{ left: `${mark.position}%` }}
+          />
+        ))}
+      </div>
     </>
   );
 }
 
 function Ruler({ row }: { readonly row: ReviewRowView }) {
-  const lanes = LANES.filter((lane) => lane.key === 'own' || row.lanes[lane.key].length > 0);
+  const methods = METHOD_LANES.filter((lane) => row.lanes[lane.key].length > 0);
   return (
     <div className='grid gap-1.5'>
       <p className='text-[13px] text-muted-foreground tabular-nums'>{row.facts}</p>
       {/* 눈금자의 숫자는 아래 판정 문장이 말로 다시 말한다. 그림은 위치를 보이는 보조라 읽기 도구에는 문장을 준다. */}
       <div aria-hidden='true' className='grid grid-cols-[56px_minmax(0,1fr)] items-center gap-y-1'>
-        <span className='text-[11.5px] font-bold text-muted-foreground'>하한·낙찰</span>
+        {/* 낸 값을 위에, 방법 값을 아래에 두어 둘 다 가운데의 하한·1등 자리 칸과 바로 견준다(시안 순서). */}
+        <Lane name='낸 값' marks={row.lanes.own} shape={OWN_MARK} />
+        <span className={LANE_NAME}>하한·낙찰</span>
         <div className='relative h-5'>
           <i className='absolute inset-x-0 top-[9px] h-0.5 bg-border' />
-          {row.band === null ? (
-            <i className='absolute top-0 h-5 w-0.5 bg-destructive' style={{ left: `${row.floor}%` }} />
-          ) : (
-            <>
-              <i
-                className='absolute top-0.5 h-4 rounded-r-sm border-l-2 border-destructive bg-emerald-600/20 dark:bg-emerald-400/20'
-                style={{ left: `${row.band.from}%`, width: `${Math.max(0.6, row.band.to - row.band.from)}%` }}
-              />
-              <i className='absolute top-0 h-5 w-0.5 bg-emerald-600 dark:bg-emerald-400' style={{ left: `${row.band.to}%` }} />
-            </>
-          )}
+          <i
+            className={`absolute top-0.5 h-4 rounded-r-sm ${BAND}`}
+            style={{ left: `${row.band.from}%`, width: `${Math.max(0.6, row.band.to - row.band.from)}%` }}
+          />
+          {row.winner === null ? null : <i className={`absolute top-0 h-5 ${WINNER_LINE}`} style={{ left: `${row.winner}%` }} />}
         </div>
-        {lanes.map((lane) => (
-          <div key={lane.key} className='contents'>
-            <span className='text-[11.5px] font-bold text-muted-foreground'>{lane.name}</span>
-            <div className='relative h-4'>
-              <Marks marks={row.lanes[lane.key]} shape={lane.mark} />
-            </div>
-          </div>
+        {methods.map((lane) => (
+          <Lane key={lane.key} name={lane.name} marks={row.lanes[lane.key]} shape={lane.mark} />
         ))}
         <span />
-        <div className='relative h-4 text-[10.5px] text-muted-foreground tabular-nums'>
+        <div className='relative h-4 text-[11px] text-muted-foreground tabular-nums'>
           {AXIS_TICKS.map((tick) => (
-            <span key={tick} className='absolute -translate-x-1/2' style={{ left: `${tickPosition(tick)}%` }}>{tick}</span>
+            <span
+              key={tick}
+              // 축 끝 숫자는 가운데 맞춤이면 화면 여백 밖으로 반이 나간다.
+              className={`absolute ${tick === AXIS.to ? '-translate-x-full' : '-translate-x-1/2'}`}
+              style={{ left: `${tickPosition(tick)}%` }}
+            >
+              {tick}
+            </span>
           ))}
         </div>
       </div>
@@ -89,7 +98,26 @@ function Ruler({ row }: { readonly row: ReviewRowView }) {
   );
 }
 
-export function ReviewRows({ rows }: { readonly rows: readonly ReviewRowView[] }) {
+/** 범례는 색 이름 대신 모양과 자리로 말한다 — 적록 색약이면 빨간 선과 초록 선을 가르지 못한다. */
+function Legend({ hasHabit }: { readonly hasHabit: boolean }) {
+  return (
+    <p aria-hidden='true' className='mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-muted-foreground'>
+      <span>◆ 낸 값</span>
+      <span className='text-primary'>● 맞춤</span>
+      <span>▲ 전국 공식</span>
+      {hasHabit ? <span className='text-teal-700 dark:text-teal-300'>■ 아침 갱신</span> : null}
+      <span className='inline-flex items-center gap-1.5'>
+        <i className={`inline-block h-2.5 w-4 ${BAND}`} />칸: 왼쪽 끝 하한부터 1등 자리까지
+      </span>
+      <span className='inline-flex items-center gap-1.5'>
+        <i className={`inline-block h-3 ${WINNER_LINE}`} />세로선: 낙찰
+      </span>
+      <span>테두리 두른 표시: 1등 자리에 든 값</span>
+    </p>
+  );
+}
+
+export function ReviewRows({ rows, hasHabit }: { readonly rows: readonly ReviewRowView[]; readonly hasHabit: boolean }) {
   const [filter, setFilter] = useState<Filter>('all');
   const keep = FILTERS.find((entry) => entry.key === filter)!.keep;
   const shown = rows.filter(keep);
@@ -111,10 +139,7 @@ export function ReviewRows({ rows }: { readonly rows: readonly ReviewRowView[] }
           ))}
         </div>
       </div>
-      <p className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-muted-foreground'>
-        <span>◆ 낸 값</span><span className='text-primary'>● 맞춤</span><span>▲ 전국 공식</span><span className='text-teal-700 dark:text-teal-300'>■ 아침 갱신</span>
-        <span>빨간 선 하한 · 초록 칸 1등 자리 · 초록 선 낙찰</span>
-      </p>
+      <Legend hasHabit={hasHabit} />
       {shown.length === 0 ? (
         <p className='py-6 text-[14px] text-muted-foreground'>이 조건에 맞는 공고가 없어요.</p>
       ) : (

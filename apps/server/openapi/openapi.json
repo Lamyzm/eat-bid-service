@@ -2609,7 +2609,7 @@
           "won",
           "below-floor",
           "first",
-          "above-winner"
+          "above-first"
         ],
         "type": "string"
       },
@@ -2637,6 +2637,14 @@
           },
           "baseAmount": {
             "$ref": "#/components/schemas/Money"
+          },
+          "bestCompetitorRatio": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReservePriceRatio"
+              }
+            ],
+            "nullable": true
           },
           "bidderCount": {
             "$ref": "#/components/schemas/NonNegativeCount"
@@ -2727,6 +2735,7 @@
           "floorRate",
           "bidderCount",
           "floorRatio",
+          "bestCompetitorRatio",
           "winner",
           "own",
           "ownExpectedWins",
@@ -2737,7 +2746,7 @@
       "BidReviewSummary": {
         "additionalProperties": false,
         "properties": {
-          "allAboveWinner": {
+          "allAboveFirst": {
             "$ref": "#/components/schemas/NonNegativeCount"
           },
           "allBelowFloor": {
@@ -2770,7 +2779,7 @@
           "rounds",
           "first",
           "allBelowFloor",
-          "allAboveWinner",
+          "allAboveFirst",
           "expectedWins",
           "recomputedRounds"
         ],
@@ -2780,7 +2789,7 @@
         "enum": [
           "below-floor",
           "first",
-          "above-winner"
+          "above-first"
         ],
         "type": "string"
       },
@@ -4479,6 +4488,24 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "plannedDistribution": {
+                "additionalProperties": false,
+                "properties": {
+                  "sourceRounds": {
+                    "$ref": "#/components/schemas/NonNegativeCount"
+                  },
+                  "version": {
+                    "maxLength": 32,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "version",
+                  "sourceRounds"
+                ],
+                "type": "object"
+              },
               "rounds": {
                 "items": {
                   "$ref": "#/components/schemas/BidReviewRound"
@@ -4500,6 +4527,7 @@
               "month",
               "marketPick",
               "nationalRuleVersion",
+              "plannedDistribution",
               "unplannedRounds",
               "summaries",
               "rounds"

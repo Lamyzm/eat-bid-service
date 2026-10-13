@@ -39,10 +39,10 @@ function round(overrides: Partial<BidReviewRoundRecord> & { readonly auctionAtte
     bidderCount: 5,
     competitorRates: ["89.000", "90.500", "91.000"],
     own: [
-      { supplierPartyId: 101n, label: "(주)오뚜기축산", rate: "90.200" },
-      { supplierPartyId: 102n, label: "신성유통", rate: "89.900" },
+      { supplierPartyId: 101n, label: "내 업체 1", rate: "90.200" },
+      { supplierPartyId: 102n, label: "내 업체 2", rate: "89.900" },
     ],
-    award: { supplierPartyId: 101n, label: "(주)오뚜기축산", rate: "90.200" },
+    award: { supplierPartyId: 101n, label: "내 업체 1", rate: "90.200" },
     ...overrides,
   };
 }
@@ -81,8 +81,10 @@ describe("내 투찰 복기", () => {
     const record = await run(useCase({ rounds: [round({ auctionAttemptId: 1n })] }));
     const [only] = record.selected!.rounds;
     expect(only!.floorRatio).toBe("0.985000");
-    expect(only!.winner).toEqual({ label: "(주)오뚜기축산", ratio: "0.987189", mine: true });
-    expect(only!.own.map((bid) => [bid.label, bid.verdict])).toEqual([["(주)오뚜기축산", "won"], ["신성유통", "below-floor"]]);
+    // 다른 업체 가장 낮은 유효 투찰 90.500(89.000은 하한율 미만) — 90.5 ÷ 90 × 0.985. 우리가 낙찰했어도 1등 자리 끝은 이 값이다.
+    expect(only!.bestCompetitorRatio).toBe("0.990472");
+    expect(only!.winner).toEqual({ label: "내 업체 1", ratio: "0.987189", mine: true });
+    expect(only!.own.map((bid) => [bid.label, bid.verdict])).toEqual([["내 업체 1", "won"], ["내 업체 2", "below-floor"]]);
   });
 
   test("장부가 없던 달은 맞춤·전국 공식을 다시 계산한 값으로 붙이고 아침 갱신은 비운다", async () => {

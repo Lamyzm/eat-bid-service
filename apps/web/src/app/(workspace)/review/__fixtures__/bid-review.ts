@@ -14,12 +14,13 @@ export const bidReview: MyBidReviewV1Response = {
     month: '2026-09',
     marketPick: { version: '2026-10-10', window: { fromMonth: '2026-06', throughMonth: '2026-08' }, ratios: [ratio('0.984900'), ratio('0.989400')], marketRounds: 164 },
     nationalRuleVersion: '2026-10-10',
+    plannedDistribution: { version: '2026-10-10', sourceRounds: 108126 },
     unplannedRounds: 1,
     summaries: [
-      { method: 'own', rounds: 3, first: 1, allBelowFloor: 1, allAboveWinner: 1, expectedWins: '0.3', recomputedRounds: 0 },
-      { method: 'market-pick', rounds: 3, first: 1, allBelowFloor: 2, allAboveWinner: 0, expectedWins: '0.5', recomputedRounds: 3 },
-      { method: 'national-rule', rounds: 3, first: 0, allBelowFloor: 2, allAboveWinner: 1, expectedWins: '0.2', recomputedRounds: 3 },
-      { method: 'morning-habit', rounds: 0, first: 0, allBelowFloor: 0, allAboveWinner: 0, expectedWins: '0.0', recomputedRounds: 0 }
+      { method: 'own', rounds: 3, first: 1, allBelowFloor: 1, allAboveFirst: 1, expectedWins: '0.3', recomputedRounds: 0 },
+      { method: 'market-pick', rounds: 3, first: 1, allBelowFloor: 2, allAboveFirst: 0, expectedWins: '0.5', recomputedRounds: 3 },
+      { method: 'national-rule', rounds: 3, first: 0, allBelowFloor: 2, allAboveFirst: 1, expectedWins: '0.2', recomputedRounds: 3 },
+      { method: 'morning-habit', rounds: 0, first: 0, allBelowFloor: 0, allAboveFirst: 0, expectedWins: '0.0', recomputedRounds: 0 }
     ],
     rounds: [
       {
@@ -33,6 +34,7 @@ export const bidReview: MyBidReviewV1Response = {
         floorRate: { value: '90.000', unit: 'percentage-points' },
         bidderCount: 64,
         floorRatio: ratio('1.009115'),
+        bestCompetitorRatio: ratio('1.009440'),
         winner: { label: '업체 가', ratio: ratio('1.009440'), mine: false },
         own: [
           { label: '내 업체 1', ratio: ratio('0.997914'), verdict: 'below-floor' },
@@ -55,15 +57,17 @@ export const bidReview: MyBidReviewV1Response = {
         floorRate: { value: '90.000', unit: 'percentage-points' },
         bidderCount: 64,
         floorRatio: ratio('0.984500'),
+        // 우리가 낙찰한 공고라 1등 자리 끝은 낙찰(우리)이 아니라 다른 업체 가장 낮은 유효 투찰이다.
+        bestCompetitorRatio: ratio('0.988200'),
         winner: { label: '내 업체 1', ratio: ratio('0.987000'), mine: true },
         own: [
           { label: '내 업체 1', ratio: ratio('0.987000'), verdict: 'won' },
-          { label: '내 업체 2', ratio: ratio('0.995000'), verdict: 'above-winner' }
+          { label: '내 업체 2', ratio: ratio('0.995000'), verdict: 'above-first' }
         ],
         ownExpectedWins: '0.1200',
         methods: [
-          { method: 'market-pick', source: 'recomputed', version: '2026-10-10', positions: [{ ratio: ratio('0.984900'), verdict: 'first' }, { ratio: ratio('0.989400'), verdict: 'above-winner' }], expectedWins: '0.2500' },
-          { method: 'national-rule', source: 'recomputed', version: '2026-10-10', positions: [{ ratio: ratio('0.986000'), verdict: 'first' }, { ratio: ratio('0.992000'), verdict: 'above-winner' }], expectedWins: '0.1000' }
+          { method: 'market-pick', source: 'recomputed', version: '2026-10-10', positions: [{ ratio: ratio('0.984900'), verdict: 'first' }, { ratio: ratio('0.989400'), verdict: 'above-first' }], expectedWins: '0.2500' },
+          { method: 'national-rule', source: 'recomputed', version: '2026-10-10', positions: [{ ratio: ratio('0.986000'), verdict: 'first' }, { ratio: ratio('0.992000'), verdict: 'above-first' }], expectedWins: '0.1000' }
         ]
       },
       {
@@ -77,6 +81,7 @@ export const bidReview: MyBidReviewV1Response = {
         floorRate: { value: '90.000', unit: 'percentage-points' },
         bidderCount: 40,
         floorRatio: ratio('1.002000'),
+        bestCompetitorRatio: null,
         winner: null,
         own: [{ label: null, ratio: ratio('0.999000'), verdict: 'below-floor' }],
         ownExpectedWins: '0.0100',
