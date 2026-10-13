@@ -3,7 +3,7 @@
  * 그 공고의 금액으로 바꾸는 use case와 그 내부 record를 소유한다.
  */
 import { Effect } from "effect";
-import { Temporal, type BidRate, type Money } from "@eatbid/domain";
+import { Temporal, type BidRate, type Clock, type Money } from "@eatbid/domain";
 
 import { BID_POSITION_RULE, positionBids, type BidPositionResult, type BidPositionRuleTable } from "../domain/bid-position-rule";
 import type { AuctionId } from "../domain/auction-id";
@@ -20,6 +20,7 @@ import {
 } from "./decide-morning-habit-pick";
 import type { MorningHabitMethod } from "../domain/morning-habit-pick-table";
 import { AuctionDependencyUnavailable, AuctionNotFound } from "./find-auction";
+import { positionDisplayEntries, type BidDisplayLedger } from "./bid-display-ledger";
 
 export interface MarketPickRecord {
   readonly method: MarketPositionPickMethod;
@@ -61,6 +62,8 @@ export class FindAuctionBidPosition {
     private readonly reader: AuctionReader,
     private readonly decideMarketPick: DecideMarketPick,
     private readonly decideMorningHabit: DecideMorningHabitPick,
+    private readonly clock: Clock,
+    private readonly ledger: BidDisplayLedger,
   ) {}
 
   execute(input: {
@@ -114,6 +117,12 @@ export class FindAuctionBidPosition {
             },
           })));
       }),
+      // 화면에 내보낸 금액을 장부에 남긴다(ADR 0068). 장부는 던지지 않아 이 응답을 실패로 바꾸지 않는다.
+      Effect.tap((record) => Effect.promise(() => this.ledger.record({
+        workspaceId: input.workspaceId,
+        servedAt: this.clock.now(),
+        entries: positionDisplayEntries(record),
+      }))),
     );
   }
 }

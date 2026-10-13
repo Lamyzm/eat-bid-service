@@ -179,6 +179,14 @@ export class RedactingJsonLogger implements LoggerService {
     });
   }
 
+  /**
+   * 응답을 막지 않는 부수 기록(화면 장부)의 실패다. 응답은 그대로 나가므로 요청 완료 로그로는 보이지 않는다 — 따로 남기지 않으면
+   * 복기가 비는 날을 아무도 모른다. 원문 message 대신 분류형 오류만 남긴다.
+   */
+  sideEffectFailure(event: "bid_display_record_failed", error: unknown): void {
+    this.emit("warn", event, { ...serializeSafeError(error) });
+  }
+
   lifecycle(event: "application_ready" | "auth_disabled"): void {
     this.emit("info", event, {});
   }

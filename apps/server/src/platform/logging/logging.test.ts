@@ -31,6 +31,14 @@ describe("운영 logging", () => {
     expect(JSON.stringify(logger.records)).not.toContain("?token=");
   });
 
+  test("부수 기록 실패는 경고 한 줄로 남기고 오류 원문을 싣지 않는다", async () => {
+    const { RecordingJsonLogger } = await import("./logging.module");
+    const logger = new RecordingJsonLogger({ buildSha: "c".repeat(40), clock, write: () => undefined });
+    logger.sideEffectFailure("bid_display_record_failed", new Error("password=secret token=abc"));
+    expect(logger.records.at(-1)).toMatchObject({ level: "warn", event: "bid_display_record_failed", errorName: "Error" });
+    expect(JSON.stringify(logger.records)).not.toContain("secret");
+  });
+
   test("민감 error fixture를 직렬화 log에 넣지 않는다", async () => {
     const { RedactingJsonLogger, writeSafeFailure } = await import("./logging.module");
     const lines: string[] = [];

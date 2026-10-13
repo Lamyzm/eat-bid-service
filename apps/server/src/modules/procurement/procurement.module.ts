@@ -37,6 +37,8 @@ import type { OwnBidReader } from "./application/own-bid-reader";
 import type { MarketRoundReader } from "./application/market-round-reader";
 import type { RegisteredBusinessReader } from "../account/application/registered-business-reader";
 import type { UnitOfWork } from "../../platform/database/unit-of-work";
+import { RedactingJsonLogger } from "../../platform/logging/logging.module";
+import { QuietBidDisplayLedger, type BidDisplayLedger } from "./application/bid-display-ledger";
 import {
   ANALYSIS_CONDITION_OPTIONS_READER,
   ANALYSIS_HISTORY_READER,
@@ -44,6 +46,7 @@ import {
   ANALYSIS_TIME_SERIES_READER,
   AUCTION_READER,
   AUCTION_ROSTER_READER,
+  BID_DISPLAY_LEDGER,
   ELIGIBILITY_AREA_READER,
   OPEN_AUCTION_READER,
   OPEN_AUCTION_SUMMARY_READER,
@@ -110,11 +113,24 @@ const decideMorningHabitPickProvider = {
   ) => new DecideMorningHabitPick(snapshot, businesses, reader, clock),
 };
 
+// 장부 실패는 응답을 막지 않고 경고 로그로만 남는다. 두 화면이 같은 감싸개 하나를 쓴다.
+const quietBidDisplayLedgerProvider = {
+  provide: QuietBidDisplayLedger,
+  inject: [BID_DISPLAY_LEDGER, RedactingJsonLogger],
+  useFactory: (ledger: BidDisplayLedger, logger: RedactingJsonLogger) =>
+    new QuietBidDisplayLedger(ledger, (error) => logger.sideEffectFailure("bid_display_record_failed", error)),
+};
+
 const findAuctionBidPositionProvider = {
   provide: FindAuctionBidPosition,
-  inject: [AUCTION_READER, DecideMarketPick, DecideMorningHabitPick],
-  useFactory: (reader: AuctionReader, decideMarketPick: DecideMarketPick, decideMorningHabit: DecideMorningHabitPick) =>
-    new FindAuctionBidPosition(reader, decideMarketPick, decideMorningHabit),
+  inject: [AUCTION_READER, DecideMarketPick, DecideMorningHabitPick, CLOCK, QuietBidDisplayLedger],
+  useFactory: (
+    reader: AuctionReader,
+    decideMarketPick: DecideMarketPick,
+    decideMorningHabit: DecideMorningHabitPick,
+    clock: Clock,
+    ledger: QuietBidDisplayLedger,
+  ) => new FindAuctionBidPosition(reader, decideMarketPick, decideMorningHabit, clock, ledger),
 };
 
 // 열린 공고의 "열림" 판정은 현재 시각의 함수라 clock을 요구한다. `Temporal.Now` 직접 호출은 금지이며
@@ -169,14 +185,15 @@ const previewRegionCoverageProvider = {
 // 오늘 투찰은 관심 지역을 query가 아니라 저장소에서 읽고(조합 건수와 같은 이유), 맞춤 배수는 공고 상세와 같은 결정 하나를 쓴다.
 const getMyBidBoardProvider = {
   provide: GetMyBidBoard,
-  inject: [OPEN_AUCTION_READER, REGION_PREFERENCE_REPOSITORY, DecideMarketPick, DecideMorningHabitPick, CLOCK],
+  inject: [OPEN_AUCTION_READER, REGION_PREFERENCE_REPOSITORY, DecideMarketPick, DecideMorningHabitPick, CLOCK, QuietBidDisplayLedger],
   useFactory: (
     reader: OpenAuctionReader,
     regions: RegionPreferenceRepository,
     decideMarketPick: DecideMarketPick,
     decideMorningHabit: DecideMorningHabitPick,
     clock: Clock,
-  ) => new GetMyBidBoard(reader, regions, decideMarketPick, decideMorningHabit, clock),
+    ledger: QuietBidDisplayLedger,
+  ) => new GetMyBidBoard(reader, regions, decideMarketPick, decideMorningHabit, clock, ledger),
 };
 
 const listOpenAuctionsProvider = {
@@ -215,6 +232,7 @@ const findMyBidObservationsProvider = {
     findAuctionProvider,
     decideMarketPickProvider,
     decideMorningHabitPickProvider,
+    quietBidDisplayLedgerProvider,
     findAuctionBidPositionProvider,
     getMyBidBoardProvider,
     findAnalysisTimeSeriesProvider,

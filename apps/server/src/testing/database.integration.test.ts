@@ -249,6 +249,12 @@ describe("owner 범위 PostgreSQL 경계", () => {
         order by relation.relname
       `).toEqual([
         {
+          sequence_name: "bid_display_record_bid_display_record_id_seq",
+          has_usage: false,
+          has_select: false,
+          has_update: false,
+        },
+        {
           sequence_name: "identity_subject_identity_subject_id_seq",
           has_usage: false,
           has_select: false,
