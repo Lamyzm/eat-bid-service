@@ -54,6 +54,14 @@ const sessionProblems = {
 
 const principalProblems = { ...sessionProblems, ...forbiddenProblem } as const;
 
+/**
+ * 목록 조회가 선택해 받는 응답 항목이다. 옛 server는 이 query를 읽지 않고 무시하므로 새 web이 보내도 깨지지 않고, 옛 web은
+ * 보내지 않으므로 새 key를 받지 않는다(세션 조회와 같은 opt-in 규칙).
+ */
+export const myBusinessesQuerySchema = z.strictObject({
+  include: z.literal("supplier-label").optional(),
+}).meta({ id: "MyBusinessesQuery" });
+
 const businessProblems = {
   400: { description: "요청 본문 또는 사업자번호 형식이 유효하지 않음", schema: problemDetailsSchema },
   ...principalProblems,
@@ -91,15 +99,18 @@ export const meV1Operations = {
     route: { resource: "me", segments: ["businesses"] },
     operationId: "listMyBusinesses",
     implementationOwner: "server",
-    summary: "내 워크스페이스가 등록한 사업자를 원본 대조 결과·위치와 함께 조회한다.",
+    summary: "내 워크스페이스가 등록한 사업자를 원본 대조 결과·위치(요청하면 원본 업체명)와 함께 조회한다.",
     tags: ["내 계정과 조건"],
     pathSchema: z.undefined(),
-    querySchema: z.undefined(),
+    querySchema: myBusinessesQuerySchema.default({}),
     bodySchema: z.undefined(),
     successResponses: {
       200: { description: "등록 사업자 조회 성공", schema: myBusinessesV1ResponseSchema },
     },
-    problemResponses: principalProblems,
+    problemResponses: {
+      400: { description: "query가 유효하지 않음", schema: problemDetailsSchema },
+      ...principalProblems,
+    },
   }),
   registerMyBusiness: defineOperation({
     method: "post",
@@ -192,3 +203,5 @@ export type RegisterMyBusinessCommand = z.input<typeof registerMyBusinessCommand
 export type RegisterMyBusinessCommandInput = z.output<typeof registerMyBusinessCommandSchema>;
 export type SetMyBusinessLocationCommand = z.input<typeof setMyBusinessLocationCommandSchema>;
 export type SetMyBusinessLocationCommandInput = z.output<typeof setMyBusinessLocationCommandSchema>;
+
+export type MyBusinessesQuery = z.output<typeof myBusinessesQuerySchema>;

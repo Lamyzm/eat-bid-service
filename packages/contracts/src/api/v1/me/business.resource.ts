@@ -37,6 +37,10 @@ export const registeredBusinessSchema = z.strictObject({
   supplier: registeredBusinessSupplierSchema,
   // 위치 미설정은 빈 문자열이 아니라 null이다.
   location: registeredBusinessLocationSchema.nullable(),
+  // 원본 개찰 명단에서 그 업체가 가장 최근에 쓴 이름이다. 이름은 투찰마다 관측되는 값이라(ADR 0063) 저장된 상호가 아니며,
+  // 연결되지 않았거나 이름이 관측되지 않았으면 null이다. 목록 조회가 `include=supplier-label`로 요청할 때만 싣는다 —
+  // 새 key를 늘 실으면 배포 중 옛 web이 응답을 통째로 거부한다.
+  supplierLabel: z.string().min(1).max(200).nullable().optional(),
 }).meta({ id: "RegisteredBusiness" });
 
 /**

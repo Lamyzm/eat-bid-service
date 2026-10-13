@@ -6,6 +6,7 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 import { maxRegisteredBusinesses } from "@eatbid/contracts";
+import { bigintArrayLiteral } from "../../../../platform/database/sql-values";
 import type {
   ChangeLocationInput,
   ChangeLocationResult,
@@ -112,6 +113,30 @@ export async function readBusinesses(
     order by registration.registered_at, registration.registered_business_id
   `);
   return rows<BusinessRow>(result).map(toBusiness);
+}
+
+/**
+ * 업체마다 이름이 관측된 가장 최근 투찰 한 줄을 (업체, 개찰 시각) 색인으로 거꾸로 읽는다. 업체 전체 이력을 훑지 않는다.
+ */
+export async function readSupplierLabels(
+  database: AccountDatabase,
+  supplierPartyIds: readonly bigint[],
+): Promise<ReadonlyMap<bigint, string>> {
+  if (supplierPartyIds.length === 0) return new Map();
+  const result = await database.execute(sql`
+    select party.supplier_party_id, latest.supplier_label
+      from unnest(${bigintArrayLiteral(supplierPartyIds)}::bigint[]) as party(supplier_party_id)
+      cross join lateral (
+        select bid.supplier_label
+          from core.bid_submission bid
+         where bid.supplier_party_id = party.supplier_party_id
+           and bid.supplier_label is not null
+         order by bid.opened_at desc
+         limit 1
+      ) latest
+  `);
+  return new Map(rows<{ supplier_party_id: string | bigint; supplier_label: string }>(result)
+    .map((row) => [identifier(row.supplier_party_id), row.supplier_label]));
 }
 
 async function readOne(

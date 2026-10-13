@@ -2,12 +2,30 @@
 import { registerMyBusinessCommandSchema, type RegisteredBusiness } from '@eatbid/contracts/api/v1/me';
 
 // 표기 규칙은 결정 화면의 내 투찰 선택도 같이 쓰므로 shared에 하나만 둔다. 이 route의 소비자는 그대로 둔다.
-export { businessNumberDisplay } from '@/shared/lib/business-number-display';
+import { businessNumberDisplay } from '@/shared/lib/business-number-display';
+
+export { businessNumberDisplay };
 
 /**
  * "아직 원본에서 관측되지 않았다"를 "참여 기록이 없다"로 바꿔 말하지 않는다. 자료 없음과 미참여는 다른
  * 사실이고, 같은 번호를 원본이 나중에 관측하면 같은 등록이 저절로 연결된다(ADR 0032 §7).
  */
+/**
+ * 원본 개찰 명단에서 그 업체가 가장 최근에 쓴 이름이다. 번호만 보이면 어느 업체인지 알 수 없다(EAT-338). 옛 server가
+ * 이름을 싣지 않았으면(`undefined`) 아무것도 보이지 않고, 원본에 이름이 없으면 그렇다고 말한다.
+ */
+export function businessNameText(business: RegisteredBusiness): string | null {
+  if (business.supplierLabel === undefined) return null;
+  return business.supplierLabel ?? '업체명 미확인';
+}
+
+/** 읽기 도구가 부르는 이름이다. 업체명이 있으면 번호 앞에 둔다. */
+export function businessAccessibleName(business: RegisteredBusiness): string {
+  const name = businessNameText(business);
+  const number = businessNumberDisplay(business.businessNumber);
+  return name === null ? `등록 사업자 ${number}` : `등록 사업자 ${name} ${number}`;
+}
+
 export function supplierStatusText(business: RegisteredBusiness): string {
   switch (business.supplier.kind) {
     case 'linked':

@@ -11,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { Skeleton } from '@/shared/ui/skeleton';
 
 import {
+  businessAccessibleName,
+  businessNameText,
   businessNumberDisplay,
   supplierStatusText
 } from '../_model/registered-business-view';
@@ -65,10 +67,13 @@ export function MyBusinessesPanel({ scope, canWrite }: MyBusinessesPanelProps) {
           {businesses.data?.businesses.map((business) => (
             <section
               key={business.businessId}
-              aria-label={`등록 사업자 ${businessNumberDisplay(business.businessNumber)}`}
+              aria-label={businessAccessibleName(business)}
               className='grid gap-2 rounded-md border p-3'
             >
               <div className='flex flex-wrap items-center gap-2'>
+                {businessNameText(business) === null ? null : (
+                  <span data-slot='business-name' className='text-sm font-semibold'>{businessNameText(business)}</span>
+                )}
                 <span className='font-mono text-sm'>
                   {businessNumberDisplay(business.businessNumber)}
                 </span>

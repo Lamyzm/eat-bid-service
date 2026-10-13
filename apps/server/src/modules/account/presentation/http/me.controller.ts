@@ -11,6 +11,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   ServiceUnavailableException,
   UseGuards,
   VERSION_NEUTRAL,
@@ -19,6 +20,7 @@ import { ApiOperation, ApiResponse } from "@nestjs/swagger";
 import {
   meV1Operations,
   type AccountInitializationV1Response,
+  type MyBusinessesQuery,
   type MyBusinessesV1Response,
   type MyBusinessV1Response,
   type RegisterMyBusinessCommandInput,
@@ -110,12 +112,19 @@ export class MeController {
   @UseGuards(PrincipalGuard)
   @ApiOperation({ operationId: list.operationId, summary: list.summary })
   @ApiResponse({ status: 200, description: list.successResponses[200].description })
+  @ApiResponse({ status: 400, description: list.problemResponses[400].description })
   @ApiResponse({ status: 401, description: list.problemResponses[401].description })
   @ApiResponse({ status: 403, description: list.problemResponses[403].description })
   @ResponseSchema(list.successResponses[200].schema)
-  async list(@CurrentPrincipal() principal: ResolvedPrincipal): Promise<MyBusinessesV1Response> {
+  async list(
+    @CurrentPrincipal() principal: ResolvedPrincipal,
+    @Query(new StandardSchemaPipe(list.querySchema)) query: MyBusinessesQuery,
+  ): Promise<MyBusinessesV1Response> {
     try {
-      return toMyBusinessesResponse(await this.effectRunner.run(this.listMyBusinesses.execute(principal)));
+      const includeSupplierLabel = query.include === "supplier-label";
+      return toMyBusinessesResponse(await this.effectRunner.run(
+        this.listMyBusinesses.execute(principal, { includeSupplierLabel }),
+      ));
     } catch (error) {
       return translate(error);
     }

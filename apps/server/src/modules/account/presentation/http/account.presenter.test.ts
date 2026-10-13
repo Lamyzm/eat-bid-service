@@ -69,8 +69,17 @@ describe("계정 presenter", () => {
     });
   });
 
+  test("업체명을 요청하면 원본과 이어진 등록은 관측된 이름을, 이어지지 않은 등록은 null을 싣는다", () => {
+    const unobserved = { ...business, registeredBusinessId: 78n, supplier: { kind: "unobserved" as const } };
+    const list = toMyBusinessesResponse({ businesses: [business, unobserved], labels: new Map([[30n, "(주)오뚜기축산"]]) });
+    expect(businessesSchema.parse(list)).toEqual(list);
+    expect(list.businesses.map((entry) => entry.supplierLabel)).toEqual(["(주)오뚜기축산", null]);
+    const unnamed = toMyBusinessesResponse({ businesses: [business], labels: new Map() });
+    expect(unnamed.businesses[0]?.supplierLabel).toBeNull();
+  });
+
   test("등록 사업자의 대조 상태를 이름 있는 값으로 내보내고 위치는 갱신 시각과 함께 싣는다", () => {
-    const list = toMyBusinessesResponse([business]);
+    const list = toMyBusinessesResponse({ businesses: [business], labels: null });
     expect(businessesSchema.parse(list)).toEqual(list);
     expect(list.businesses[0]).toEqual({
       businessId: "77",
@@ -79,6 +88,8 @@ describe("계정 presenter", () => {
       supplier: { kind: "linked", supplierPartyId: "30" },
       location: { addressText: "경남 창원시", updatedAt: "2026-09-02T00:00:00Z" },
     });
+    // 업체명을 요청하지 않으면 key째 싣지 않는다. 옛 web의 엄격한 schema가 모르는 key로 목록을 거부하지 않게 한다.
+    expect("supplierLabel" in list.businesses[0]!).toBe(false);
     // 미관측과 증거 불일치는 supplierPartyId null이 아니라 이름 있는 상태다.
     for (const kind of ["unobserved", "evidence-conflict"] as const) {
       const single = toMyBusinessResponse({ ...business, supplier: { kind }, location: null });

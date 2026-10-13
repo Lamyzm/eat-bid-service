@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import type { RegisteredBusiness } from '@eatbid/contracts/api/v1/me';
 
 import {
+  businessAccessibleName,
+  businessNameText,
   businessNumberDisplay,
   checkBusinessNumberInput,
   supplierStatusText
@@ -32,6 +34,22 @@ describe('등록 사업자 표시', () => {
     expect(supplierStatusText(business({ kind: 'linked', supplierPartyId: '9' }))).toBe(
       '수집 원본에서 이 번호를 확인했습니다'
     );
+  });
+});
+
+describe('등록 사업자 업체명', () => {
+  const linked = business({ kind: 'linked', supplierPartyId: '9' });
+
+  test('원본 명단의 업체명을 번호 앞에 두고 읽기 이름에도 넣는다', () => {
+    const named = { ...linked, supplierLabel: '(주)오뚜기축산' };
+    expect(businessNameText(named)).toBe('(주)오뚜기축산');
+    expect(businessAccessibleName(named)).toBe('등록 사업자 (주)오뚜기축산 124-81-00998');
+  });
+
+  test('이름이 관측되지 않았으면 미확인이라고 말하고, 옛 서버가 이름을 싣지 않았으면 아무것도 보이지 않는다', () => {
+    expect(businessNameText({ ...linked, supplierLabel: null })).toBe('업체명 미확인');
+    expect(businessNameText(linked)).toBeNull();
+    expect(businessAccessibleName(linked)).toBe('등록 사업자 124-81-00998');
   });
 });
 

@@ -72,6 +72,11 @@ export interface AccountRepository {
   /** 여러 번 불러도 같은 관계를 돌려주고, 경쟁에서 진 시도는 주인 없는 행을 남기지 않는다. */
   initializeAccount(input: InitializeAccountInput): Promise<ResolvedPrincipal>;
   listBusinesses(workspaceId: bigint): Promise<readonly RegisteredBusinessRecord[]>;
+  /**
+   * 업체(party)마다 원본 개찰 명단에서 가장 최근에 관측된 이름이다. 이름은 투찰마다 관측되는 값이라(ADR 0063) 저장된
+   * 상호가 아니다. 이름이 한 번도 관측되지 않은 업체는 결과에 없다.
+   */
+  findSupplierLabels(supplierPartyIds: readonly bigint[]): Promise<ReadonlyMap<bigint, string>>;
   registerBusiness(input: RegisterBusinessInput): Promise<RegisterBusinessResult>;
   changeLocation(input: ChangeLocationInput): Promise<ChangeLocationResult>;
 }
