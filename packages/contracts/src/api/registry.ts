@@ -4,6 +4,7 @@ import { auctionV1OperationRegistry } from "./v1/auctions/operations";
 import { codeSchemeV1OperationRegistry } from "./v1/code-schemes/operations";
 import { eligibilityAreaV1OperationRegistry } from "./v1/eligibility-areas/operations";
 import { myBidBoardV1OperationRegistry } from "./v1/me/bid-board.operations";
+import { myBidReviewV1OperationRegistry } from "./v1/me/bid-review.operations";
 import { myBidObservationV1OperationRegistry } from "./v1/me/bid-observations.operations";
 import { myFilterCombinationV1OperationRegistry } from "./v1/me/filter-combination.operations";
 import { meV1OperationRegistry } from "./v1/me/operations";
@@ -32,5 +33,6 @@ export const publicHttpOperationRegistry = createOperationRegistry([
   ...myFilterCombinationV1OperationRegistry,
   // 오늘 투찰 한 장은 워크스페이스의 관심 지역과 등록 사업자 시장으로 정해지는 개인 응답이라 같은 `me` resource에 산다.
   ...myBidBoardV1OperationRegistry,
+  ...myBidReviewV1OperationRegistry,
   ...healthOperationRegistry,
 ] as const);

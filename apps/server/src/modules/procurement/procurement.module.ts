@@ -12,6 +12,9 @@ import type { MorningHabitReader } from "./application/morning-habit-reader";
 import { FindAuctionBidPosition } from "./application/find-auction-bid-position";
 import { GetMyBidBoard } from "./application/get-my-bid-board";
 import { MyBidBoardController } from "./presentation/http/my-bid-board.controller";
+import { MyBidReviewController } from "./presentation/http/my-bid-review.controller";
+import { GetMyBidReview } from "./application/get-my-bid-review";
+import type { BidReviewReader } from "./application/bid-review-reader";
 import type { RegionPreferenceRepository } from "../account/application/region-preference-repository";
 import { FindAuction } from "./application/find-auction";
 import { FindAnalysisConditionOptions } from "./application/find-analysis-condition-options";
@@ -47,6 +50,7 @@ import {
   AUCTION_READER,
   AUCTION_ROSTER_READER,
   BID_DISPLAY_LEDGER,
+  BID_REVIEW_READER,
   ELIGIBILITY_AREA_READER,
   OPEN_AUCTION_READER,
   OPEN_AUCTION_SUMMARY_READER,
@@ -196,6 +200,19 @@ const getMyBidBoardProvider = {
   ) => new GetMyBidBoard(reader, regions, decideMarketPick, decideMorningHabit, clock, ledger),
 };
 
+// 복기는 오늘 투찰과 같은 맞춤 결정을 그 달 기준으로 돌린다. 달 목록·회차·장부는 한 스냅샷에서 읽는다.
+const getMyBidReviewProvider = {
+  provide: GetMyBidReview,
+  inject: [READ_SNAPSHOT, REGISTERED_BUSINESS_READER, BID_REVIEW_READER, DecideMarketPick, CLOCK],
+  useFactory: (
+    snapshot: UnitOfWork,
+    businesses: RegisteredBusinessReader,
+    reader: BidReviewReader,
+    decideMarketPick: DecideMarketPick,
+    clock: Clock,
+  ) => new GetMyBidReview(snapshot, businesses, reader, decideMarketPick, clock),
+};
+
 const listOpenAuctionsProvider = {
   provide: ListOpenAuctions,
   inject: [OPEN_AUCTION_READER, CLOCK],
@@ -224,6 +241,7 @@ const findMyBidObservationsProvider = {
     AuctionRosterController,
     EligibilityAreaController,
     MyBidBoardController,
+    MyBidReviewController,
     MyBidObservationsController,
   ],
   providers: [
@@ -235,6 +253,7 @@ const findMyBidObservationsProvider = {
     quietBidDisplayLedgerProvider,
     findAuctionBidPositionProvider,
     getMyBidBoardProvider,
+    getMyBidReviewProvider,
     findAnalysisTimeSeriesProvider,
     findAnalysisConditionOptionsProvider,
     findAnalysisHistoryProvider,

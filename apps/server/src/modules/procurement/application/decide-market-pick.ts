@@ -76,9 +76,14 @@ export class DecideMarketPick {
    * 공고 하나만 볼 때는 그 공고의 하한율을 함께 넘긴다. 맞춤 밖 하한율이면 시장을 읽을 이유가 없어 읽지 않고 닫는다.
    * 목록은 하한율이 섞여 있으므로 넘기지 않고 한 번 읽는다.
    */
-  async decide(input: { readonly workspaceId: bigint; readonly floorRate?: BidRate | null }): Promise<MarketPickDecision> {
+  async decide(input: {
+    readonly workspaceId: bigint;
+    readonly floorRate?: BidRate | null;
+    /** 복기가 지난 달의 맞춤을 그 달 기준 창으로 다시 고를 때만 준다. 주지 않으면 지금 KST 달이다. */
+    readonly month?: KstMonth;
+  }): Promise<MarketPickDecision> {
     const method = MARKET_POSITION_PICK;
-    const currentMonth = kstMonthOf(this.clock.now());
+    const currentMonth = input.month ?? kstMonthOf(this.clock.now());
     const window: MarketPickWindow = {
       fromMonth: shiftKstMonth(currentMonth, -method.windowMonths),
       throughMonth: shiftKstMonth(currentMonth, -1),
