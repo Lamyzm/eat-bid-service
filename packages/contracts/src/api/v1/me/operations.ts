@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { businessNumberInputSchema } from "../../../atoms/business-number";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
+import { instantTextSchema } from "../../../atoms/instant";
 import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
 import { workspaceSummarySchema } from "../../../resources/account/workspace";
 import { createOperationRegistry, defineOperation, pathParameter } from "../../operation";
@@ -21,6 +22,12 @@ const myBusinessesV1ResponseSchema = z.strictObject({
 const myBusinessV1ResponseSchema = z.strictObject({
   business: registeredBusinessSchema,
 }).meta({ id: "MyBusinessV1Response" });
+
+/** 회수한 등록과 그 시각이다. 행을 지우지 않으므로 무엇을 언제 뺐는지가 응답에 남는다. */
+const myBusinessRevocationV1ResponseSchema = z.strictObject({
+  businessId: positiveBigintTextSchema,
+  revokedAt: instantTextSchema,
+}).meta({ id: "MyBusinessRevocationV1Response" });
 
 const registerMyBusinessCommandSchema = z.strictObject({
   businessNumber: businessNumberInputSchema,
@@ -172,6 +179,23 @@ export const meV1Operations = {
     },
     problemResponses: businessProblems,
   }),
+  revokeMyBusiness: defineOperation({
+    method: "delete",
+    versioning: { kind: "uri", prefix: "api", version: "1" },
+    route: { resource: "me", segments: ["businesses", pathParameter("businessId")] },
+    operationId: "revokeMyBusiness",
+    implementationOwner: "server",
+    summary: "등록한 사업자를 내 워크스페이스에서 뺀다. 워크스페이스 owner만 할 수 있고, 행을 지우지 않고 회수"
+      + " 시각을 남긴다. 같은 번호는 다시 등록할 수 있다.",
+    tags: ["내 계정과 조건"],
+    pathSchema: businessPathSchema,
+    querySchema: z.undefined(),
+    bodySchema: z.undefined(),
+    successResponses: {
+      200: { description: "사업자 회수 성공", schema: myBusinessRevocationV1ResponseSchema },
+    },
+    problemResponses: businessProblems,
+  }),
 } as const;
 
 export const meV1OperationRegistry = createOperationRegistry([
@@ -180,10 +204,12 @@ export const meV1OperationRegistry = createOperationRegistry([
   meV1Operations.registerMyBusiness,
   meV1Operations.setMyBusinessLocation,
   meV1Operations.clearMyBusinessLocation,
+  meV1Operations.revokeMyBusiness,
 ] as const);
 
 export {
   accountInitializationV1ResponseSchema,
+  myBusinessRevocationV1ResponseSchema,
   myBusinessesV1ResponseSchema,
   myBusinessV1ResponseSchema,
   registerMyBusinessCommandSchema,
@@ -193,6 +219,7 @@ export {
 export type AccountInitializationV1Response = z.infer<typeof accountInitializationV1ResponseSchema>;
 export type MyBusinessesV1Response = z.infer<typeof myBusinessesV1ResponseSchema>;
 export type MyBusinessV1Response = z.infer<typeof myBusinessV1ResponseSchema>;
+export type MyBusinessRevocationV1Response = z.infer<typeof myBusinessRevocationV1ResponseSchema>;
 
 /**
  * 입력과 출력 타입을 따로 내보낸다. 사업자번호 command는 사용자 표기를 받아 canonical 숫자로 정규화하므로

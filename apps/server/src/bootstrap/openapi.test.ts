@@ -89,6 +89,7 @@ describe("canonical OpenAPI 산출물", () => {
         "previewRegionCoverage",
         "putMyRegionPreference",
         "registerMyBusiness",
+        "revokeMyBusiness",
         "saveMyFilterCombination",
         "setMyBusinessLocation",
         "summarizeOpenAuctions",

@@ -12,6 +12,8 @@ import type {
   ChangeLocationResult,
   RegisterBusinessInput,
   RegisterBusinessResult,
+  RevokeBusinessInput,
+  RevokeBusinessResult,
   RegisteredBusinessRecord,
   RegisteredSupplierEvidence,
 } from "../../application/account-repository";
@@ -188,6 +190,35 @@ export async function registerBusiness(
  * 소유 확인·쓰기·응답 조회를 한 트랜잭션에 둔다. 나누면 응답 조회가 실패했을 때 이미 커밋된 변경이
  * 사용자에게는 실패로 보이고, 그 사이 다른 요청이 같은 등록을 바꿀 수도 있다.
  */
+/**
+ * 등록 줄을 잠그고 소유를 확인한 뒤 회수 시각을 찍는다. 위치 변경과 같은 순서라 두 command가 같은 등록을 두고 엇갈리지
+ * 않는다. 위치 행은 지우지 않는다 — 회수된 등록은 목록에서 빠지므로 보이지 않는다.
+ */
+export async function revokeBusiness(
+  database: AccountDatabase,
+  input: RevokeBusinessInput,
+): Promise<RevokeBusinessResult> {
+  return database.transaction(async (transaction) => {
+    const owner = rows<OwnershipRow>(await transaction.execute(sql`
+      select workspace_id
+      from app.registered_business
+      where registered_business_id = ${input.registeredBusinessId}
+        and revoked_at is null
+      for update
+    `))[0];
+    if (!owner) return { kind: "not-found" };
+    if (identifier(owner.workspace_id) !== input.workspaceId) return { kind: "forbidden" };
+    const revoked = rows<{ revoked_at: string }>(await transaction.execute(sql`
+      update app.registered_business
+         set revoked_at = now()
+       where registered_business_id = ${input.registeredBusinessId}
+      returning to_char(revoked_at at time zone 'utc', ${UTC_INSTANT_FORMAT}) as revoked_at
+    `))[0];
+    if (!revoked) throw new TypeError("Registered business disappeared inside its own transaction");
+    return { kind: "revoked", revokedAt: instantOf(revoked.revoked_at) };
+  });
+}
+
 export async function changeLocation(
   database: AccountDatabase,
   input: ChangeLocationInput,

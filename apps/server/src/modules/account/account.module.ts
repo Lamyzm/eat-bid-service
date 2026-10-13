@@ -30,6 +30,7 @@ import {
   ChangeMyBusinessLocation,
   ListMyBusinesses,
   RegisterMyBusiness,
+  RevokeMyBusiness,
 } from "./application/manage-my-businesses";
 import { GetMyRegionPreference, ReplaceMyRegionPreference } from "./application/manage-region-preference";
 import type { RegionPreferenceRepository } from "./application/region-preference-repository";
@@ -67,6 +68,7 @@ const filterCombinationUseCase = <UseCase>(create: (repository: FilterCombinatio
     { provide: ListMyBusinesses, ...repositoryUseCase((repository) => new ListMyBusinesses(repository)) },
     { provide: RegisterMyBusiness, ...repositoryUseCase((repository) => new RegisterMyBusiness(repository)) },
     { provide: ChangeMyBusinessLocation, ...repositoryUseCase((repository) => new ChangeMyBusinessLocation(repository)) },
+    { provide: RevokeMyBusiness, ...repositoryUseCase((repository) => new RevokeMyBusiness(repository)) },
     { provide: GetMyRegionPreference, ...regionPreferenceUseCase((repository) => new GetMyRegionPreference(repository)) },
     { provide: ReplaceMyRegionPreference, ...regionPreferenceUseCase((repository) => new ReplaceMyRegionPreference(repository)) },
     { provide: ListMyFilterCombinations, ...filterCombinationUseCase((repository) => new ListMyFilterCombinations(repository)) },

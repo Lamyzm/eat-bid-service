@@ -17,6 +17,7 @@ import {
   supplierStatusText
 } from '../_model/registered-business-view';
 import { BusinessLocationForm } from './business-location-form';
+import { BusinessRevokeButton } from './business-revoke-button';
 import { BusinessRegisterForm } from './business-register-form';
 
 interface MyBusinessesPanelProps {
@@ -80,6 +81,7 @@ export function MyBusinessesPanel({ scope, canWrite }: MyBusinessesPanelProps) {
                 <Badge variant={business.supplier.kind === 'linked' ? 'secondary' : 'outline'}>
                   {supplierStatusText(business)}
                 </Badge>
+                <BusinessRevokeButton business={business} scope={scope} canWrite={canWrite} />
               </div>
               <BusinessLocationForm business={business} scope={scope} canWrite={canWrite} />
             </section>

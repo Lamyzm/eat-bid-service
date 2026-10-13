@@ -13,13 +13,14 @@ const maxSignedBigint = "9223372036854775807";
 const publishedBusinessNumber = "1248100998";
 
 describe("내 계정 operation 계약", () => {
-  test("다섯 operation이 모두 server 소유로 registry에 한 번씩 있다", () => {
+  test("여섯 operation이 모두 server 소유로 registry에 한 번씩 있다", () => {
     const identifiers = [
       "initializeCurrentAccount",
       "listMyBusinesses",
       "registerMyBusiness",
       "setMyBusinessLocation",
       "clearMyBusinessLocation",
+      "revokeMyBusiness",
     ];
 
     for (const operationId of identifiers) {
@@ -64,6 +65,7 @@ describe("내 계정 operation 계약", () => {
   test("타 워크스페이스 등록 접근은 403, 없는 등록은 404로 구분한다", () => {
     expect(meV1Operations.setMyBusinessLocation.problemStatuses).toEqual([400, 401, 403, 404, 500, 503]);
     expect(meV1Operations.clearMyBusinessLocation.problemStatuses).toEqual([400, 401, 403, 404, 500, 503]);
+    expect(meV1Operations.revokeMyBusiness.problemStatuses).toEqual([400, 401, 403, 404, 500, 503]);
   });
 
   test("빈 설정·미연결·위치 미설정을 각각 다른 값으로 표현한다", () => {

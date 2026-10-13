@@ -5,6 +5,7 @@
  * 등록인가)이 바뀌면 조회 범위와 위치 쓰기 권한이 함께 바뀐다. 세 use case 모두 내부 record를 돌려주고
  * 공개 응답으로의 직렬화는 presentation의 presenter가 한다(ADR 0045 결정 1).
  */
+import type { Temporal } from "@eatbid/domain";
 import { Effect } from "effect";
 import type { ResolvedPrincipal } from "../../../platform/auth/principal-reader";
 import {
@@ -81,6 +82,40 @@ export class RegisterMyBusiness {
       Effect.flatMap((result) => result.kind === "registered"
         ? Effect.succeed(result.business)
         : Effect.fail(new RegisteredBusinessConflict())),
+    );
+  }
+}
+
+export class RevokeMyBusiness {
+  constructor(private readonly repository: AccountRepository) {}
+
+  /** 등록을 빼는 일도 워크스페이스를 바꾸는 일이라 `owner`만 한다. 남의 등록은 403, 없거나 이미 뺀 등록은 404다. */
+  execute(input: {
+    readonly principal: ResolvedPrincipal;
+    readonly registeredBusinessId: bigint;
+  }): Effect.Effect<
+    { readonly registeredBusinessId: bigint; readonly revokedAt: Temporal.Instant },
+    AccountDependencyUnavailable
+    | RegisteredBusinessForbidden
+    | RegisteredBusinessNotFound
+    | WorkspaceRoleForbidden
+  > {
+    return requireWorkspaceOwner(input.principal).pipe(
+      Effect.flatMap(() => Effect.tryPromise({
+        try: () => this.repository.revokeBusiness({
+          workspaceId: input.principal.workspace.workspaceId,
+          registeredBusinessId: input.registeredBusinessId,
+        }),
+        catch: (cause) => new AccountDependencyUnavailable(cause),
+      })),
+      Effect.flatMap((result): Effect.Effect<
+        { readonly registeredBusinessId: bigint; readonly revokedAt: Temporal.Instant },
+        RegisteredBusinessForbidden | RegisteredBusinessNotFound
+      > => {
+        if (result.kind === "not-found") return Effect.fail(new RegisteredBusinessNotFound());
+        if (result.kind === "forbidden") return Effect.fail(new RegisteredBusinessForbidden());
+        return Effect.succeed({ registeredBusinessId: input.registeredBusinessId, revokedAt: result.revokedAt });
+      }),
     );
   }
 }

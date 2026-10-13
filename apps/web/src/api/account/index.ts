@@ -1,6 +1,7 @@
 /** @module 책임: browser consumer가 쓰는 세션·등록 사업자 조회와 command, TanStack Query 공개 표면을 제공한다. */
 import type {
   MyBidObservationsV1Response,
+  MyBusinessRevocationV1Response,
   MyBusinessesV1Response,
   MyBusinessV1Response,
   MyFilterCombinationV1Response,
@@ -17,6 +18,7 @@ import {
   clearMyBusinessLocationWith,
   listMyBusinessesWith,
   registerMyBusinessWith,
+  revokeMyBusinessWith,
   setMyBusinessLocationWith
 } from './my-businesses';
 import {
@@ -104,6 +106,13 @@ export function clearMyBusinessLocation(input: {
   readonly signal?: AbortSignal;
 }): Promise<MyBusinessV1Response> {
   return clearMyBusinessLocationWith(browserRequest, input);
+}
+
+export function revokeMyBusiness(input: {
+  readonly businessId: string;
+  readonly signal?: AbortSignal;
+}): Promise<MyBusinessRevocationV1Response> {
+  return revokeMyBusinessWith(browserRequest, input);
 }
 
 export function putMyRegionPreference(input: {
