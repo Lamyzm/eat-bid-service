@@ -16,7 +16,7 @@ export function WorkFrame({
     <section data-slot='work-screen' aria-labelledby='work-title' className='mx-auto w-full max-w-[1180px] px-4 py-6 sm:px-8'>
       <h1 id='work-title' className='text-[26px] font-extrabold tracking-[-0.04em]'>오늘 투찰</h1>
       <div className='mt-2.5 text-[17px] font-semibold text-muted-foreground'>{lede}</div>
-      <div className='mt-2 text-[13px] text-muted-foreground/70'>{stamp}</div>
+      <div className='mt-2 text-[13px] text-muted-foreground'>{stamp}</div>
       {filters}
       {children}
     </section>

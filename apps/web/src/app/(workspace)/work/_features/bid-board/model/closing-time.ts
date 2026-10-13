@@ -19,9 +19,9 @@ export function clockText(time: Temporal.ZonedDateTime): string {
   return time.minute === 0 ? `${half} ${hour}시` : `${half} ${hour}시 ${time.minute}분`;
 }
 
-/** 기준 시각에서 마감까지 남은 시간이다. 날이 바뀌면 시간을 세지 않고 "내일"이라고만 한다. */
-export function relativeText(asOf: Temporal.ZonedDateTime, closes: Temporal.ZonedDateTime): string {
-  if (Temporal.PlainDate.compare(closes.toPlainDate(), asOf.toPlainDate()) > 0) return '내일';
+/** 기준 시각에서 마감까지 남은 시간이다. 날이 바뀌면 시간을 세지 않는다 — 묶음 이름이 이미 "내일 · "로 시작한다. */
+export function relativeText(asOf: Temporal.ZonedDateTime, closes: Temporal.ZonedDateTime): string | null {
+  if (Temporal.PlainDate.compare(closes.toPlainDate(), asOf.toPlainDate()) > 0) return null;
   const minutes = Math.floor(asOf.toInstant().until(closes.toInstant()).total({ unit: 'minutes' }));
   if (minutes < 60) return `${minutes}분 뒤`;
   const hours = Math.floor(minutes / 60);

@@ -25,7 +25,7 @@ export function conditionSummary(input: { readonly areas: readonly Area[] | null
   return [
     regionPiece(input.areas),
     // 오늘 투찰은 하한율 90%·88% 공고와 하한율을 아직 모르는 공고를 싣는다(서버 조회 조건과 같다).
-    '하한율 90%·88%·미확인',
+    '하한율 90%·88%(미확인 포함)',
     input.businessCount === null ? null : `내 사업자 ${input.businessCount}곳`
   ].filter((piece) => piece !== null).join(' · ');
 }

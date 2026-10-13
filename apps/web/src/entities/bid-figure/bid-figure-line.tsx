@@ -30,7 +30,7 @@ export function BidFigureLine({
   return (
     <span data-slot='bid-figure' className='grid justify-items-end gap-1'>
       <span className='flex items-baseline justify-end gap-1.5 whitespace-nowrap'>
-        {showLabel ? <span className='text-[12px] font-semibold text-muted-foreground/70'>{label}</span> : null}
+        {showLabel ? <span className='text-[12px] font-semibold text-muted-foreground'>{label}</span> : null}
         {figure.assessmentRate === null ? (
           <CopyValue value={figure.amountCopy} label={`${label} 금액 ${figure.amount}`} chip className={big}>
             <span>{figure.amount}</span>

@@ -24,9 +24,11 @@ export interface MyBidBoardInput {
 export async function getMyBidBoardWith(request: ContractRequest, input: MyBidBoardInput): Promise<MyBidBoardRead> {
   const operation = myBidBoardV1Operations.getMyBidBoard;
   // 지역은 query에 없다. 서버가 저장된 관심 지역을 읽는다 — 화면이 지역을 보내 남의 시장을 펼치지 못하게 한다.
+  // 아침 갱신은 요청할 때만 실린다. 이 query를 모르는 옛 server는 400을 내므로 server 배포 뒤의 web만 보낸다(ADR 0067).
   const query = operation.querySchema.parse({
     ...(input.items === undefined ? {} : { items: [...input.items] }),
-    ...(input.itemUnknown === undefined ? {} : { itemUnknown: input.itemUnknown })
+    ...(input.itemUnknown === undefined ? {} : { itemUnknown: input.itemUnknown }),
+    include: 'morning-habit'
   });
   try {
     return { kind: 'board', response: await request({ operation, path: undefined, query, signal: input.signal }) };
