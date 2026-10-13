@@ -18,6 +18,7 @@ import { DrizzleMarketRoundReader } from "../../modules/procurement/infrastructu
 import { DrizzleMorningHabitReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-morning-habit-reader";
 import { DrizzleBidDisplayLedger } from "../../modules/procurement/infrastructure/drizzle/drizzle-bid-display-ledger";
 import type { BidDisplayLedger } from "../../modules/procurement/application/bid-display-ledger";
+import { DrizzleBidReviewReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-bid-review-reader";
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
 import type { AuctionRosterReader } from "../../modules/procurement/application/auction-roster-reader";
 import { DrizzleAuctionRosterReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
@@ -57,6 +58,7 @@ import {
   MARKET_ROUND_READER,
   MORNING_HABIT_READER,
   BID_DISPLAY_LEDGER,
+  BID_REVIEW_READER,
   READ_SNAPSHOT,
   REGION_PREFERENCE_REPOSITORY,
   REGISTERED_BUSINESS_READER,
@@ -156,6 +158,11 @@ export class DatabaseModule {
         inject: [DATABASE_CONNECTION],
         useFactory: (connection: ManagedDatabase): BidDisplayLedger =>
           overrides.bidDisplayLedger ?? new DrizzleBidDisplayLedger(connection.database),
+      },
+      {
+        // 복기도 맞춤처럼 스냅샷 handle만 받아 읽는다.
+        provide: BID_REVIEW_READER,
+        useValue: new DrizzleBidReviewReader(),
       },
       {
         provide: AUCTION_READER,
@@ -268,6 +275,7 @@ export class DatabaseModule {
         MARKET_ROUND_READER,
         MORNING_HABIT_READER,
         BID_DISPLAY_LEDGER,
+        BID_REVIEW_READER,
         AUCTION_READER,
         AUCTION_ROSTER_READER,
         OPEN_AUCTION_READER,

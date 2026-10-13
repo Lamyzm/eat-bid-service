@@ -2510,6 +2510,280 @@
         "pattern": "^(?:(?:0|[1-9][0-9]?)\\.[0-9]{3}|100\\.000)$",
         "type": "string"
       },
+      "BidReviewMethod": {
+        "enum": [
+          "market-pick",
+          "national-rule",
+          "morning-habit"
+        ],
+        "type": "string"
+      },
+      "BidReviewMethodValues": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedWins": {
+            "$ref": "#/components/schemas/CanonicalDecimalText"
+          },
+          "method": {
+            "$ref": "#/components/schemas/BidReviewMethod"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/BidReviewPosition"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "ledger",
+              "recomputed"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "source",
+          "version",
+          "positions",
+          "expectedWins"
+        ],
+        "type": "object"
+      },
+      "BidReviewMonth": {
+        "additionalProperties": false,
+        "properties": {
+          "bids": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "month": {
+            "$ref": "#/components/schemas/KstMonthText"
+          },
+          "rounds": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "wins": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          }
+        },
+        "required": [
+          "month",
+          "rounds",
+          "bids",
+          "wins"
+        ],
+        "type": "object"
+      },
+      "BidReviewOwnBid": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "ratio": {
+            "$ref": "#/components/schemas/ReservePriceRatio"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/BidReviewOwnVerdict"
+          }
+        },
+        "required": [
+          "label",
+          "ratio",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "BidReviewOwnVerdict": {
+        "enum": [
+          "won",
+          "below-floor",
+          "first",
+          "above-winner"
+        ],
+        "type": "string"
+      },
+      "BidReviewPosition": {
+        "additionalProperties": false,
+        "properties": {
+          "ratio": {
+            "$ref": "#/components/schemas/ReservePriceRatio"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/BidReviewVerdict"
+          }
+        },
+        "required": [
+          "ratio",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "BidReviewRound": {
+        "additionalProperties": false,
+        "properties": {
+          "auctionId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "baseAmount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "bidderCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "displayBidNo": {
+            "maxLength": 64,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "floorRate": {
+            "$ref": "#/components/schemas/BidRate"
+          },
+          "floorRatio": {
+            "$ref": "#/components/schemas/ReservePriceRatio"
+          },
+          "itemLabel": {
+            "maxLength": 200,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "methods": {
+            "items": {
+              "$ref": "#/components/schemas/BidReviewMethodValues"
+            },
+            "maxItems": 3,
+            "type": "array"
+          },
+          "openedAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "organizationLabel": {
+            "maxLength": 200,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "own": {
+            "items": {
+              "$ref": "#/components/schemas/BidReviewOwnBid"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "ownExpectedWins": {
+            "$ref": "#/components/schemas/CanonicalDecimalText"
+          },
+          "title": {
+            "maxLength": 500,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "winner": {
+            "additionalProperties": false,
+            "nullable": true,
+            "properties": {
+              "label": {
+                "maxLength": 200,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              },
+              "mine": {
+                "type": "boolean"
+              },
+              "ratio": {
+                "$ref": "#/components/schemas/ReservePriceRatio"
+              }
+            },
+            "required": [
+              "label",
+              "ratio",
+              "mine"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "auctionId",
+          "openedAt",
+          "displayBidNo",
+          "title",
+          "organizationLabel",
+          "itemLabel",
+          "baseAmount",
+          "floorRate",
+          "bidderCount",
+          "floorRatio",
+          "winner",
+          "own",
+          "ownExpectedWins",
+          "methods"
+        ],
+        "type": "object"
+      },
+      "BidReviewSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "allAboveWinner": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "allBelowFloor": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "expectedWins": {
+            "$ref": "#/components/schemas/CanonicalDecimalText"
+          },
+          "first": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "method": {
+            "enum": [
+              "own",
+              "market-pick",
+              "national-rule",
+              "morning-habit"
+            ],
+            "type": "string"
+          },
+          "recomputedRounds": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "rounds": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          }
+        },
+        "required": [
+          "method",
+          "rounds",
+          "first",
+          "allBelowFloor",
+          "allAboveWinner",
+          "expectedWins",
+          "recomputedRounds"
+        ],
+        "type": "object"
+      },
+      "BidReviewVerdict": {
+        "enum": [
+          "below-floor",
+          "first",
+          "above-winner"
+        ],
+        "type": "string"
+      },
       "BusinessNumberText": {
         "description": "Canonical ten-digit Korean business registration number text used only as a lookup key.",
         "example": "1248100998",
@@ -4131,6 +4405,115 @@
         ],
         "type": "object"
       },
+      "MyBidReviewV1Response": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/BidReviewMonth"
+            },
+            "type": "array"
+          },
+          "selected": {
+            "additionalProperties": false,
+            "nullable": true,
+            "properties": {
+              "marketPick": {
+                "additionalProperties": false,
+                "properties": {
+                  "marketRounds": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/NonNegativeCount"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "ratios": {
+                    "items": {
+                      "$ref": "#/components/schemas/ReservePriceRatio"
+                    },
+                    "maxItems": 2,
+                    "minItems": 1,
+                    "nullable": true,
+                    "type": "array"
+                  },
+                  "version": {
+                    "maxLength": 32,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "window": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "fromMonth": {
+                        "$ref": "#/components/schemas/KstMonthText"
+                      },
+                      "throughMonth": {
+                        "$ref": "#/components/schemas/KstMonthText"
+                      }
+                    },
+                    "required": [
+                      "fromMonth",
+                      "throughMonth"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "version",
+                  "window",
+                  "ratios",
+                  "marketRounds"
+                ],
+                "type": "object"
+              },
+              "month": {
+                "$ref": "#/components/schemas/KstMonthText"
+              },
+              "nationalRuleVersion": {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rounds": {
+                "items": {
+                  "$ref": "#/components/schemas/BidReviewRound"
+                },
+                "maxItems": 1000,
+                "type": "array"
+              },
+              "summaries": {
+                "items": {
+                  "$ref": "#/components/schemas/BidReviewSummary"
+                },
+                "type": "array"
+              },
+              "unplannedRounds": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            },
+            "required": [
+              "month",
+              "marketPick",
+              "nationalRuleVersion",
+              "unplannedRounds",
+              "summaries",
+              "rounds"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "asOf",
+          "months",
+          "selected"
+        ],
+        "type": "object"
+      },
       "MyBidSubmission": {
         "additionalProperties": false,
         "properties": {
@@ -5484,6 +5867,32 @@
           }
         ],
         "type": "object"
+      },
+      "ReservePriceRatio": {
+        "additionalProperties": false,
+        "description": "A reserve-price multiplier expressed against the base amount on a 1.0 scale.",
+        "properties": {
+          "unit": {
+            "enum": [
+              "ratio"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/ReservePriceRatioText"
+          }
+        },
+        "required": [
+          "value",
+          "unit"
+        ],
+        "type": "object"
+      },
+      "ReservePriceRatioText": {
+        "description": "Canonical reserve-price multiplier text from 0.000000 through 9.999999.",
+        "maxLength": 8,
+        "pattern": "^[0-9]\\.[0-9]{6}$",
+        "type": "string"
       },
       "SavedCombinationCount": {
         "additionalProperties": false,
@@ -7641,6 +8050,90 @@
           }
         },
         "summary": "관심 지역의 내일 자정 전 마감 하한율 90·88 공고마다 이번 달 맞춤과 전국 공식 금액을 한 번에 낸다. 운영자 전용이다.",
+        "tags": [
+          "내 계정과 조건"
+        ]
+      }
+    },
+    "/api/v1/me/bid-review": {
+      "get": {
+        "operationId": "getMyBidReview",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/KstMonthText"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyBidReviewV1Response"
+                }
+              }
+            },
+            "description": "복기 조회 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "query가 유효하지 않음"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "운영자 권한 없음, 신뢰하지 않는 Origin 또는 계정 초기화 미완료"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "내 사업자가 넣은 공고를 달마다 모아, 그날 하한·낙찰과 우리 값·방법별 추천 값(장부 또는 다시 계산)을 대조한다. 운영자 전용이다.",
         "tags": [
           "내 계정과 조건"
         ]
