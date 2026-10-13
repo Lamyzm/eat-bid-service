@@ -12,6 +12,7 @@ import { DecideMorningHabitPick } from "./decide-morning-habit-pick";
 import type { MorningHabitReader } from "./morning-habit-reader";
 import { DecideMarketPick } from "./decide-market-pick";
 import { GetMyBidBoard } from "./get-my-bid-board";
+import { NO_BID_DISPLAY_LEDGER, QuietBidDisplayLedger, type BidDisplayLedger } from "./bid-display-ledger";
 import type { MarketRoundReader } from "./market-round-reader";
 import type { OpenAuctionQuery, OpenAuctionReader, OpenAuctionRecord } from "./open-auction-reader";
 
@@ -66,6 +67,7 @@ function board(options: {
   readonly pages?: readonly (readonly OpenAuctionRecord[])[];
   readonly market?: MarketRoundReader;
   readonly habit?: MorningHabitReader;
+  readonly ledger?: BidDisplayLedger;
   readonly asked?: OpenAuctionQuery[];
   readonly now?: string;
 }) {
@@ -97,7 +99,7 @@ function board(options: {
   const decide = new DecideMarketPick(snapshot, businesses, market, clock);
   const habitReader: MorningHabitReader = options.habit ?? { findMarketRounds: async () => [], findFirmBids: async () => [] };
   const habit = new DecideMorningHabitPick(snapshot, businesses, habitReader, clock);
-  return new GetMyBidBoard(reader, regions, decide, habit, clock);
+  return new GetMyBidBoard(reader, regions, decide, habit, clock, options.ledger ?? NO_BID_DISPLAY_LEDGER);
 }
 
 const run = (
@@ -217,5 +219,34 @@ describe("오늘 투찰 아침 갱신", () => {
     expect(read).toBe(1);
     expect(record.habit?.kind).toBe("not-applicable");
     expect(record.rows.map((row) => row.morningHabit?.state)).toEqual(["not-applicable", "not-applicable"]);
+  });
+});
+
+describe("오늘 투찰 화면 장부", () => {
+  test("화면에 금액을 보인 하한율 90 행만 장부에 남기고, 금액 없이 직접 판단만 다는 88 행은 남기지 않는다", async () => {
+    const recorded: Parameters<BidDisplayLedger["record"]>[0][] = [];
+    const ledger: BidDisplayLedger = { record: async (input) => { recorded.push(input); } };
+    await run(board({
+      auctions: [auction({ auctionAttemptId: 1n }), auction({ auctionAttemptId: 2n, floorRate: bidRate(canonicalDecimal("88.000", 3)) })],
+      ledger,
+    }));
+    expect(recorded).toHaveLength(1);
+    const entries = recorded[0]!.entries;
+    expect(recorded[0]!.workspaceId).toBe(4n);
+    expect(entries.map((entry) => [entry.auctionAttemptId, entry.method])).toEqual([[1n, "market-pick"], [1n, "national-rule"]]);
+    const market = entries.find((entry) => entry.method === "market-pick")!;
+    // 화면의 기초금액 대비 % 그대로다. 사정률은 이 값을 하한율로 나눈 것이다(ADR 0066).
+    expect(market.baseRelativeRates).toEqual(["89.4060", "89.6400"]);
+    expect(market.floorRate).toBe("90.000");
+    expect(market.basisPeriod).toMatch(/^\d{4}-\d{2}~\d{4}-\d{2}$/);
+    expect(entries.find((entry) => entry.method === "national-rule")?.singleBaseRelativeRate).toBeNull();
+  });
+
+  test("장부가 실패해도 오늘 투찰 응답은 그대로 나간다", async () => {
+    const failures: unknown[] = [];
+    const ledger = new QuietBidDisplayLedger({ record: async () => { throw new Error("장부 표가 없다"); } }, (error) => failures.push(error));
+    const record = await run(board({ auctions: [auction({ auctionAttemptId: 1n })], ledger }));
+    expect(record.state).toBe("confirmed");
+    expect(failures).toHaveLength(1);
   });
 });

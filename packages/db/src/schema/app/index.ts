@@ -1,5 +1,6 @@
 export * from "./auth-schema-options.js";
 export * from "./auth.js";
+export * from "./bid-display-records.js";
 export * from "./filter-combinations.js";
 export * from "./operator-grants.js";
 export * from "./principals.js";

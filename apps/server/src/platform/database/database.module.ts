@@ -16,6 +16,8 @@ import { DrizzleEligibilityAreaReader } from "../../modules/procurement/infrastr
 import { DrizzleOwnBidReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-own-bid-reader";
 import { DrizzleMarketRoundReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-market-round-reader";
 import { DrizzleMorningHabitReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-morning-habit-reader";
+import { DrizzleBidDisplayLedger } from "../../modules/procurement/infrastructure/drizzle/drizzle-bid-display-ledger";
+import type { BidDisplayLedger } from "../../modules/procurement/application/bid-display-ledger";
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
 import type { AuctionRosterReader } from "../../modules/procurement/application/auction-roster-reader";
 import { DrizzleAuctionRosterReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
@@ -54,6 +56,7 @@ import {
   OWN_BID_READER,
   MARKET_ROUND_READER,
   MORNING_HABIT_READER,
+  BID_DISPLAY_LEDGER,
   READ_SNAPSHOT,
   REGION_PREFERENCE_REPOSITORY,
   REGISTERED_BUSINESS_READER,
@@ -84,6 +87,7 @@ export interface DatabaseModuleOverrides {
   readonly analysisHistoryReader?: AnalysisHistoryReader;
   readonly analysisDistributionReader?: AnalysisDistributionReader;
   readonly codeReader?: CodeReader;
+  readonly bidDisplayLedger?: BidDisplayLedger;
 }
 
 @Global()
@@ -145,6 +149,13 @@ export class DatabaseModule {
         // 매달 맞춤 읽기와 같이 스냅샷 handle만 받아 읽는다.
         provide: MORNING_HABIT_READER,
         useValue: new DrizzleMorningHabitReader(),
+      },
+      {
+        // 장부는 읽기 스냅샷 밖의 독립 문장으로 쓴다(ADR 0068).
+        provide: BID_DISPLAY_LEDGER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): BidDisplayLedger =>
+          overrides.bidDisplayLedger ?? new DrizzleBidDisplayLedger(connection.database),
       },
       {
         provide: AUCTION_READER,
@@ -256,6 +267,7 @@ export class DatabaseModule {
         OWN_BID_READER,
         MARKET_ROUND_READER,
         MORNING_HABIT_READER,
+        BID_DISPLAY_LEDGER,
         AUCTION_READER,
         AUCTION_ROSTER_READER,
         OPEN_AUCTION_READER,

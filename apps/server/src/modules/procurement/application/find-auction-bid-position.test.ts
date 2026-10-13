@@ -12,6 +12,7 @@ import { DecideMorningHabitPick } from "./decide-morning-habit-pick";
 import type { MorningHabitReader } from "./morning-habit-reader";
 import { DecideMarketPick } from "./decide-market-pick";
 import { FindAuctionBidPosition } from "./find-auction-bid-position";
+import { NO_BID_DISPLAY_LEDGER, type BidDisplayLedger } from "./bid-display-ledger";
 import type { MarketRoundQuery, MarketRoundReader } from "./market-round-reader";
 
 const auction: AuctionRecord = {
@@ -55,6 +56,7 @@ function useCase(options: {
   readonly floor?: string;
   readonly asked?: MarketRoundQuery[];
   readonly habit?: MorningHabitReader;
+  readonly ledger?: BidDisplayLedger;
 }) {
   const snapshot = createUnitOfWork({ transaction: (work) => work({ execute: async () => [] }) });
   const reader: RegisteredBusinessReader = {
@@ -73,6 +75,8 @@ function useCase(options: {
     { findById: async () => record },
     new DecideMarketPick(snapshot, reader, market, clock),
     new DecideMorningHabitPick(snapshot, reader, habitReader, clock),
+    clock,
+    options.ledger ?? NO_BID_DISPLAY_LEDGER,
   );
 }
 
@@ -143,5 +147,23 @@ describe("공고 상세 아침 갱신 use case", () => {
     expect(record.morningHabit?.decidedAt.toString()).toBe("2026-10-12T03:00:00Z");
     expect(record.morningHabit?.method.version).toBe("2026-10-11");
     expect(record.morningHabit?.result).toEqual({ state: "not-applicable", reasons: ["market-rounds-below-minimum"], coverage: null });
+  });
+});
+
+describe("공고 상세 화면 장부", () => {
+  test("상세가 내보낸 맞춤·전국 공식 금액을 공고 번호와 함께 장부에 남기고, 88% 공고는 전국 공식만 남긴다", async () => {
+    const recorded: Parameters<BidDisplayLedger["record"]>[0][] = [];
+    const ledger: BidDisplayLedger = { record: async (input) => { recorded.push(input); } };
+    await run(useCase({ businesses: [business(101n), business(102n)], ledger }));
+    await run(useCase({ businesses: [business(101n), business(102n)], floor: "88.000", ledger }));
+    const [ninety, eightyEight] = recorded;
+    expect(ninety!.workspaceId).toBe(4n);
+    expect(ninety!.servedAt.toString()).toBe("2026-10-12T03:00:00Z");
+    expect(ninety!.entries.map((entry) => [entry.auctionAttemptId, entry.method])).toEqual([
+      [auction.auctionId, "market-pick"],
+      [auction.auctionId, "national-rule"],
+    ]);
+    expect(eightyEight!.entries.map((entry) => entry.method)).toEqual(["national-rule"]);
+    expect(eightyEight!.entries[0]!.floorRate).toBe("88.000");
   });
 });

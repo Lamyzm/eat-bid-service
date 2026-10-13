@@ -11,6 +11,7 @@ import type { RegionPreferenceRepository } from "../../account/application/regio
 import { positionAmount, positionBaseRelativeRate, positionBids, type BidPositionResult } from "../domain/bid-position-rule";
 import { KST_TIME_ZONE } from "../domain/kst-month";
 import type { MarketPickPosition, MarketPickResult } from "../domain/market-position-pick";
+import { boardDisplayEntries, type BidDisplayLedger } from "./bid-display-ledger";
 import { marketPickFor, type DecideMarketPick, type MarketPickDecision } from "./decide-market-pick";
 import {
   habitCompetitorCount,
@@ -74,6 +75,7 @@ export class GetMyBidBoard {
     private readonly decideMarketPick: DecideMarketPick,
     private readonly decideMorningHabit: DecideMorningHabitPick,
     private readonly clock: Clock,
+    private readonly ledger: BidDisplayLedger,
   ) {}
 
   execute(input: GetMyBidBoardInput): Effect.Effect<MyBidBoardRecord, ProcurementDependencyUnavailable> {
@@ -145,7 +147,7 @@ export class GetMyBidBoard {
       this.decideMarketPick.decide({ workspaceId }),
       input.includeMorningHabit ? this.decideMorningHabit.decide({ workspaceId }) : Promise.resolve(null),
     ]);
-    return {
+    const record: MyBidBoardRecord = {
       state: "confirmed",
       asOf,
       closesBeforeDate: closesBeforeDate.toString(),
@@ -154,6 +156,9 @@ export class GetMyBidBoard {
       rows: auctions.map((auction) => rowOf(auction, decision, habit)),
       truncated,
     };
+    // 화면에 내보낸 금액을 장부에 남긴다(ADR 0068). 장부는 던지지 않는다 — 실패해도 이 응답은 그대로 나간다.
+    await this.ledger.record({ workspaceId, servedAt: asOf, entries: boardDisplayEntries(record) });
+    return record;
   }
 }
 
