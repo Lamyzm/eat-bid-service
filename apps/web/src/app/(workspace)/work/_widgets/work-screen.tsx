@@ -14,7 +14,7 @@ function ConditionLine({ summary }: { readonly summary: string }) {
   return (
     <p className='mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg bg-muted/60 px-3 py-2 text-[13px] font-semibold'>
       <span>{summary}</span>
-      <Link href='/setup' className='font-bold text-primary hover:underline'>지역·사업자 바꾸기</Link>
+      <Link href='/setup' className='font-bold text-primary hover:underline'>내 사업자에서 바꾸기</Link>
     </p>
   );
 }

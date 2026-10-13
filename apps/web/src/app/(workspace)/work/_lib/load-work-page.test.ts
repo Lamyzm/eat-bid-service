@@ -38,7 +38,7 @@ describe('오늘 투찰 화면 조립', () => {
       readConditions: async () => ({ areas: [gimhae], businessCount: 2 })
     });
     expect(view.kind).toBe('board');
-    expect(view.kind === 'board' ? view.summary : null).toBe('관심 지역 경남 김해시 · 하한율 90%·88%·미확인 · 내 사업자 2곳');
+    expect(view.kind === 'board' ? view.summary : null).toBe('관심 지역 경남 김해시 · 하한율 90%·88%(미확인 포함) · 내 사업자 2곳');
   });
 
   test('조건을 읽지 못해도 목록은 그대로 내고 요약에서 그 조각만 뺀다', async () => {
@@ -47,6 +47,6 @@ describe('오늘 투찰 화면 조립', () => {
       readBoard: async () => ({ kind: 'board', response: board }),
       readConditions: async () => { throw new Error('조회 실패'); }
     });
-    expect(view.kind === 'board' ? view.summary : null).toBe('하한율 90%·88%·미확인');
+    expect(view.kind === 'board' ? view.summary : null).toBe('하한율 90%·88%(미확인 포함)');
   });
 });

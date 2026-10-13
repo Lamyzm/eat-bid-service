@@ -1,6 +1,6 @@
 /**
- * @module 책임: 오늘 투찰 한 줄의 아침 갱신 칸(켜지면 1번·2번과 반영 시각, 꺼지면 짧은 이유)과 그 열 머리 성적을 만드는 표시 모델을
- * 소유한다.
+ * @module 책임: 오늘 투찰 한 줄의 아침 갱신 칸(켜지면 1번·2번과 반영 시각, 꺼지면 짧은 이유)과 더 보기 설명, 열 머리 성적을 만드는
+ * 표시 모델을 소유한다.
  *
  * 맞춤·전국 공식 칸(`present-bid-board.ts`)과 나눈 이유는 바뀌는 이유가 달라서다. 이 칸은 화면을 연 시각까지 보인 결과로
  * 계산되어 결과가 더 나오면 바뀌므로, 몇 시 결과까지 반영했는지와 왜 아직 꺼져 있는지를 칸 안에서 말한다(ADR 0067).
@@ -33,51 +33,73 @@ export interface HabitAmountLine {
   readonly figure: ReturnType<typeof bidFigure>;
 }
 
+/** `detail`은 더 보기의 아침 갱신 상자에 쓰는 한두 문장이다. 칸에는 짧게, 상자에는 왜·언제를 쓴다. */
 export type HabitCellView =
-  | { readonly kind: 'amounts'; readonly lines: readonly HabitAmountLine[]; readonly note: string }
-  | { readonly kind: 'reason'; readonly text: string };
+  | { readonly kind: 'amounts'; readonly lines: readonly HabitAmountLine[]; readonly note: string; readonly detail: string }
+  | {
+      readonly kind: 'reason';
+      readonly text: string;
+      readonly detail: string;
+      /** 내일 아침 결과를 기다리는 칸이다. 머리 문장이 "내일 아침에 다시 열면"을 몇 건인지 센다. */
+      readonly tomorrow: boolean;
+    };
 
 function clockText(instant: string): string {
   const time = Temporal.Instant.from(instant).toZonedDateTimeISO(KST);
   return `${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`;
 }
 
+/** 꺼져 있는 동안 파란 테두리가 다른 칸에 있다고 같이 말한다. 상자만 읽은 사람도 지금 어느 칸을 보면 되는지 안다. */
+const MEANWHILE = '그 전까지는 파란 테두리가 다른 칸에 있어요.';
+
 /**
  * 오늘 자리가 하나도 안 보인 칸은 마감일로 이유를 가른다. 내일 마감 공고는 내일 아침 결과를 기다려야 하고, 오늘 마감 공고는 그날
- * 앞선 개찰 결과를 기다리는 중이다. 조금 보였지만 문턱 아래면 "오늘 정보 부족"이다(시안 W1).
+ * 앞선 개찰 결과를 기다리는 중이다. 조금 보였지만 문턱 아래면 단골 결과가 아직 적은 것이다(시안 W1).
+ *
+ * 내일 칸은 언제 다시 열면 되는지를 말한다. 사장님은 마감 전날 저녁에 넣어 와서(2024~2026 실측) 이 칸이 비어 있는 이유와 다시 볼
+ * 시각을 모르면 이 방법을 쓸 길이 없다.
  */
-function coverageReason(cell: Extract<HabitCell, { state: 'not-applicable' }>, closesAt: string | null, asOf: string): string {
+function coverageReason(cell: Extract<HabitCell, { state: 'not-applicable' }>, closesAt: string | null, asOf: string) {
   const seen = cell.coverage !== null && cell.coverage.value !== '0.000000';
-  if (seen) return '오늘 정보 부족';
-  if (closesAt === null) return '앞선 결과 기다리는 중';
+  if (seen) {
+    return { text: '단골 결과가 아직 적어요', detail: `오늘 단골 결과가 아직 적어 금액을 내지 않았어요. 결과가 더 나오면 생길 수 있어요. ${MEANWHILE}`, tomorrow: false };
+  }
+  const waiting = { text: '앞선 결과 기다리는 중', detail: `오늘 앞서 개찰되는 공고의 결과가 나오면 금액이 생겨요. ${MEANWHILE}`, tomorrow: false };
+  if (closesAt === null) return waiting;
   const closingDay = Temporal.Instant.from(closesAt).toZonedDateTimeISO(KST).toPlainDate();
   const today = Temporal.Instant.from(asOf).toZonedDateTimeISO(KST).toPlainDate();
-  return Temporal.PlainDate.compare(closingDay, today) > 0 ? '내일 아침 계산' : '앞선 결과 기다리는 중';
+  if (Temporal.PlainDate.compare(closingDay, today) <= 0) return waiting;
+  return {
+    text: '내일 아침에 다시 열면 계산돼요',
+    detail: `내일 아침 그날 앞선 공고의 결과가 나오면 금액이 생겨요. 지금은 전날이라 볼 결과가 없어요. ${MEANWHILE}`,
+    tomorrow: true
+  };
 }
 
 export function habitCellOf(row: BidBoardRowWire, asOf: string): HabitCellView {
   const cell = row.morningHabit;
-  if (cell === undefined || cell === null) return { kind: 'reason', text: '기초금액 미확인' };
+  if (cell === undefined || cell === null) {
+    return { kind: 'reason', text: '기초금액 미확인', detail: '기초금액이 아직 나오지 않아 금액을 내지 않았어요.', tomorrow: false };
+  }
   if (cell.state === 'not-applicable') {
     if (cell.reasons.includes('same-day-coverage-below-threshold')) {
-      return { kind: 'reason', text: coverageReason(cell, row.closesAt, asOf) };
+      return { kind: 'reason', ...coverageReason(cell, row.closesAt, asOf) };
     }
-    return {
-      kind: 'reason',
-      text: cell.reasons
-        .filter((reason): reason is Exclude<Reason, 'same-day-coverage-below-threshold'> => reason !== 'same-day-coverage-below-threshold')
-        .map((reason) => REASONS[reason])
-        .join(' · ')
-    };
+    const text = cell.reasons
+      .filter((reason): reason is Exclude<Reason, 'same-day-coverage-below-threshold'> => reason !== 'same-day-coverage-below-threshold')
+      .map((reason) => REASONS[reason])
+      .join(' · ');
+    return { kind: 'reason', text, detail: `이 공고에는 아침 갱신 금액이 없어요(${text}).`, tomorrow: false };
   }
   const floor = row.floorRate?.value ?? null;
+  const seenAt = cell.latestSameDayOpenedAt === null ? null : clockText(cell.latestSameDayOpenedAt);
   return {
     kind: 'amounts',
     lines: cell.positions.map((position) => ({ label: `${position.order}번`, figure: bidFigure(position, floor) })),
-    note:
-      cell.latestSameDayOpenedAt === null
-        ? `단골 ${cell.sameDayRegulars}곳 반영`
-        : `${clockText(cell.latestSameDayOpenedAt)} 결과로 바뀜 · 단골 ${cell.sameDayRegulars}곳`
+    note: seenAt === null ? `단골 ${cell.sameDayRegulars}곳 반영` : `${seenAt} 결과로 바뀜 · 단골 ${cell.sameDayRegulars}곳`,
+    detail:
+      `${seenAt === null ? '지금까지 나온' : `${seenAt}까지 나온`} 오늘 결과에서 단골 ${cell.sameDayRegulars}곳이 넣은 사정률을 보고 다시 고른 금액이에요. ` +
+      '결과가 더 나오면 바뀌니 넣기 직전에 새로고침해 보세요.'
   };
 }
 
@@ -87,19 +109,44 @@ function tenths(value: string): number {
   return Number(whole) * 10 + Number(fraction.slice(0, 1));
 }
 
-/** 열 머리 성적이다. 아침 갱신은 같은 공고에서 맞춤보다 늘어난 낙찰 수와 그 공고 수다(시안 W1). */
+const tenthsText = (value: number) => `${Math.floor(value / 10)}.${value % 10}`;
+
+function totals(head: HabitHead) {
+  return {
+    rounds: head.evidence.reduce((sum, entry) => sum + entry.rounds, 0),
+    habit: head.evidence.reduce((sum, entry) => sum + tenths(entry.expectedWins), 0),
+    monthly: head.evidence.reduce((sum, entry) => sum + tenths(entry.monthlyExpectedWins), 0)
+  };
+}
+
+/**
+ * 열 머리 성적이다. 아침 갱신은 같은 공고에서 맞춤보다 늘어난 낙찰 수다(시안 W1). 옆 칸의 전체 낙찰 수(95건)와 나란히 두면 작아
+ * 보이므로 "맞춤보다"를 붙여 무엇과 견준 수인지 말한다.
+ */
 export function habitHeadRecord(head: HabitHead): string {
-  const rounds = head.evidence.reduce((sum, entry) => sum + entry.rounds, 0);
-  const gain = head.evidence.reduce((sum, entry) => sum + tenths(entry.expectedWins) - tenths(entry.monthlyExpectedWins), 0);
-  const sign = gain >= 0 ? '+' : '−';
-  const absolute = Math.abs(gain);
-  return `${sign}${Math.floor(absolute / 10)}.${absolute % 10}건/${rounds.toLocaleString('ko-KR')}건`;
+  const { habit, monthly } = totals(head);
+  const gain = habit - monthly;
+  return `맞춤보다 ${gain >= 0 ? '+' : '−'}${tenthsText(Math.abs(gain))}건`;
+}
+
+/** 성적을 잰 조건과 공고 수다. 마감 직전에 넣는다는 전제를 숫자 바로 아래에 둔다 — 전날 넣는 공고에는 이 차이가 없다. */
+export function habitHeadSample(head: HabitHead): string {
+  return `마감 ${head.validatedLeadMinutes}분 전 기준 · ${totals(head).rounds.toLocaleString('ko-KR')}건`;
+}
+
+/** 더 보기 상자의 성적 문장이다. 두 방법을 같은 공고 묶음에서 센 수만 나란히 둔다. */
+export function habitRecordText(head: HabitHead, monthlyLabel: string): string {
+  const { rounds, habit, monthly } = totals(head);
+  return (
+    `지난 공고 ${rounds.toLocaleString('ko-KR')}건에 마감 ${head.validatedLeadMinutes}분 전에 1번·2번을 넣었다고 치고 세면 ` +
+    `아침 갱신 ${tenthsText(habit)}건, ${monthlyLabel} ${tenthsText(monthly)}건이에요(계산 ${head.version}).`
+  );
 }
 
 export function habitGuide(head: HabitHead): string {
   return (
-    '아침 갱신은 오늘 먼저 개찰된 공고에서 단골 업체가 넣은 사정률을 보고 다시 고른 금액이에요. ' +
-    `마감 ${head.validatedLeadMinutes}분 전에 넣을 때로 검증했고, 결과가 더 나오면 바뀌니 넣기 직전에 새로고침하세요. ` +
-    '칸 머리 숫자는 같은 공고에서 맞춤보다 늘어난 낙찰 수예요.'
+    '아침 갱신은 그날 먼저 개찰된 공고에서 단골 업체가 넣은 사정률을 보고 다시 고른 금액이에요. 그날 결과가 나와야 계산돼서 ' +
+    `전날 저녁에는 비어 있어요. 성적은 마감 ${head.validatedLeadMinutes}분 전에 넣었다고 치고 센 것이라, 전날 넣는 공고에는 이 차이가 ` +
+    '해당하지 않아요.'
   );
 }

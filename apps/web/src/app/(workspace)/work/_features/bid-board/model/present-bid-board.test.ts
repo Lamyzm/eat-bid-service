@@ -20,24 +20,24 @@ const rowOf = (view: ReturnType<typeof boardView>, auctionId: string) =>
   view.groups.flatMap((group) => group.rows).find((row) => row.auctionId === auctionId)!;
 
 describe('오늘 투찰 표시', () => {
-  test('공고를 KST 마감 시각으로 묶고 마감 순으로 세우며 내일 묶음에는 내일을 붙인다', () => {
+  test('공고를 KST 마감 시각으로 묶고 마감 순으로 세우며 내일 묶음은 이름에만 내일을 붙인다', () => {
     const view = boardView();
     expect(view.groups.map((group) => [group.label, group.relative, group.rows.length])).toEqual([
       ['오전 10시 마감', '13분 뒤', 5],
       ['오후 3시 10분 마감', '5시간 23분 뒤', 1],
-      ['내일 · 오전 9시 마감', '내일', 1]
+      ['내일 · 오전 9시 마감', null, 1]
     ]);
     expect(view.lede).toBe('오늘 마감 6건, 내일 마감 1건이에요.');
     expect(view.stamp).toBe('09:47 기준 · 10월 맞춤 금액은 7~9월 내 사업자 공고 164건으로 골랐어요');
   });
 
-  test('열 머리는 같은 공고에 대어 본 낙찰 수를 소수 오차 없이 더해 쓴다', () => {
+  test('열 머리는 지난 공고에 대어 본 낙찰 수를 소수 오차 없이 더하고 잰 공고 수를 단다', () => {
     const view = boardView();
     expect(view.columns).toEqual([
-      { label: '10월 맞춤', record: '95.0건' },
-      { label: '전국 공식', record: '81.9건' }
+      { label: '10월 맞춤', record: '95.0건', sample: '1,838건' },
+      { label: '전국 공식', record: '81.9건', sample: '1,838건' }
     ]);
-    expect(view.columnCaption).toBe('같은 공고 1,838건에 대어 본 낙찰 수(두 장)');
+    expect(view.columnCaption).toBe('지난 공고에 1번·2번을 넣었다고 치고 센 낙찰 수');
   });
 
   test('맞춤이 나온 행은 맞춤 칸에 근거 표시를 두고 전국 공식은 옆에 그대로 둔다', () => {
@@ -74,12 +74,13 @@ describe('오늘 투찰 표시', () => {
       basis: '7~9월 내 사업자 공고 164건으로 고른 사정률이에요'
     });
     expect(row.more.ruleExtras).toEqual([]);
-    expect(row.more.band).toBe('전국 공식은 참여 70곳 이상 표를 썼어요');
+    expect(row.more.band).toBe('이 공고에는 참여 70곳 이상 공고용 전국 공식 금액을 썼어요');
+    expect(row.more.habit).toBeNull();
   });
 
-  test('더 보기의 성적은 네 방법을 같은 공고에 대어 본 막대이고 맞춤 막대에 이번 달 이름을 단다', () => {
+  test('더 보기의 성적은 네 방법을 지난 공고에 대어 본 막대이고 맞춤 막대에 이번 달 이름을 단다', () => {
     const view = boardView();
-    expect(view.record.heading).toBe('성적 · 같은 공고 1,838건');
+    expect(view.record.heading).toBe('성적 · 지난 공고 1,838건');
     expect(view.record.bars.map((bar) => [bar.label, bar.value, bar.mine])).toEqual([
       ['10월 맞춤', '95.0건', true],
       ['전국 공식', '81.9건', false],
@@ -88,17 +89,19 @@ describe('오늘 투찰 표시', () => {
     ]);
   });
 
-  test('읽는 법은 두 칸·파란 테두리·칸 머리 숫자·복사·88% 공고를 이번 달 이름으로 풀어 쓴다', () => {
+  test('읽는 법은 방법 칸·파란 테두리·성적 숫자·복사·88% 공고를 폰과 넓은 화면 어디서나 맞는 말로 쓴다', () => {
     const view = boardView();
     expect(view.guide).toEqual([
-      '오른쪽 두 칸은 방법마다 낸 1번·2번이에요. 큰 숫자가 eaT에 넣는 사정률이고, 아래에 기초금액 대비 %와 금액을 함께 적었어요. 파란 테두리가 지금 근거가 가장 강한 방법이에요. 10월 맞춤이 나오면 그 칸, 아니면 전국 공식이에요.',
-      '칸 머리의 숫자는 같은 공고에 대어 본 낙찰 수예요(두 장, 예정가격 추첨 평균).',
-      '사정률 옆 복사를 누르면 그 숫자가 복사돼요. 기초대비 %와 금액도 눌러서 복사할 수 있어요. 넣을지와 언제 넣을지는 직접 정하세요.',
+      '방법마다 1번·2번 사정률을 냈어요. 큰 숫자가 eaT에 넣는 사정률이고, 아래 작은 줄은 기초금액 대비 %와 확인용 금액이에요. 파란 테두리가 지금 근거가 가장 강한 방법이에요 — 10월 맞춤이 나오면 그 칸, 아니면 전국 공식이에요.',
+      '방법 이름 아래 숫자는 지난 공고에 1번·2번을 넣었다고 치고 센 낙찰 수예요(예정가격 추첨 평균).',
+      '숫자 옆 복사를 누르면 그 숫자가 복사돼요. 넣을지와 언제 넣을지는 직접 정하세요.',
       '하한율 88% 공고는 금액 없이 직접 판단만 달아요.'
     ]);
+    // 폰에는 "오른쪽 칸"도 "칸 머리"도 없다.
+    expect(view.guide.join(' ')).not.toMatch(/오른쪽|칸 머리/);
   });
 
-  test('하한율을 아직 모르는 행은 직접 판단이 아니라 두 칸 모두 하한율 미확인이라고 말한다', () => {
+  test('하한율을 아직 모르는 행은 직접 판단이 아니고, 칸마다 되풀이하지 않고 한 줄로 하한율이 아직 없다고 말한다', () => {
     const unknownFloor = withRows([{
       ...boardRows.tongyeong,
       floorRate: null,
@@ -108,6 +111,7 @@ describe('오늘 투찰 표시', () => {
     const row = boardView(unknownFloor).groups[0]!.rows[0]!;
     expect(row.selfJudged).toBe(false);
     expect(row.cells).toEqual([{ kind: 'reason', text: '하한율 미확인' }, { kind: 'reason', text: '하한율 미확인' }]);
+    expect(row.sharedReason).toBe('하한율이 아직 안 나와 금액을 내지 않았어요');
   });
 
   test('목록이 잘렸으면 늦게 마감하는 공고 일부가 빠졌다고 말하고, 아니면 아무 말도 하지 않는다', () => {
@@ -118,8 +122,8 @@ describe('오늘 투찰 표시', () => {
 
   test('성적과 전국 공식에는 잰 기간과 계산 판·규칙 판을 함께 단다', () => {
     const view = boardView();
-    expect(view.record.basis).toBe('2024년 4월~2026년 9월 공고 · 두 장, 예정가격 추첨 평균 · 계산 판 2026-10-10');
-    expect(view.ruleBasis).toBe('전국 공식 규칙 2026-10-10 · 학습 ~2025-12 · 검증 2026-01~2026-08');
+    expect(view.record.basis).toBe('2024년 4월~2026년 9월 공고에 1번·2번을 넣었다고 치고 센 낙찰 수예요(예정가격 추첨 평균 · 계산 2026-10-10).');
+    expect(view.ruleBasis).toBe('전국 공식 2026-10-10 규칙 · 2025-12까지 배우고 2026-01~2026-08로 검증했어요.');
   });
 
   test('하한율 88 행은 금액 없이 직접 판단으로 표시한다', () => {
@@ -127,12 +131,13 @@ describe('오늘 투찰 표시', () => {
     expect(row.selfJudged).toBe(true);
     expect(row.cells).toEqual([]);
     // 기초금액은 공고 사실이라 남고, 투찰 금액(칸·더 보기)만 없다.
-    expect(row.more).toEqual({ market: null, ruleExtras: [], band: null });
+    expect(row.more).toEqual({ habit: null, market: null, ruleExtras: [], band: null });
   });
 
-  test('기초금액이 없는 행은 두 칸 모두 기초금액 미확인이라고 말한다', () => {
+  test('기초금액이 없는 행은 두 칸이 같은 이유라 한 줄로 기초금액이 아직 없다고 말한다', () => {
     const row = rowOf(boardView(), '2797005');
     expect(row.cells).toEqual([{ kind: 'reason', text: '기초금액 미확인' }, { kind: 'reason', text: '기초금액 미확인' }]);
+    expect(row.sharedReason).toBe('기초금액이 아직 안 나와 금액을 내지 않았어요');
     expect(row.facts).toEqual([{ label: '기초금액', value: '미확인' }, { label: '참여', value: '43곳' }]);
   });
 
@@ -140,6 +145,8 @@ describe('오늘 투찰 표시', () => {
     const row = rowOf(boardView(), '2797007');
     expect(row.cells[0]).toMatchObject({ kind: 'amounts', lead: true });
     expect(row.cells[1]).toEqual({ kind: 'reason', text: '참여 수 미확인' });
+    // 이유가 서로 다르면 칸을 그대로 둔다.
+    expect(row.sharedReason).toBeNull();
     expect(row.facts).toEqual([{ label: '기초금액', value: '5,598,590원' }, { label: '참여', value: '미확인' }]);
   });
 
@@ -153,6 +160,16 @@ describe('오늘 투찰 표시', () => {
     expect(row.cells[0]).toEqual({ kind: 'reason', text: '지금은 계산하지 못했어요' });
     expect(row.cells[1]).toMatchObject({ kind: 'amounts', lead: true });
     expect(view.stamp).toBe('09:47 기준 · 지금은 맞춤 금액을 계산하지 못했어요. 잠시 뒤 새로고침해 주세요.');
+  });
+
+  test('행은 eaT에서 공고를 찾는 공고번호를 싣고, 관측되지 않은 기관·품목·제목은 빈칸 말 대신 비우거나 미확인이라고 한다', () => {
+    const view = boardView(withRows([
+      { ...boardRows.tongyeong, displayBidNo: '2026-0001' },
+      { ...boardRows.tongyeong, auctionId: '2797099', organizationLabel: null, itemLabel: null, title: null }
+    ]));
+    const [named, blank] = view.groups[0]!.rows;
+    expect(named!.bidNo).toBe('2026-0001');
+    expect(blank).toMatchObject({ organization: '기관 이름 미확인', item: null, title: null, bidNo: null });
   });
 
   test('관심 지역을 확인하지 않았으면 목록 대신 지역 설정 안내 상태다', () => {
