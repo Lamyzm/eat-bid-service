@@ -16,6 +16,7 @@ import { analysisDistributionResponse } from './analysis-distribution-fixture';
 import { analysisTimeSeriesResponse } from './analysis-time-series-fixture';
 import { auctionRosterResponse } from './auction-roster-fixture';
 import { myBusinessesResponse } from './my-businesses-fixture';
+import { myBidReviewResponse } from './my-bid-review-fixture';
 import { openAuctionsResponse } from './open-auctions-fixture';
 import { openAuctionSummaryResponse } from './open-auctions-summary-fixture';
 import { sessionResponse } from './session-fixture';
@@ -277,6 +278,10 @@ Bun.serve({
     // 보려면 이 응답이 있어야 한다.
     const businesses = myBusinessesResponse(request);
     if (businesses) return businesses;
+
+    // 복기 화면은 한 달 대조를 한 번 읽는다.
+    const review = myBidReviewResponse(request);
+    if (review) return review;
 
     // 목록 경로는 `:auctionId` 경로보다 앞에서 본다. 경로가 다르므로 순서는 읽기 편의일 뿐이다.
     const openAuctions = openAuctionsResponse(request);

@@ -12,10 +12,13 @@ const active = (operator: boolean): CurrentSessionV1Response => ({
 });
 
 describe('운영자 탐색 묶음', () => {
-  test('운영자 세션이면 내 투찰 묶음에 오늘 투찰 하나를 낸다', () => {
+  test('운영자 세션이면 내 투찰 묶음에 오늘 투찰과 복기를 낸다', () => {
     expect(operatorNavGroup({ kind: 'session', response: active(true) })).toEqual({
       label: '내 투찰',
-      items: [{ title: '오늘 투찰', url: '/work', icon: 'post', isActive: false, items: [] }]
+      items: [
+        { title: '오늘 투찰', url: '/work', icon: 'post', isActive: false, items: [] },
+        { title: '복기', url: '/review', icon: 'trendingUp', isActive: false, items: [] }
+      ]
     });
   });
 
