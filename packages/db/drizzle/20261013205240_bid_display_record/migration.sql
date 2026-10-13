@@ -21,5 +21,4 @@ CREATE TABLE "app"."bid_display_record" (
 );
 --> statement-breakpoint
 CREATE INDEX "bid_display_record_workspace_served_idx" ON "app"."bid_display_record" ("workspace_id","first_served_at");--> statement-breakpoint
-ALTER TABLE "app"."bid_display_record" ADD CONSTRAINT "bid_display_record_workspace_id_workspace_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "app"."workspace"("workspace_id");--> statement-breakpoint
-ALTER TABLE "app"."bid_display_record" ADD CONSTRAINT "bid_display_record_XldF4NzaO5aA_fkey" FOREIGN KEY ("auction_attempt_id") REFERENCES "core"."auction_attempt"("auction_attempt_id");
+ALTER TABLE "app"."bid_display_record" ADD CONSTRAINT "bid_display_record_workspace_id_workspace_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "app"."workspace"("workspace_id");

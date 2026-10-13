@@ -7,7 +7,6 @@
  */
 import { sql } from "drizzle-orm";
 import { bigint, check, index, integer, numeric, timestamp, unique, varchar } from "drizzle-orm/pg-core";
-import { auctionAttempt } from "../core/procurement.js";
 import { appSchema } from "../namespaces.js";
 import { workspace } from "./workspaces.js";
 
@@ -20,9 +19,10 @@ export const bidDisplayRecord = appSchema.table(
     workspaceId: bigint("workspace_id", { mode: "bigint" })
       .notNull()
       .references(() => workspace.workspaceId),
-    auctionAttemptId: bigint("auction_attempt_id", { mode: "bigint" })
-      .notNull()
-      .references(() => auctionAttempt.auctionAttemptId),
+    // `core.auction_attempt`의 번호지만 FK를 걸지 않는다. FK를 만드는 마이그레이션은 공고 표에 쓰기와 충돌하는 잠금을 잡아야
+    // 하는데, 백필 투영이 그 표를 몇 시간씩 쓰는 동안에는 잠금 시간 초과로 배포가 막힌다. 공고 행은 지우지 않는 표라 끊긴
+    // 번호가 생기지 않고, 복기는 조인으로 공고를 읽는다(ADR 0068).
+    auctionAttemptId: bigint("auction_attempt_id", { mode: "bigint" }).notNull(),
     method: varchar("method", { length: 32 }).notNull(),
     // 방법 표의 판이다. 같은 금액이라도 판이 다르면 근거가 다르므로 다른 줄이다.
     methodVersion: varchar("method_version", { length: 32 }).notNull(),

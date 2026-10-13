@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "d0c5c72b-57c7-4d2e-bea1-3d77a869b9a1",
+  "id": "98002c37-2d7f-44bf-bfda-b3d09735452f",
   "prevIds": [
     "9a3a4867-7d74-4ad7-ac2e-f13fb9ec8504"
   ],
@@ -9111,23 +9111,6 @@
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "bid_display_record_workspace_id_workspace_workspace_id_fkey",
-      "entityType": "fks",
-      "schema": "app",
-      "table": "bid_display_record"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "auction_attempt_id"
-      ],
-      "schemaTo": "core",
-      "tableTo": "auction_attempt",
-      "columnsTo": [
-        "auction_attempt_id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "bid_display_record_XldF4NzaO5aA_fkey",
       "entityType": "fks",
       "schema": "app",
       "table": "bid_display_record"
