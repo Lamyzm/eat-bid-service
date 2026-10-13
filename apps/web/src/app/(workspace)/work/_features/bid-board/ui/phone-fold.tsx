@@ -5,7 +5,8 @@
  */
 import { useId, useState, type ReactNode } from 'react';
 
-export function PhoneFold({ count, children }: { readonly count: number; readonly children: ReactNode }) {
+/** `label`은 펼치기 전 손잡이 이름이다. 접힌 칸이 하나면 그 방법 이름을 넣어 바로 아래 "더 보기"와 헷갈리지 않게 한다. */
+export function PhoneFold({ label, children }: { readonly label: string; readonly children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   return (
@@ -15,9 +16,10 @@ export function PhoneFold({ count, children }: { readonly count: number; readonl
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((value) => !value)}
-        className='w-fit text-[13px] font-bold text-primary hover:underline sm:hidden'
+        className='flex w-fit items-baseline gap-1 text-[13px] font-bold text-primary hover:underline sm:hidden'
       >
-        {open ? '다른 방법 접기' : `다른 방법 ${count}개 보기`}
+        <span aria-hidden='true' className='text-[10px]'>{open ? '▼' : '▶'}</span>
+        {open ? '다른 방법 접기' : label}
       </button>
       <div id={id} data-slot='bid-board-fold' className={`${open ? 'grid gap-2' : 'hidden'} sm:contents`}>
         {children}

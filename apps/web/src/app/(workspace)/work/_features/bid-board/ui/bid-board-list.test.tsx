@@ -60,7 +60,8 @@ describe('오늘 투찰 목록 칸', () => {
     expect(cells.map((cell) => cell.className.match(/sm:order-\d/)?.[0])).toEqual(['sm:order-1', 'sm:order-2']);
     const fold = row.querySelector('[data-slot="bid-board-fold"]')!;
     expect(fold.className.split(/\s+/)).toEqual(expect.arrayContaining(['hidden', 'sm:contents']));
-    const toggle = getAllByRole('button', { name: '다른 방법 1개 보기' })[0]!;
+    // 접힌 칸이 하나면 손잡이가 그 방법 이름을 말한다 — 바로 아래 "더 보기"와 헷갈리지 않는다.
+    const toggle = getAllByRole('button', { name: '전국 공식 금액도 보기' })[0]!;
     fireEvent.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(fold.className.split(/\s+/)).toContain('grid');

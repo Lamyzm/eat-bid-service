@@ -107,7 +107,11 @@ function Cells({ row, board, layout }: { readonly row: BoardRowView; readonly bo
     <>
       {draw(lead)}
       {reasons.map(draw)}
-      {folded.length === 0 ? null : <PhoneFold count={folded.length}>{folded.map(draw)}</PhoneFold>}
+      {folded.length === 0 ? null : (
+        <PhoneFold label={folded.length === 1 ? `${folded[0]!.method} 금액도 보기` : `다른 방법 ${folded.length}개 금액 보기`}>
+          {folded.map(draw)}
+        </PhoneFold>
+      )}
     </>
   );
 }
@@ -180,24 +184,24 @@ function RowInfo({ row, layout }: { readonly row: BoardRowView; readonly layout:
         <Link href={row.href} className='text-[17px] font-bold tracking-[-0.025em] hover:underline'>{row.organization}</Link>
         {row.item === null ? null : <span className='text-[14px] font-semibold text-muted-foreground'>{row.item}</span>}
       </p>
-      {row.title === null && row.bidNo === null ? null : (
-        <p className='mt-1 flex min-w-0 items-baseline gap-2 text-[14px] text-muted-foreground'>
-          {row.title === null ? null : <span className='min-w-0 truncate'>{row.title}</span>}
-          {row.bidNo === null ? null : (
-            <span className='shrink-0 text-[13px] tabular-nums'>
-              <CopyValue value={row.bidNo} label={`공고번호 ${row.bidNo}`} chip className='rounded hover:underline'>
-                <span>{row.bidNo}</span>
-              </CopyValue>
-            </span>
-          )}
-        </p>
+      {/* 실제 eaT 제목은 "2026년 10월 ○○중 식재료(육류) 소액수의"처럼 뒤쪽에 정보가 있어 두 줄까지 보이고, 넘치면 전체를 title로 둔다. */}
+      {row.title === null ? null : (
+        <p className='mt-1 line-clamp-2 text-[14px] text-muted-foreground' title={row.title}>{row.title}</p>
       )}
-      <p className='mt-[7px] flex flex-wrap gap-x-3 text-[14px] tabular-nums'>
+      <p className='mt-[7px] flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[14px] tabular-nums'>
         {row.facts.map((fact) => (
           <span key={fact.label}>
             <span className={HINT}>{fact.label}</span> <span className='font-bold'>{fact.value}</span>
           </span>
         ))}
+        {row.bidNo === null ? null : (
+          <span className='text-[13px]'>
+            <span className={HINT}>공고번호</span>{' '}
+            <CopyValue value={row.bidNo} label={`공고번호 ${row.bidNo}`} chip className='inline-flex items-baseline gap-1 rounded font-semibold hover:underline'>
+              <span>{row.bidNo}</span>
+            </CopyValue>
+          </span>
+        )}
       </p>
     </div>
   );

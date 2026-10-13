@@ -134,12 +134,20 @@ export function habitHeadSample(head: HabitHead): string {
   return `마감 ${head.validatedLeadMinutes}분 전 기준 · ${totals(head).rounds.toLocaleString('ko-KR')}건`;
 }
 
-/** 더 보기 상자의 성적 문장이다. 두 방법을 같은 공고 묶음에서 센 수만 나란히 둔다. */
+const yearMonthText = (month: string) => `${month.slice(0, 4)}년 ${Number(month.slice(5, 7))}월`;
+
+/**
+ * 더 보기 상자의 성적 문장이다. 두 방법을 같은 공고 묶음에서 센 수만 기준 → 아침 갱신 순으로 묶는다. 바로 위 성적 막대는 다른 공고
+ * 묶음(맞춤 표본)이라 같은 맞춤이 다른 숫자를 갖는다 — 그 사실을 문장에서 말해 두 숫자를 견주지 않게 한다. 잰 기간을 단다(AGENTS 7).
+ */
 export function habitRecordText(head: HabitHead, monthlyLabel: string): string {
   const { rounds, habit, monthly } = totals(head);
+  const gain = habit - monthly;
+  const period = `${yearMonthText(head.evidence[0]!.from)}~${yearMonthText(head.evidence.at(-1)!.through)}`;
   return (
-    `지난 공고 ${rounds.toLocaleString('ko-KR')}건에 마감 ${head.validatedLeadMinutes}분 전에 1번·2번을 넣었다고 치고 세면 ` +
-    `아침 갱신 ${tenthsText(habit)}건, ${monthlyLabel} ${tenthsText(monthly)}건이에요(계산 ${head.version}).`
+    `${period} 공고 ${rounds.toLocaleString('ko-KR')}건에 마감 ${head.validatedLeadMinutes}분 전에 1번·2번을 넣었다고 치고 세면 ` +
+    `${monthlyLabel} ${tenthsText(monthly)}건 → 아침 갱신 ${tenthsText(habit)}건(${gain >= 0 ? '+' : '−'}${tenthsText(Math.abs(gain))}건)이에요. ` +
+    `위 성적 막대와는 센 공고가 달라요(계산 ${head.version}).`
   );
 }
 
