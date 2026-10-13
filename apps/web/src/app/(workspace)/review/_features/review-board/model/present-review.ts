@@ -39,7 +39,8 @@ export interface ReviewRowView {
   readonly title: string;
   readonly meta: readonly string[];
   readonly won: boolean;
-  readonly facts: string;
+  /** 하한·낙찰·다른 업체 최저를 조각마다 둔다. 좁은 화면에서 이름과 숫자가 다른 줄로 떨어지지 않게 조각 단위로만 줄을 바꾼다. */
+  readonly facts: readonly string[];
   /** 하한부터 1등 자리 끝(다른 업체 가장 낮은 유효 투찰)까지다. 그런 투찰이 없으면 축 끝까지다. */
   readonly band: { readonly from: number; readonly to: number };
   /** 실제 낙찰 자리다. 1등 자리 끝과 다를 수 있다. 유효 투찰이 없었으면 null이다. */
@@ -59,7 +60,8 @@ export interface ReviewSummaryRow {
   readonly empty: boolean;
   readonly rounds: number;
   readonly first: number;
-  readonly firstText: string;
+  /** 실제 낸 값 줄에만 있는 실제 낙찰 수다. 1등 자리 수 아래 줄에 따로 보인다. */
+  readonly firstNote: string | null;
   readonly allBelowFloor: number;
   readonly allAboveFirst: number;
   readonly expected: string;
@@ -168,7 +170,7 @@ function summaryRows(selected: Selected): readonly ReviewSummaryRow[] {
       empty,
       rounds: summary.rounds,
       first: summary.first,
-      firstText: wins === null ? `${summary.first}` : `${summary.first} · 실제 낙찰 ${wins}`,
+      firstNote: wins === null ? null : `실제 낙찰 ${wins}`,
       allBelowFloor: summary.allBelowFloor,
       allAboveFirst: summary.allAboveFirst,
       expected: Number(summary.expectedWins).toFixed(1),
@@ -211,7 +213,7 @@ function rowView(round: BidReviewRoundWire): ReviewRowView {
     : `${round.winner.mine ? '우리 낙찰' : '낙찰'} ${round.winner.label ?? '업체명 없음'} ${assessmentText(round.winner.ratio.value)}`;
   const best = round.bestCompetitorRatio?.value ?? null;
   // 낙찰이 다른 업체 최저와 같으면 한 번만 말한다. 다르면(우리 낙찰, 심사 탈락) 1등 자리 끝을 따로 밝혀 칸과 칩을 맞춘다.
-  const bestFact = best === null || best === round.winner?.ratio.value ? '' : ` · 다른 업체 최저 ${assessmentText(best)}`;
+  const bestFact = best === null || best === round.winner?.ratio.value ? [] : [`다른 업체 최저 ${assessmentText(best)}`];
   return {
     id: round.auctionId,
     href: `/auctions/${encodeURIComponent(round.auctionId)}`,
@@ -223,7 +225,7 @@ function rowView(round: BidReviewRoundWire): ReviewRowView {
       `기초 ${wonText(round.baseAmount.amount)}`
     ],
     won: round.winner?.mine === true,
-    facts: `하한 ${assessmentText(round.floorRatio.value)} · ${winner}${bestFact}`,
+    facts: [`하한 ${assessmentText(round.floorRatio.value)}`, winner, ...bestFact],
     band: { from: axisPosition(round.floorRatio.value), to: best === null ? 100 : axisPosition(best) },
     winner: round.winner === null ? null : axisPosition(round.winner.ratio.value),
     lanes: {

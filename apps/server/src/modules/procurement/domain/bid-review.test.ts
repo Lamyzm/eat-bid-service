@@ -33,7 +33,7 @@ describe("복기 판정", () => {
     expect(bestCompetitorRate({ ...facts, competitorRates: ["89.000"] })).toBeNull();
   });
 
-  test("우리 값은 하한 아래면 하한 미달, 하한 이상이면서 가장 낮은 유효 투찰보다 낮으면 1등 자리, 아니면 낙찰보다 높음이다", () => {
+  test("우리 값은 하한 아래면 하한 미달, 하한 이상이면서 가장 낮은 유효 투찰보다 낮으면 1등 자리, 아니면 1등 자리보다 높음이다", () => {
     expect(classifyRatio(facts, "0.984900")).toBe("below-floor");
     expect(classifyRatio(facts, "0.995000")).toBe("first");
     expect(classifyRatio(facts, "0.996000")).toBe("first");

@@ -26,6 +26,8 @@ const METHOD_LANES: readonly { readonly key: Exclude<LaneKey, 'own'>; readonly n
 
 const BAND = 'border-l-2 border-destructive bg-emerald-600/20 dark:bg-emerald-400/20';
 const WINNER_LINE = 'w-0.5 bg-emerald-700 dark:bg-emerald-300';
+// 낙찰선은 칸 왼쪽 끝(하한)과 같은 세로선이라 색만으로 갈리지 않는다. 위에 점을 달아 모양으로 가른다.
+const WINNER_CAP = 'size-2 rounded-full bg-emerald-700 dark:bg-emerald-300';
 const LANE_NAME = 'text-[12px] font-bold text-muted-foreground';
 
 const tickPosition = (value: number) => ((value - AXIS.from) / (AXIS.to - AXIS.from)) * 100;
@@ -53,7 +55,11 @@ function Ruler({ row }: { readonly row: ReviewRowView }) {
   const methods = METHOD_LANES.filter((lane) => row.lanes[lane.key].length > 0);
   return (
     <div className='grid gap-1.5'>
-      <p className='text-[13px] text-muted-foreground tabular-nums'>{row.facts}</p>
+      <p className='flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground tabular-nums'>
+        {row.facts.map((fact, index) => (
+          <span key={fact} className='whitespace-nowrap'>{index > 0 ? '· ' : ''}{fact}</span>
+        ))}
+      </p>
       {/* 눈금자의 숫자는 아래 판정 문장이 말로 다시 말한다. 그림은 위치를 보이는 보조라 읽기 도구에는 문장을 준다. */}
       <div aria-hidden='true' className='grid grid-cols-[56px_minmax(0,1fr)] items-center gap-y-1'>
         {/* 낸 값을 위에, 방법 값을 아래에 두어 둘 다 가운데의 하한·1등 자리 칸과 바로 견준다(시안 순서). */}
@@ -65,7 +71,12 @@ function Ruler({ row }: { readonly row: ReviewRowView }) {
             className={`absolute top-0.5 h-4 rounded-r-sm ${BAND}`}
             style={{ left: `${row.band.from}%`, width: `${Math.max(0.6, row.band.to - row.band.from)}%` }}
           />
-          {row.winner === null ? null : <i className={`absolute top-0 h-5 ${WINNER_LINE}`} style={{ left: `${row.winner}%` }} />}
+          {row.winner === null ? null : (
+            <>
+              <i className={`absolute top-0 h-5 ${WINNER_LINE}`} style={{ left: `${row.winner}%` }} />
+              <i className={`absolute -top-1 -translate-x-[3px] ${WINNER_CAP}`} style={{ left: `${row.winner}%` }} />
+            </>
+          )}
         </div>
         {methods.map((lane) => (
           <Lane key={lane.key} name={lane.name} marks={row.lanes[lane.key]} shape={lane.mark} />
@@ -107,10 +118,14 @@ function Legend({ hasHabit }: { readonly hasHabit: boolean }) {
       <span>▲ 전국 공식</span>
       {hasHabit ? <span className='text-teal-700 dark:text-teal-300'>■ 아침 갱신</span> : null}
       <span className='inline-flex items-center gap-1.5'>
-        <i className={`inline-block h-2.5 w-4 ${BAND}`} />칸: 왼쪽 끝 하한부터 1등 자리까지
+        <i className={`inline-block h-2.5 w-4 ${BAND}`} />칸: 왼쪽 끝 선이 하한, 칸 안이 1등 자리
       </span>
       <span className='inline-flex items-center gap-1.5'>
-        <i className={`inline-block h-3 ${WINNER_LINE}`} />세로선: 낙찰
+        <span className='inline-flex flex-col items-center'>
+          <i className={`inline-block ${WINNER_CAP}`} />
+          <i className={`-mt-0.5 inline-block h-2.5 ${WINNER_LINE}`} />
+        </span>
+        점 달린 세로선: 낙찰
       </span>
       <span>테두리 두른 표시: 1등 자리에 든 값</span>
     </p>

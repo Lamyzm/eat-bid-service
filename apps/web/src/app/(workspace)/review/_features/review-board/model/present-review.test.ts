@@ -31,11 +31,11 @@ describe('복기 표시', () => {
 
   test('성적 표는 방법마다 이름·출처와 기대를 쓰고, 기대가 가장 높은 방법 하나에 표시를 단다', () => {
     const rows = reviewView().summary;
-    expect(rows.map((row) => [row.name, row.values, row.firstText, row.expected, row.lead, row.empty])).toEqual([
-      ['실제 낸 값', '공고마다', '1 · 실제 낙찰 1', '0.3', false, false],
-      ['9월 맞춤', '98.490 / 98.940', '1', '0.5', true, false],
-      ['전국 공식', '참여 수별', '0', '0.2', false, false],
-      ['아침 갱신', '–', '0', '0.0', false, true]
+    expect(rows.map((row) => [row.name, row.values, row.first, row.firstNote, row.expected, row.lead, row.empty])).toEqual([
+      ['실제 낸 값', '공고마다', 1, '실제 낙찰 1', '0.3', false, false],
+      ['9월 맞춤', '98.490 / 98.940', 1, null, '0.5', true, false],
+      ['전국 공식', '참여 수별', 0, null, '0.2', false, false],
+      ['아침 갱신', '–', 0, null, '0.0', false, true]
     ]);
     expect(rows[0]!.note).toBe('내 업체 1 · 내 업체 2');
     expect(rows[1]!.note).toBe('6~8월 164건으로 고름 · 다시 계산');
@@ -44,11 +44,11 @@ describe('복기 표시', () => {
 
   test('공고마다 하한과 낙찰을 말하고, 1등 자리는 누가 몇에 들었는지, 같은 판정은 둘 다로 묶는다', () => {
     const [first, won, blank] = reviewView().rows;
-    expect(first!.facts).toBe('하한 100.912 · 낙찰 업체 가 100.944');
+    expect(first!.facts).toEqual(['하한 100.912', '낙찰 업체 가 100.944']);
     expect(first!.verdicts.map((verdict) => `${verdict.name} ${verdict.text}`)).toEqual([
       '낸 값 둘 다 하한 미달', '맞춤 둘 다 하한 미달', '전국 공식 둘 다 하한 미달'
     ]);
-    expect(won!.facts).toBe('하한 98.450 · 우리 낙찰 내 업체 1 98.700 · 다른 업체 최저 98.820');
+    expect(won!.facts).toEqual(['하한 98.450', '우리 낙찰 내 업체 1 98.700', '다른 업체 최저 98.820']);
     expect(won!.verdicts[0]).toEqual({ name: '낸 값', text: '내 업체 1 98.700 낙찰', first: true });
     expect(won!.verdicts[1]).toEqual({ name: '맞춤', text: '1번 98.490 1등 자리', first: true });
     expect(won!.won).toBe(true);
