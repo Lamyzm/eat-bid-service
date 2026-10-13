@@ -33,6 +33,17 @@ describe('등록 사업자 빼기', () => {
     view.unmount();
   });
 
+  test('업체명이 관측되지 않은 등록은 사업자번호로 무엇이 빠지는지 말한다', () => {
+    const view = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <BusinessRevokeButton business={{ ...business, supplierLabel: null }} scope={scope} canWrite />
+      </QueryClientProvider>
+    );
+    fireEvent.click(view.getByRole('button', { name: '목록에서 빼기' }));
+    expect(view.getByText(/124-81-00998을\(를\) 내 사업자에서 뺄까요\?/)).toBeTruthy();
+    view.unmount();
+  });
+
   test('워크스페이스를 바꿀 권한이 없으면 빼기 버튼이 없다', () => {
     const view = renderButton(false);
     expect(view.queryByRole('button', { name: '목록에서 빼기' })).toBeNull();

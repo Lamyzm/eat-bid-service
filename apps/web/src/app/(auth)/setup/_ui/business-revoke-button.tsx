@@ -13,7 +13,7 @@ import {
 import { Button } from '@/shared/ui/button';
 import { LoadingButton } from '@/shared/ui/loading-button';
 
-import { businessNameText, businessNumberDisplay } from '../_model/registered-business-view';
+import { businessNumberDisplay } from '../_model/registered-business-view';
 
 interface BusinessRevokeButtonProps {
   readonly business: RegisteredBusiness;
@@ -35,7 +35,8 @@ export function BusinessRevokeButton({ business, scope, canWrite }: BusinessRevo
   });
 
   if (!canWrite) return null;
-  const label = businessNameText(business) ?? businessNumberDisplay(business.businessNumber);
+  // 이름이 관측되지 않았으면 "업체명 미확인을 뺄까요"가 되므로 번호로 말한다.
+  const label = business.supplierLabel ?? businessNumberDisplay(business.businessNumber);
 
   if (!confirming) {
     return (
