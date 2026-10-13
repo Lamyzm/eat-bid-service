@@ -47,6 +47,16 @@ export type ChangeLocationResult =
   | { readonly kind: "forbidden" }
   | { readonly kind: "not-found" };
 
+export interface RevokeBusinessInput {
+  readonly workspaceId: bigint;
+  readonly registeredBusinessId: bigint;
+}
+
+export type RevokeBusinessResult =
+  | { readonly kind: "revoked"; readonly revokedAt: Temporal.Instant }
+  | { readonly kind: "forbidden" }
+  | { readonly kind: "not-found" };
+
 export interface InitializeAccountInput {
   readonly subject: string;
   /** 조직 이름을 묻지 않기 위해 서버가 정한 초기 이름이다. 이름 변경은 owner의 나중 선택이다. */
@@ -72,8 +82,18 @@ export interface AccountRepository {
   /** 여러 번 불러도 같은 관계를 돌려주고, 경쟁에서 진 시도는 주인 없는 행을 남기지 않는다. */
   initializeAccount(input: InitializeAccountInput): Promise<ResolvedPrincipal>;
   listBusinesses(workspaceId: bigint): Promise<readonly RegisteredBusinessRecord[]>;
+  /**
+   * 업체(party)마다 원본 개찰 명단에서 가장 최근에 관측된 이름이다. 이름은 투찰마다 관측되는 값이라(ADR 0063) 저장된
+   * 상호가 아니다. 이름이 한 번도 관측되지 않은 업체는 결과에 없다.
+   */
+  findSupplierLabels(supplierPartyIds: readonly bigint[]): Promise<ReadonlyMap<bigint, string>>;
   registerBusiness(input: RegisterBusinessInput): Promise<RegisterBusinessResult>;
   changeLocation(input: ChangeLocationInput): Promise<ChangeLocationResult>;
+  /**
+   * 활성 등록을 회수한다. 행을 지우지 않고 회수 시각을 남긴다 — 무엇을 언제 뺐는지가 남고, 활성 등록에만 걸린 유일성
+   * 덕분에 같은 번호를 다시 등록할 수 있다. 이미 회수됐거나 없는 등록은 `not-found`다.
+   */
+  revokeBusiness(input: RevokeBusinessInput): Promise<RevokeBusinessResult>;
 }
 
 export class AccountDependencyUnavailable extends Error {

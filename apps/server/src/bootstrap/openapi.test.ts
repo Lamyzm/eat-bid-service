@@ -47,6 +47,7 @@ describe("canonical OpenAPI 산출물", () => {
       // 운영자만 보는 오늘 투찰 한 장이다(PDR-0008). 관심 지역과 등록 사업자 시장으로 정해지는 개인 응답이라 `me` 아래다.
       "/api/v1/me/bid-board",
       "/api/v1/me/businesses",
+      "/api/v1/me/businesses/{businessId}",
       "/api/v1/me/businesses/{businessId}/bid-observations",
       "/api/v1/me/businesses/{businessId}/location",
       "/api/v1/me/filter-combinations",
@@ -89,6 +90,7 @@ describe("canonical OpenAPI 산출물", () => {
         "previewRegionCoverage",
         "putMyRegionPreference",
         "registerMyBusiness",
+        "revokeMyBusiness",
         "saveMyFilterCombination",
         "setMyBusinessLocation",
         "summarizeOpenAuctions",

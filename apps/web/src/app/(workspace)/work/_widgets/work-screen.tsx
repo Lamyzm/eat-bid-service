@@ -49,8 +49,13 @@ export function WorkScreen({ view }: { readonly view: WorkView }) {
       <WorkFrame lede={null} stamp={null} filters={null}>
         <Notice
           title='관심 지역을 먼저 정하세요.'
-          body='오늘 투찰은 저장한 관심 지역(참가제한지역)의 공고만 보여요.'
-          action={<Link href='/setup' className='text-[14px] font-bold text-primary hover:underline'>관심 지역 정하기</Link>}
+          // 설정 화면 맨 위는 사업자 목록이라 그냥 보내면 "사업자를 등록하라"로 읽힌다(EAT-338). 지역 칸으로 바로 보내고 말로도 적는다.
+          body='오늘 투찰은 저장한 관심 지역(참가제한지역)의 공고만 보여요. 사업자는 다시 등록하지 않아도 돼요 — 내 설정의 "내 지역" 칸에서 지역을 고르고 저장하세요.'
+          action={
+            <Link href='/setup#region-preference' className='text-[14px] font-bold text-primary hover:underline'>
+              내 지역 칸으로 가기
+            </Link>
+          }
         />
       </WorkFrame>
     );

@@ -6,11 +6,14 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 import { maxRegisteredBusinesses } from "@eatbid/contracts";
+import { bigintArrayLiteral } from "../../../../platform/database/sql-values";
 import type {
   ChangeLocationInput,
   ChangeLocationResult,
   RegisterBusinessInput,
   RegisterBusinessResult,
+  RevokeBusinessInput,
+  RevokeBusinessResult,
   RegisteredBusinessRecord,
   RegisteredSupplierEvidence,
 } from "../../application/account-repository";
@@ -114,6 +117,30 @@ export async function readBusinesses(
   return rows<BusinessRow>(result).map(toBusiness);
 }
 
+/**
+ * 업체마다 이름이 관측된 가장 최근 투찰 한 줄을 (업체, 개찰 시각) 색인으로 거꾸로 읽는다. 업체 전체 이력을 훑지 않는다.
+ */
+export async function readSupplierLabels(
+  database: AccountDatabase,
+  supplierPartyIds: readonly bigint[],
+): Promise<ReadonlyMap<bigint, string>> {
+  if (supplierPartyIds.length === 0) return new Map();
+  const result = await database.execute(sql`
+    select party.supplier_party_id, latest.supplier_label
+      from unnest(${bigintArrayLiteral(supplierPartyIds)}::bigint[]) as party(supplier_party_id)
+      cross join lateral (
+        select bid.supplier_label
+          from core.bid_submission bid
+         where bid.supplier_party_id = party.supplier_party_id
+           and bid.supplier_label is not null
+         order by bid.opened_at desc
+         limit 1
+      ) latest
+  `);
+  return new Map(rows<{ supplier_party_id: string | bigint; supplier_label: string }>(result)
+    .map((row) => [identifier(row.supplier_party_id), row.supplier_label]));
+}
+
 async function readOne(
   database: AccountDatabase,
   workspaceId: bigint,
@@ -163,6 +190,35 @@ export async function registerBusiness(
  * 소유 확인·쓰기·응답 조회를 한 트랜잭션에 둔다. 나누면 응답 조회가 실패했을 때 이미 커밋된 변경이
  * 사용자에게는 실패로 보이고, 그 사이 다른 요청이 같은 등록을 바꿀 수도 있다.
  */
+/**
+ * 등록 줄을 잠그고 소유를 확인한 뒤 회수 시각을 찍는다. 위치 변경과 같은 순서라 두 command가 같은 등록을 두고 엇갈리지
+ * 않는다. 위치 행은 지우지 않는다 — 회수된 등록은 목록에서 빠지므로 보이지 않는다.
+ */
+export async function revokeBusiness(
+  database: AccountDatabase,
+  input: RevokeBusinessInput,
+): Promise<RevokeBusinessResult> {
+  return database.transaction(async (transaction) => {
+    const owner = rows<OwnershipRow>(await transaction.execute(sql`
+      select workspace_id
+      from app.registered_business
+      where registered_business_id = ${input.registeredBusinessId}
+        and revoked_at is null
+      for update
+    `))[0];
+    if (!owner) return { kind: "not-found" };
+    if (identifier(owner.workspace_id) !== input.workspaceId) return { kind: "forbidden" };
+    const revoked = rows<{ revoked_at: string }>(await transaction.execute(sql`
+      update app.registered_business
+         set revoked_at = now()
+       where registered_business_id = ${input.registeredBusinessId}
+      returning to_char(revoked_at at time zone 'utc', ${UTC_INSTANT_FORMAT}) as revoked_at
+    `))[0];
+    if (!revoked) throw new TypeError("Registered business disappeared inside its own transaction");
+    return { kind: "revoked", revokedAt: instantOf(revoked.revoked_at) };
+  });
+}
+
 export async function changeLocation(
   database: AccountDatabase,
   input: ChangeLocationInput,

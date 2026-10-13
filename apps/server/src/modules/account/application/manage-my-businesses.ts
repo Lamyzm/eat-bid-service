@@ -5,6 +5,7 @@
  * 등록인가)이 바뀌면 조회 범위와 위치 쓰기 권한이 함께 바뀐다. 세 use case 모두 내부 record를 돌려주고
  * 공개 응답으로의 직렬화는 presentation의 presenter가 한다(ADR 0045 결정 1).
  */
+import type { Temporal } from "@eatbid/domain";
 import { Effect } from "effect";
 import type { ResolvedPrincipal } from "../../../platform/auth/principal-reader";
 import {
@@ -27,12 +28,31 @@ function requireWorkspaceOwner(principal: ResolvedPrincipal): Effect.Effect<void
     : Effect.fail(new WorkspaceRoleForbidden());
 }
 
+/** 목록과, 요청했으면 원본 업체명이다. 요청하지 않았으면 `labels`가 null이다 — 비어 있는 이름표와 구분한다. */
+export interface ListedBusinesses {
+  readonly businesses: readonly RegisteredBusinessRecord[];
+  readonly labels: ReadonlyMap<bigint, string> | null;
+}
+
 export class ListMyBusinesses {
   constructor(private readonly repository: AccountRepository) {}
 
-  execute(principal: ResolvedPrincipal): Effect.Effect<readonly RegisteredBusinessRecord[], AccountDependencyUnavailable> {
+  /**
+   * 업체명은 화면이 요청할 때만 읽는다. 같은 목록 port를 맞춤 금액 계산도 쓰므로 거기에 이름 조회를 얹으면 모든 추천 계산이
+   * 투찰 표를 한 번 더 읽는다. 원본과 이어진 등록만 이름을 찾는다.
+   */
+  execute(
+    principal: ResolvedPrincipal,
+    options: { readonly includeSupplierLabel: boolean } = { includeSupplierLabel: false },
+  ): Effect.Effect<ListedBusinesses, AccountDependencyUnavailable> {
     return Effect.tryPromise({
-      try: () => this.repository.listBusinesses(principal.workspace.workspaceId),
+      try: async (): Promise<ListedBusinesses> => {
+        const businesses = await this.repository.listBusinesses(principal.workspace.workspaceId);
+        if (!options.includeSupplierLabel) return { businesses, labels: null };
+        const parties = businesses.flatMap((business) =>
+          business.supplier.kind === "linked" ? [business.supplier.supplierPartyId] : []);
+        return { businesses, labels: await this.repository.findSupplierLabels(parties) };
+      },
       catch: (cause) => new AccountDependencyUnavailable(cause),
     });
   }
@@ -62,6 +82,40 @@ export class RegisterMyBusiness {
       Effect.flatMap((result) => result.kind === "registered"
         ? Effect.succeed(result.business)
         : Effect.fail(new RegisteredBusinessConflict())),
+    );
+  }
+}
+
+export class RevokeMyBusiness {
+  constructor(private readonly repository: AccountRepository) {}
+
+  /** 등록을 빼는 일도 워크스페이스를 바꾸는 일이라 `owner`만 한다. 남의 등록은 403, 없거나 이미 뺀 등록은 404다. */
+  execute(input: {
+    readonly principal: ResolvedPrincipal;
+    readonly registeredBusinessId: bigint;
+  }): Effect.Effect<
+    { readonly registeredBusinessId: bigint; readonly revokedAt: Temporal.Instant },
+    AccountDependencyUnavailable
+    | RegisteredBusinessForbidden
+    | RegisteredBusinessNotFound
+    | WorkspaceRoleForbidden
+  > {
+    return requireWorkspaceOwner(input.principal).pipe(
+      Effect.flatMap(() => Effect.tryPromise({
+        try: () => this.repository.revokeBusiness({
+          workspaceId: input.principal.workspace.workspaceId,
+          registeredBusinessId: input.registeredBusinessId,
+        }),
+        catch: (cause) => new AccountDependencyUnavailable(cause),
+      })),
+      Effect.flatMap((result): Effect.Effect<
+        { readonly registeredBusinessId: bigint; readonly revokedAt: Temporal.Instant },
+        RegisteredBusinessForbidden | RegisteredBusinessNotFound
+      > => {
+        if (result.kind === "not-found") return Effect.fail(new RegisteredBusinessNotFound());
+        if (result.kind === "forbidden") return Effect.fail(new RegisteredBusinessForbidden());
+        return Effect.succeed({ registeredBusinessId: input.registeredBusinessId, revokedAt: result.revokedAt });
+      }),
     );
   }
 }

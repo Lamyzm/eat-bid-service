@@ -13,9 +13,17 @@ import type {
   RegisterBusinessInput,
   RegisterBusinessResult,
   RegisteredBusinessRecord,
+  RevokeBusinessInput,
+  RevokeBusinessResult,
 } from "../../application/account-repository";
 import { initializeAccount, readPrincipal } from "./account-identity-queries";
-import { changeLocation, readBusinesses, registerBusiness } from "./registered-business-queries";
+import {
+  changeLocation,
+  readBusinesses,
+  registerBusiness,
+  readSupplierLabels,
+  revokeBusiness,
+} from "./registered-business-queries";
 import type { AccountDatabase } from "./account-sql";
 
 export type { AccountDatabase } from "./account-sql";
@@ -34,6 +42,14 @@ export class DrizzleAccountRepository implements AccountRepository {
 
   listBusinesses(workspaceId: bigint): Promise<readonly RegisteredBusinessRecord[]> {
     return readBusinesses(this.database, workspaceId);
+  }
+
+  revokeBusiness(input: RevokeBusinessInput): Promise<RevokeBusinessResult> {
+    return revokeBusiness(this.database, input);
+  }
+
+  findSupplierLabels(supplierPartyIds: readonly bigint[]): Promise<ReadonlyMap<bigint, string>> {
+    return readSupplierLabels(this.database, supplierPartyIds);
   }
 
   registerBusiness(input: RegisterBusinessInput): Promise<RegisterBusinessResult> {

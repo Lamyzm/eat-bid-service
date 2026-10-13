@@ -2,7 +2,8 @@
 import {
   meV1Operations,
   type MyBusinessesV1Response,
-  type MyBusinessV1Response
+  type MyBusinessV1Response,
+  type MyBusinessRevocationV1Response
 } from '@eatbid/contracts/api/v1/me';
 
 import type { ContractRequest } from '../_transport/request-contract';
@@ -13,9 +14,11 @@ export async function listMyBusinessesWith(
   input: { readonly signal?: AbortSignal } = {}
 ): Promise<MyBusinessesV1Response> {
   try {
+    // 원본 업체명은 요청할 때만 실린다. 옛 server는 이 query를 무시하므로 배포 순서와 무관하게 안전하다(EAT-338).
     return await request({
       operation: meV1Operations.listMyBusinesses,
       path: undefined,
+      query: { include: 'supplier-label' },
       signal: input.signal
     });
   } catch (error) {
@@ -61,6 +64,19 @@ export async function setMyBusinessLocationWith(
       body: { addressText: input.addressText },
       signal: input.signal
     });
+  } catch (error) {
+    throw mapAccountResourceError(request, error);
+  }
+}
+
+/** 등록을 내 워크스페이스에서 뺀다. 서버는 행을 지우지 않고 회수 시각을 남기며, 같은 번호는 다시 등록할 수 있다. */
+export async function revokeMyBusinessWith(
+  request: ContractRequest,
+  input: { readonly businessId: string; readonly signal?: AbortSignal }
+): Promise<MyBusinessRevocationV1Response> {
+  const path = meV1Operations.revokeMyBusiness.pathSchema.parse({ businessId: input.businessId });
+  try {
+    return await request({ operation: meV1Operations.revokeMyBusiness, path, signal: input.signal });
   } catch (error) {
     throw mapAccountResourceError(request, error);
   }

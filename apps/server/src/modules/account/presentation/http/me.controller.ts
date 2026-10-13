@@ -11,6 +11,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   ServiceUnavailableException,
   UseGuards,
   VERSION_NEUTRAL,
@@ -19,6 +20,8 @@ import { ApiOperation, ApiResponse } from "@nestjs/swagger";
 import {
   meV1Operations,
   type AccountInitializationV1Response,
+  type MyBusinessRevocationV1Response,
+  type MyBusinessesQuery,
   type MyBusinessesV1Response,
   type MyBusinessV1Response,
   type RegisterMyBusinessCommandInput,
@@ -43,11 +46,13 @@ import {
   ChangeMyBusinessLocation,
   ListMyBusinesses,
   RegisterMyBusiness,
+  RevokeMyBusiness,
 } from "../../application/manage-my-businesses";
 import {
   toAccountInitializationResponse,
   toMyBusinessesResponse,
   toMyBusinessResponse,
+  toMyBusinessRevocationResponse,
 } from "./account.presenter";
 
 const initialize = meV1Operations.initializeCurrentAccount;
@@ -55,6 +60,7 @@ const list = meV1Operations.listMyBusinesses;
 const register = meV1Operations.registerMyBusiness;
 const setLocation = meV1Operations.setMyBusinessLocation;
 const clearLocation = meV1Operations.clearMyBusinessLocation;
+const revoke = meV1Operations.revokeMyBusiness;
 
 /** use case의 예상 실패만 공개 taxonomy로 번역하고 알 수 없는 결함은 전역 필터에 맡긴다. */
 function translate(error: unknown): never {
@@ -81,6 +87,7 @@ export class MeController {
     private readonly listMyBusinesses: ListMyBusinesses,
     private readonly registerMyBusiness: RegisterMyBusiness,
     private readonly changeMyBusinessLocation: ChangeMyBusinessLocation,
+    private readonly revokeMyBusiness: RevokeMyBusiness,
     private readonly effectRunner: EffectRunner,
   ) {}
 
@@ -110,12 +117,19 @@ export class MeController {
   @UseGuards(PrincipalGuard)
   @ApiOperation({ operationId: list.operationId, summary: list.summary })
   @ApiResponse({ status: 200, description: list.successResponses[200].description })
+  @ApiResponse({ status: 400, description: list.problemResponses[400].description })
   @ApiResponse({ status: 401, description: list.problemResponses[401].description })
   @ApiResponse({ status: 403, description: list.problemResponses[403].description })
   @ResponseSchema(list.successResponses[200].schema)
-  async list(@CurrentPrincipal() principal: ResolvedPrincipal): Promise<MyBusinessesV1Response> {
+  async list(
+    @CurrentPrincipal() principal: ResolvedPrincipal,
+    @Query(new StandardSchemaPipe(list.querySchema)) query: MyBusinessesQuery,
+  ): Promise<MyBusinessesV1Response> {
     try {
-      return toMyBusinessesResponse(await this.effectRunner.run(this.listMyBusinesses.execute(principal)));
+      const includeSupplierLabel = query.include === "supplier-label";
+      return toMyBusinessesResponse(await this.effectRunner.run(
+        this.listMyBusinesses.execute(principal, { includeSupplierLabel }),
+      ));
     } catch (error) {
       return translate(error);
     }
@@ -171,6 +185,29 @@ export class MeController {
     @Param("businessId", new StandardSchemaPipe(clearLocation.pathSchema.shape.businessId)) businessId: string,
   ): Promise<MyBusinessV1Response> {
     return this.changeLocation(principal, businessId, null);
+  }
+
+  // 등록 경로 자체를 지운다. 위치 해제(`.../location`)와 경로가 달라 두 command가 섞이지 않는다.
+  @Delete(revoke.handlerPath)
+  @UseGuards(PrincipalGuard)
+  @ApiOperation({ operationId: revoke.operationId, summary: revoke.summary })
+  @ApiResponse({ status: 200, description: revoke.successResponses[200].description })
+  @ApiResponse({ status: 403, description: revoke.problemResponses[403].description })
+  @ApiResponse({ status: 404, description: revoke.problemResponses[404].description })
+  @ResponseSchema(revoke.successResponses[200].schema)
+  async revoke(
+    @CurrentPrincipal() principal: ResolvedPrincipal,
+    @Param("businessId", new StandardSchemaPipe(revoke.pathSchema.shape.businessId)) businessId: string,
+  ): Promise<MyBusinessRevocationV1Response> {
+    try {
+      return toMyBusinessRevocationResponse(await this.effectRunner.run(this.revokeMyBusiness.execute({
+        principal,
+        // path parameter는 계약이 검증한 canonical decimal text이므로 Number를 거치지 않고 bigint로 연다.
+        registeredBusinessId: BigInt(businessId),
+      })));
+    } catch (error) {
+      return translate(error);
+    }
   }
 
   private async changeLocation(

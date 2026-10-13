@@ -61,8 +61,9 @@ function displayNumber(businessNumber: string): string {
   return `${businessNumber.slice(0, 3)}-${businessNumber.slice(3, 5)}-${businessNumber.slice(5)}`;
 }
 
+// 칸 이름은 업체명이 관측되면 번호 앞에 업체명을 둔다(EAT-338). 칸은 번호로 가려낸다.
 function businessSection(page: Page, businessNumber: string) {
-  return page.getByRole('region', { name: `등록 사업자 ${displayNumber(businessNumber)}` });
+  return page.getByRole('region', { name: new RegExp(`^등록 사업자 (.+ )?${displayNumber(businessNumber)}$`) });
 }
 
 test.describe.configure({ mode: 'serial' });

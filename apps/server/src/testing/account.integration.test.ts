@@ -305,3 +305,43 @@ describe("위치 저장의 소유 경계", () => {
     });
   }, 180_000);
 });
+
+describe("등록 사업자 회수", () => {
+  test("회수하면 목록에서 빠지고 같은 번호를 다시 등록할 수 있으며, 남의 등록과 없는·이미 회수한 등록을 구분한다", async () => {
+    await withAccountDatabase(async ({ api }) => {
+      const repository = new DrizzleAccountRepository(drizzle({ client: api }) as unknown as AccountDatabase);
+      const mine = await repository.initializeAccount({ subject: "owner", workspaceName });
+      const rival = await repository.initializeAccount({ subject: "stranger", workspaceName });
+      const registered = await repository.registerBusiness({
+        workspaceId: mine.workspace.workspaceId,
+        principalId: mine.principalId,
+        businessNumber: observedBusinessNumber,
+      });
+      if (registered.kind !== "registered") throw new Error("등록이 성공해야 합니다");
+      const businessId = registered.business.registeredBusinessId;
+
+      // 남의 워크스페이스는 회수할 수 없고, 그 시도는 등록을 건드리지 않는다.
+      expect(await repository.revokeBusiness({ workspaceId: rival.workspace.workspaceId, registeredBusinessId: businessId }))
+        .toEqual({ kind: "forbidden" });
+      expect(await repository.listBusinesses(mine.workspace.workspaceId)).toHaveLength(1);
+
+      const revoked = await repository.revokeBusiness({ workspaceId: mine.workspace.workspaceId, registeredBusinessId: businessId });
+      expect(revoked.kind).toBe("revoked");
+      expect(await repository.listBusinesses(mine.workspace.workspaceId)).toHaveLength(0);
+      // 이미 회수한 등록과 없는 등록은 같은 "찾을 수 없음"이다.
+      expect(await repository.revokeBusiness({ workspaceId: mine.workspace.workspaceId, registeredBusinessId: businessId }))
+        .toEqual({ kind: "not-found" });
+      expect(await repository.revokeBusiness({ workspaceId: mine.workspace.workspaceId, registeredBusinessId: 9_999_999n }))
+        .toEqual({ kind: "not-found" });
+
+      // 유일성은 활성 등록에만 걸리므로 같은 번호를 다시 등록할 수 있다.
+      const again = await repository.registerBusiness({
+        workspaceId: mine.workspace.workspaceId,
+        principalId: mine.principalId,
+        businessNumber: observedBusinessNumber,
+      });
+      expect(again.kind).toBe("registered");
+      expect(await repository.listBusinesses(mine.workspace.workspaceId)).toHaveLength(1);
+    });
+  }, 180_000);
+});

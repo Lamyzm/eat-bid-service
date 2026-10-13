@@ -8,14 +8,17 @@ import {
   type AccountLabel,
   type CurrentSessionV1Response,
   type MyBusinessesV1Response,
+  type MyBusinessRevocationV1Response,
   type MyBusinessV1Response,
   type RegisteredBusiness,
   type WorkspaceSummary,
 } from "@eatbid/contracts";
+import type { Temporal } from "@eatbid/domain";
 import { maskEmail, type AuthenticatedSubject } from "../../../../platform/auth/auth-identity";
 import type { ResolvedPrincipal, ResolvedWorkspace } from "../../../../platform/auth/principal-reader";
 import { bigintText, instantText } from "../../../../platform/http/wire";
 import type { RegisteredBusinessRecord } from "../../application/account-repository";
+import type { ListedBusinesses } from "../../application/manage-my-businesses";
 import type { CurrentSessionRecord } from "../../application/get-current-session";
 
 /**
@@ -105,8 +108,27 @@ export function toAccountInitializationResponse(principal: ResolvedPrincipal): A
   };
 }
 
-export function toMyBusinessesResponse(records: readonly RegisteredBusinessRecord[]): MyBusinessesV1Response {
-  return { businesses: records.map(toRegisteredBusiness) };
+/**
+ * 업체명을 요청하지 않았으면(`labels`가 null) key 자체를 싣지 않는다 — 옛 web의 strict 응답 검증이 모르는 key로 목록을
+ * 거부하지 않게 한다. 요청했으면 이어지지 않았거나 이름이 관측되지 않은 등록은 null이다.
+ */
+export function toMyBusinessesResponse(listed: ListedBusinesses): MyBusinessesV1Response {
+  const { labels } = listed;
+  return {
+    businesses: listed.businesses.map((record) => {
+      const business = toRegisteredBusiness(record);
+      if (labels === null) return business;
+      const label = record.supplier.kind === "linked" ? labels.get(record.supplier.supplierPartyId) ?? null : null;
+      return { ...business, supplierLabel: label };
+    }),
+  };
+}
+
+export function toMyBusinessRevocationResponse(revoked: {
+  readonly registeredBusinessId: bigint;
+  readonly revokedAt: Temporal.Instant;
+}): MyBusinessRevocationV1Response {
+  return { businessId: bigintText(revoked.registeredBusinessId), revokedAt: instantText(revoked.revokedAt) };
 }
 
 export function toMyBusinessResponse(record: RegisteredBusinessRecord): MyBusinessV1Response {

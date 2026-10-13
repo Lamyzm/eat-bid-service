@@ -11,10 +11,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { Skeleton } from '@/shared/ui/skeleton';
 
 import {
+  businessAccessibleName,
+  businessNameText,
   businessNumberDisplay,
   supplierStatusText
 } from '../_model/registered-business-view';
 import { BusinessLocationForm } from './business-location-form';
+import { BusinessRevokeButton } from './business-revoke-button';
 import { BusinessRegisterForm } from './business-register-form';
 
 interface MyBusinessesPanelProps {
@@ -65,13 +68,22 @@ export function MyBusinessesPanel({ scope, canWrite }: MyBusinessesPanelProps) {
           {businesses.data?.businesses.map((business) => (
             <section
               key={business.businessId}
-              aria-label={`등록 사업자 ${businessNumberDisplay(business.businessNumber)}`}
+              aria-label={businessAccessibleName(business)}
               className='grid gap-2 rounded-md border p-3'
             >
-              <div className='flex flex-wrap items-center gap-2'>
-                <span className='font-mono text-sm'>
-                  {businessNumberDisplay(business.businessNumber)}
-                </span>
+              {/* 빼기는 업체명·번호 줄 오른쪽 끝에 둔다. 배지와 같은 줄에 두면 좁은 화면에서 배지의 일부처럼 읽힌다. */}
+              <div className='flex flex-wrap items-start justify-between gap-2'>
+                <div className='flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5'>
+                  {businessNameText(business) === null ? null : (
+                    <span data-slot='business-name' className='text-sm font-semibold'>{businessNameText(business)}</span>
+                  )}
+                  <span className='font-mono text-sm'>
+                    {businessNumberDisplay(business.businessNumber)}
+                  </span>
+                </div>
+                <BusinessRevokeButton business={business} scope={scope} canWrite={canWrite} />
+              </div>
+              <div>
                 <Badge variant={business.supplier.kind === 'linked' ? 'secondary' : 'outline'}>
                   {supplierStatusText(business)}
                 </Badge>

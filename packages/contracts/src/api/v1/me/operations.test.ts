@@ -13,13 +13,14 @@ const maxSignedBigint = "9223372036854775807";
 const publishedBusinessNumber = "1248100998";
 
 describe("내 계정 operation 계약", () => {
-  test("다섯 operation이 모두 server 소유로 registry에 한 번씩 있다", () => {
+  test("여섯 operation이 모두 server 소유로 registry에 한 번씩 있다", () => {
     const identifiers = [
       "initializeCurrentAccount",
       "listMyBusinesses",
       "registerMyBusiness",
       "setMyBusinessLocation",
       "clearMyBusinessLocation",
+      "revokeMyBusiness",
     ];
 
     for (const operationId of identifiers) {
@@ -57,12 +58,14 @@ describe("내 계정 operation 계약", () => {
     // 403이 나오는 경로는 넷이다. 신뢰하지 않는 Origin의 상태 변경, 초기화 미완료, 남의 워크스페이스,
     // owner 권한 부족. 계약이 이 status를 숨기면 소비자가 처리할 수 없는 실패가 된다.
     expect(meV1Operations.initializeCurrentAccount.problemStatuses).toEqual([401, 403, 500, 503]);
-    expect(meV1Operations.listMyBusinesses.problemStatuses).toEqual([401, 403, 500, 503]);
+    // 목록 조회는 업체명 opt-in query를 받으므로 query 형식 오류 400도 있다.
+    expect(meV1Operations.listMyBusinesses.problemStatuses).toEqual([400, 401, 403, 500, 503]);
   });
 
   test("타 워크스페이스 등록 접근은 403, 없는 등록은 404로 구분한다", () => {
     expect(meV1Operations.setMyBusinessLocation.problemStatuses).toEqual([400, 401, 403, 404, 500, 503]);
     expect(meV1Operations.clearMyBusinessLocation.problemStatuses).toEqual([400, 401, 403, 404, 500, 503]);
+    expect(meV1Operations.revokeMyBusiness.problemStatuses).toEqual([400, 401, 403, 404, 500, 503]);
   });
 
   test("빈 설정·미연결·위치 미설정을 각각 다른 값으로 표현한다", () => {
@@ -105,6 +108,24 @@ describe("내 계정 operation 계약", () => {
       location: null,
       addressText: "서울",
     }).success).toBe(false);
+  });
+
+  test("목록 조회는 업체명 opt-in만 받고, 업체명은 요청했을 때만 있는 nullable 칸이다", () => {
+    const query = meV1Operations.listMyBusinesses.querySchema;
+    expect(query.parse(undefined)).toEqual({});
+    expect(query.parse({ include: "supplier-label" })).toEqual({ include: "supplier-label" });
+    expect(query.safeParse({ include: "everything" }).success).toBe(false);
+    const base = {
+      businessId: "1",
+      businessNumber: publishedBusinessNumber,
+      registeredAt: "2026-09-09T00:00:00Z",
+      supplier: { kind: "linked", supplierPartyId: "9" },
+      location: null,
+    };
+    expect(registeredBusinessSchema.parse(base)).not.toHaveProperty("supplierLabel");
+    expect(registeredBusinessSchema.parse({ ...base, supplierLabel: "(주)오뚜기축산" }).supplierLabel).toBe("(주)오뚜기축산");
+    expect(registeredBusinessSchema.parse({ ...base, supplierLabel: null }).supplierLabel).toBeNull();
+    expect(registeredBusinessSchema.safeParse({ ...base, supplierLabel: "" }).success).toBe(false);
   });
 
   test("위치 저장은 공백만 있는 주소를 거부하고 앞뒤 공백을 없앤다", () => {
