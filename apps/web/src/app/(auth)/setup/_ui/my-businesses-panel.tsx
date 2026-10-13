@@ -71,17 +71,22 @@ export function MyBusinessesPanel({ scope, canWrite }: MyBusinessesPanelProps) {
               aria-label={businessAccessibleName(business)}
               className='grid gap-2 rounded-md border p-3'
             >
-              <div className='flex flex-wrap items-center gap-2'>
-                {businessNameText(business) === null ? null : (
-                  <span data-slot='business-name' className='text-sm font-semibold'>{businessNameText(business)}</span>
-                )}
-                <span className='font-mono text-sm'>
-                  {businessNumberDisplay(business.businessNumber)}
-                </span>
+              {/* 빼기는 업체명·번호 줄 오른쪽 끝에 둔다. 배지와 같은 줄에 두면 좁은 화면에서 배지의 일부처럼 읽힌다. */}
+              <div className='flex flex-wrap items-start justify-between gap-2'>
+                <div className='flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5'>
+                  {businessNameText(business) === null ? null : (
+                    <span data-slot='business-name' className='text-sm font-semibold'>{businessNameText(business)}</span>
+                  )}
+                  <span className='font-mono text-sm'>
+                    {businessNumberDisplay(business.businessNumber)}
+                  </span>
+                </div>
+                <BusinessRevokeButton business={business} scope={scope} canWrite={canWrite} />
+              </div>
+              <div>
                 <Badge variant={business.supplier.kind === 'linked' ? 'secondary' : 'outline'}>
                   {supplierStatusText(business)}
                 </Badge>
-                <BusinessRevokeButton business={business} scope={scope} canWrite={canWrite} />
               </div>
               <BusinessLocationForm business={business} scope={scope} canWrite={canWrite} />
             </section>

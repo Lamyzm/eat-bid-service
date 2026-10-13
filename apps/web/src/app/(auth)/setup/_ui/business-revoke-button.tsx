@@ -40,16 +40,18 @@ export function BusinessRevokeButton({ business, scope, canWrite }: BusinessRevo
 
   if (!confirming) {
     return (
-      <Button type='button' variant='ghost' size='sm' className='ml-auto' onClick={() => setConfirming(true)}>
+      <Button type='button' variant='outline' size='sm' className='shrink-0' onClick={() => setConfirming(true)}>
         목록에서 빼기
       </Button>
     );
   }
   return (
-    <div role='group' aria-describedby={messageId} className='grid w-full gap-2 rounded-md bg-muted/60 p-2.5 text-sm'>
-      <p id={messageId}>
-        {label}을(를) 내 사업자에서 뺄까요? 맞춤 금액 계산에서도 빠져요. 같은 번호는 나중에 다시 등록할 수 있어요.
-      </p>
+    // 확인 중에는 업체명 줄 아래로 넘어가 폭 전체를 쓴다(부모 줄이 flex-wrap).
+    <div role='group' aria-describedby={messageId} className='grid basis-full gap-2 rounded-md bg-muted/60 p-2.5 text-sm'>
+      <div id={messageId} className='grid gap-0.5'>
+        <p className='font-medium'>{label}을(를) 내 사업자에서 뺄까요? 맞춤 금액 계산에서도 빠져요.</p>
+        <p className='text-muted-foreground'>같은 번호는 나중에 다시 등록할 수 있어요.</p>
+      </div>
       <div className='flex flex-wrap gap-2'>
         <LoadingButton type='button' variant='destructive' size='sm' loading={revoke.isPending} loadingLabel='빼는 중…' onClick={() => revoke.mutate()}>
           빼기
