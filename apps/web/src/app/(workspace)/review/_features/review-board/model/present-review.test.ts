@@ -45,6 +45,12 @@ describe('복기 표시', () => {
   test('공고마다 하한과 낙찰을 말하고, 판정 칩은 값을 늘 적되 같은 판정은 끝에 둘 다로 한 번만 붙인다', () => {
     const [first, won, blank] = reviewView().rows;
     expect(first!.facts).toEqual(['하한 100.912', '낙찰 업체 가 100.944']);
+    expect(first!.opened).toBe('09.16(수) 10:00 개찰');
+    expect(first!.details).toEqual([
+      { label: '기초금액', value: '8,255,500원', quiet: false },
+      { label: '참여', value: '64곳', quiet: false },
+      { label: '공고번호', value: 'E260909-658847-0', quiet: true }
+    ]);
     expect(first!.verdicts.map((verdict) => `${verdict.name} ${verdict.text}`)).toEqual([
       '낸 값 내 업체 1 99.791 · 내 업체 2 99.900, 둘 다 하한 미달',
       '맞춤 1번 98.490 · 2번 98.940, 둘 다 하한 미달',

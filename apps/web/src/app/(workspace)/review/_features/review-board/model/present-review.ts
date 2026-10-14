@@ -37,7 +37,10 @@ export interface ReviewRowView {
   readonly id: string;
   readonly href: `/auctions/${string}`;
   readonly title: string;
-  readonly meta: readonly string[];
+  /** 제목 위 머리말이다(`09.16(화) 10:00 개찰`). */
+  readonly opened: string;
+  /** 제목 아래 이름표와 값이다. 공고번호처럼 찾을 때만 보는 값은 `quiet`로 흐리게 둔다. */
+  readonly details: readonly { readonly label: string; readonly value: string; readonly quiet: boolean }[];
   readonly won: boolean;
   /** 하한·낙찰·다른 업체 최저를 조각마다 둔다. 좁은 화면에서 이름과 숫자가 다른 줄로 떨어지지 않게 조각 단위로만 줄을 바꾼다. */
   readonly facts: readonly string[];
@@ -112,11 +115,12 @@ const grouped = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 const wonText = (amount: string) => `${grouped(amount.split('.')[0]!)}원`;
 
 const pad = (value: number) => String(value).padStart(2, '0');
+const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 
 /** 개찰 시각을 KST 달력으로 읽는다. eaT 개찰은 KST이고 기기 시간대를 따르면 해외에서 연 화면이 하루를 다르게 읽는다. */
 function kstParts(instant: string): { readonly date: string; readonly time: string } {
   const time = Temporal.Instant.from(instant).toZonedDateTimeISO('Asia/Seoul');
-  return { date: `${pad(time.month)}.${pad(time.day)}`, time: `${pad(time.hour)}:${pad(time.minute)}` };
+  return { date: `${pad(time.month)}.${pad(time.day)}(${WEEKDAYS[time.dayOfWeek - 1]})`, time: `${pad(time.hour)}:${pad(time.minute)}` };
 }
 
 function methodName(key: MethodKey, month: string): string {
@@ -223,11 +227,11 @@ function rowView(round: BidReviewRoundWire): ReviewRowView {
     id: round.auctionId,
     href: `/auctions/${encodeURIComponent(round.auctionId)}`,
     title: round.title ?? round.organizationLabel ?? '제목 미확인',
-    meta: [
-      `${date} ${time} 개찰`,
-      ...(round.displayBidNo === null ? [] : [round.displayBidNo]),
-      `참여 ${round.bidderCount}곳`,
-      `기초 ${wonText(round.baseAmount.amount)}`
+    opened: `${date} ${time} 개찰`,
+    details: [
+      { label: '기초금액', value: wonText(round.baseAmount.amount), quiet: false },
+      { label: '참여', value: `${round.bidderCount}곳`, quiet: false },
+      ...(round.displayBidNo === null ? [] : [{ label: '공고번호', value: round.displayBidNo, quiet: true }])
     ],
     won: round.winner?.mine === true,
     facts: [`하한 ${assessmentText(round.floorRatio.value)}`, winner, ...bestFact],
