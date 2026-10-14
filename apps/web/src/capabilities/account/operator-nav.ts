@@ -12,6 +12,9 @@ export function operatorNavGroup(read: CurrentSessionRead): NavGroup | null {
   if (read.kind !== 'session' || read.response.state !== 'active' || read.response.operator !== true) return null;
   return {
     label: '내 투찰',
-    items: [{ title: '오늘 투찰', url: '/work', icon: 'post', isActive: false, items: [] }]
+    items: [
+      { title: '오늘 투찰', url: '/work', icon: 'post', isActive: false, items: [] },
+      { title: '복기', url: '/review', icon: 'trendingUp', isActive: false, items: [] }
+    ]
   };
 }

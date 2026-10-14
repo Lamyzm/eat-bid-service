@@ -13,6 +13,7 @@ import type { RegisteredBusinessReader } from "../../account/application/registe
 import { BID_POSITION_RULE, positionBids } from "../domain/bid-position-rule";
 import {
   baseRelativeRatio,
+  bestCompetitorRate,
   classifyRatio,
   classifyRate,
   expectedWins,
@@ -42,6 +43,7 @@ export interface ReviewMethodValues {
 export interface ReviewRoundRecord {
   readonly round: BidReviewRoundRecord;
   readonly floorRatio: string;
+  readonly bestCompetitorRatio: string | null;
   readonly winner: { readonly label: string | null; readonly ratio: string; readonly mine: boolean } | null;
   readonly own: readonly { readonly label: string | null; readonly ratio: string; readonly verdict: ReviewOwnVerdict }[];
   readonly ownExpectedWins: number;
@@ -55,7 +57,7 @@ export interface ReviewSummaryRecord {
   readonly rounds: number;
   readonly first: number;
   readonly allBelowFloor: number;
-  readonly allAboveWinner: number;
+  readonly allAboveFirst: number;
   readonly expectedWins: number;
   readonly recomputedRounds: number;
 }
@@ -72,6 +74,7 @@ export interface MyBidReviewRecord {
       readonly marketRounds: number | null;
     };
     readonly nationalRuleVersion: string;
+    readonly plannedDistribution: { readonly version: string; readonly sourceRounds: number };
     readonly unplannedRounds: number;
     readonly summaries: readonly ReviewSummaryRecord[];
     readonly rounds: readonly ReviewRoundRecord[];
@@ -177,9 +180,11 @@ function reviewRound(
     const verdict: ReviewOwnVerdict = winnerParty !== null && bid.supplierPartyId === winnerParty ? "won" : classifyRate(facts, bid.rate);
     return { label: bid.label, ratio: rateRatio(facts, bid.rate), verdict };
   });
+  const best = bestCompetitorRate(facts);
   return {
     round,
     floorRatio: floorRatio(facts),
+    bestCompetitorRatio: best === null ? null : rateRatio(facts, best),
     winner: round.award === null ? null : {
       label: round.award.label,
       ratio: rateRatio(facts, round.award.rate),
@@ -195,7 +200,7 @@ function summaryOf(key: ReviewSummaryKey, rounds: readonly ReviewRoundRecord[]):
   let counted = 0;
   let first = 0;
   let allBelowFloor = 0;
-  let allAboveWinner = 0;
+  let allAboveFirst = 0;
   let expected = 0;
   let recomputed = 0;
   for (const round of rounds) {
@@ -206,7 +211,7 @@ function summaryOf(key: ReviewSummaryKey, rounds: readonly ReviewRoundRecord[]):
     counted += 1;
     if (verdicts.some((verdict) => verdict === "first" || verdict === "won")) first += 1;
     if (verdicts.every((verdict) => verdict === "below-floor")) allBelowFloor += 1;
-    if (verdicts.every((verdict) => verdict === "above-winner")) allAboveWinner += 1;
+    if (verdicts.every((verdict) => verdict === "above-first")) allAboveFirst += 1;
     if (key === "own") {
       expected += round.ownExpectedWins;
     } else {
@@ -215,7 +220,7 @@ function summaryOf(key: ReviewSummaryKey, rounds: readonly ReviewRoundRecord[]):
       if (values.source === "recomputed") recomputed += 1;
     }
   }
-  return { method: key, rounds: counted, first, allBelowFloor, allAboveWinner, expectedWins: expected, recomputedRounds: recomputed };
+  return { method: key, rounds: counted, first, allBelowFloor, allAboveFirst, expectedWins: expected, recomputedRounds: recomputed };
 }
 
 /**
@@ -274,6 +279,7 @@ export class GetMyBidReview {
           marketRounds: decision.marketRounds,
         },
         nationalRuleVersion: BID_POSITION_RULE.version,
+        plannedDistribution: { version: PLANNED_RATIO_DISTRIBUTION.version, sourceRounds: PLANNED_RATIO_DISTRIBUTION.sourceRounds },
         unplannedRounds: reviewed.length - rounds.length,
         summaries: SUMMARY_ORDER.map((key) => summaryOf(key, rounds)),
         rounds,

@@ -12,8 +12,9 @@ const response = {
     month: "2026-09",
     marketPick: { version: "2026-10-10", window: { fromMonth: "2026-06", throughMonth: "2026-08" }, ratios: [ratio("0.984900"), ratio("0.989400")], marketRounds: 164 },
     nationalRuleVersion: "2026-10-10",
+    plannedDistribution: { version: "2026-10-10", sourceRounds: 108126 },
     unplannedRounds: 0,
-    summaries: [{ method: "market-pick", rounds: 73, first: 5, allBelowFloor: 62, allAboveWinner: 2, expectedWins: "3.4", recomputedRounds: 73 }],
+    summaries: [{ method: "market-pick", rounds: 73, first: 5, allBelowFloor: 62, allAboveFirst: 2, expectedWins: "3.4", recomputedRounds: 73 }],
     rounds: [{
       auctionId: "120042",
       openedAt: "2026-09-16T01:00:00Z",
@@ -25,8 +26,9 @@ const response = {
       floorRate: { value: "90.000", unit: "percentage-points" },
       bidderCount: 64,
       floorRatio: ratio("1.009115"),
-      winner: { label: "영미트", ratio: ratio("1.009440"), mine: false },
-      own: [{ label: "(주)오뚜기축산", ratio: ratio("0.997914"), verdict: "below-floor" }],
+      bestCompetitorRatio: ratio("1.009440"),
+      winner: { label: "업체 가", ratio: ratio("1.009440"), mine: false },
+      own: [{ label: "내 업체 1", ratio: ratio("0.997914"), verdict: "below-floor" }],
       ownExpectedWins: "0.0787",
       methods: [{ method: "market-pick", source: "recomputed", version: "2026-10-10", positions: [{ ratio: ratio("0.984900"), verdict: "below-floor" }], expectedWins: "0.0589" }],
     }],
@@ -38,7 +40,7 @@ describe("내 투찰 복기 계약", () => {
     expect(myBidReviewV1ResponseSchema.parse(response).selected?.rounds[0]?.floorRatio.value).toBe("1.009115");
   });
 
-  test("방법 값의 출처는 장부와 다시 계산 둘뿐이고, 판정은 하한 미달·1등 자리·낙찰보다 높음뿐이다", () => {
+  test("방법 값의 출처는 장부와 다시 계산 둘뿐이고, 판정은 하한 미달·1등 자리·1등 자리보다 높음뿐이다", () => {
     const methods = response.selected.rounds[0]!.methods;
     expect(() => myBidReviewV1ResponseSchema.parse({
       ...response,

@@ -19,12 +19,13 @@ export const bidReviewMethodSchema = z.enum(["market-pick", "national-rule", "mo
 
 /**
  * 그날 실제로 뽑힌 예정가격으로 가린 자리다. `first`는 하한 이상이면서 다른 업체의 가장 낮은 유효 투찰보다 낮은 자리다 — 우리가
- * 들어가면 예정가격 추첨이 달라지므로 "낙찰"이 아니라 "자리"다.
+ * 들어가면 예정가격 추첨이 달라지므로 "낙찰"이 아니라 "자리"다. `above-first`는 그 투찰 이상이라는 뜻이며 실제 낙찰과 견준 것이
+ * 아니다(우리가 낙찰했거나 가장 낮은 투찰이 심사에서 빠진 공고는 둘이 다르다).
  */
-export const bidReviewVerdictSchema = z.enum(["below-floor", "first", "above-winner"]).meta({ id: "BidReviewVerdict" });
+export const bidReviewVerdictSchema = z.enum(["below-floor", "first", "above-first"]).meta({ id: "BidReviewVerdict" });
 
 /** 실제 낸 값은 낙찰을 따로 가린다. 두 업체가 둘 다 1등 자리면 더 낮은 쪽이 낙찰이고 다른 쪽은 자리로 남는다. */
-export const bidReviewOwnVerdictSchema = z.enum(["won", "below-floor", "first", "above-winner"]).meta({ id: "BidReviewOwnVerdict" });
+export const bidReviewOwnVerdictSchema = z.enum(["won", "below-floor", "first", "above-first"]).meta({ id: "BidReviewOwnVerdict" });
 
 export const bidReviewMonthSchema = z.strictObject({
   month: kstMonthTextSchema,
@@ -69,6 +70,11 @@ export const bidReviewRoundSchema = z.strictObject({
   bidderCount: nonNegativeCountSchema,
   /** 그날 하한이다 — 예정가격 ÷ 기초금액. 이보다 낮게 넣은 투찰은 무효다. */
   floorRatio: reviewRatioSchema,
+  /**
+   * 다른 업체의 가장 낮은 유효 투찰이다. 1등 자리는 하한부터 이 값 바로 아래까지이고, 낙찰(`winner`)과 다를 수 있어 따로 싣는다.
+   * 다른 업체의 유효 투찰이 없었으면 null이며 그때는 하한 이상이 모두 1등 자리다.
+   */
+  bestCompetitorRatio: reviewRatioSchema.nullable(),
   /** 유효 투찰이 하나도 없었으면 null이다. */
   winner: z.strictObject({
     label: z.string().min(1).max(200).nullable(),
@@ -86,7 +92,7 @@ export const bidReviewSummarySchema = z.strictObject({
   rounds: nonNegativeCountSchema,
   first: nonNegativeCountSchema,
   allBelowFloor: nonNegativeCountSchema,
-  allAboveWinner: nonNegativeCountSchema,
+  allAboveFirst: nonNegativeCountSchema,
   expectedWins: canonicalDecimalTextSchema,
   recomputedRounds: nonNegativeCountSchema,
 }).meta({ id: "BidReviewSummary" });
@@ -106,6 +112,8 @@ export const myBidReviewV1ResponseSchema = z.strictObject({
       marketRounds: nonNegativeCountSchema.nullable(),
     }),
     nationalRuleVersion: z.string().min(1).max(32),
+    /** 추첨 평균 기대를 셀 때 적분한 예정가격 분포의 판과 그 분포를 만든 공고 수다. */
+    plannedDistribution: z.strictObject({ version: z.string().min(1).max(32), sourceRounds: nonNegativeCountSchema }),
     /** 예정가격이 관측되지 않아 대조하지 못한 공고 수다. 빼고 말하지 않는다. */
     unplannedRounds: nonNegativeCountSchema,
     summaries: z.array(bidReviewSummarySchema),

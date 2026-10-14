@@ -16,6 +16,7 @@ import { cache } from 'react';
 import { privateServerRequest } from '../_transport/private-server-request.server';
 import { getCurrentSessionWith } from './get-current-session';
 import { getMyBidBoardWith, type MyBidBoardInput, type MyBidBoardRead } from './get-my-bid-board';
+import { getMyBidReviewWith, type MyBidReviewInput, type MyBidReviewRead } from './get-my-bid-review';
 import { listMyBusinessesWith } from './my-businesses';
 import {
   countFilterCombinationsWith,
@@ -129,6 +130,13 @@ export async function getMyBidBoardFromServer(input: Omit<MyBidBoardInput, 'sign
 }
 
 export type { MyBidBoardRead };
+
+/** 복기 한 달이다. 운영자가 아니면 `forbidden`이고, 그 밖의 실패는 그대로 던져 화면의 실패 갈래가 다룬다. */
+export async function getMyBidReviewFromServer(input: Omit<MyBidReviewInput, 'signal'>): Promise<MyBidReviewRead> {
+  return await getMyBidReviewWith(privateServerRequest, input);
+}
+
+export type { MyBidReviewRead };
 
 /**
  * 서버가 읽은 목록을 브라우저 캐시의 어느 자리에 놓을지는 조회를 소유한 query factory가 정한다. 여기서
