@@ -42,15 +42,17 @@ describe('복기 표시', () => {
     expect(rows[3]!.note).toBe('이 달엔 기록 없음');
   });
 
-  test('공고마다 하한과 낙찰을 말하고, 1등 자리는 누가 몇에 들었는지, 같은 판정은 둘 다로 묶는다', () => {
+  test('공고마다 하한과 낙찰을 말하고, 판정 칩은 값을 늘 적되 같은 판정은 끝에 둘 다로 한 번만 붙인다', () => {
     const [first, won, blank] = reviewView().rows;
     expect(first!.facts).toEqual(['하한 100.912', '낙찰 업체 가 100.944']);
     expect(first!.verdicts.map((verdict) => `${verdict.name} ${verdict.text}`)).toEqual([
-      '낸 값 둘 다 하한 미달', '맞춤 둘 다 하한 미달', '전국 공식 둘 다 하한 미달'
+      '낸 값 내 업체 1 99.791 · 내 업체 2 99.900, 둘 다 하한 미달',
+      '맞춤 1번 98.490 · 2번 98.940, 둘 다 하한 미달',
+      '전국 공식 1번 98.600 · 2번 99.200, 둘 다 하한 미달'
     ]);
     expect(won!.facts).toEqual(['하한 98.450', '우리 낙찰 내 업체 1 98.700', '다른 업체 최저 98.820']);
-    expect(won!.verdicts[0]).toEqual({ name: '낸 값', text: '내 업체 1 98.700 낙찰', first: true });
-    expect(won!.verdicts[1]).toEqual({ name: '맞춤', text: '1번 98.490 1등 자리', first: true });
+    expect(won!.verdicts[0]).toEqual({ name: '낸 값', text: '내 업체 1 98.700 낙찰 · 내 업체 2 99.500 1등 자리보다 높음', first: true });
+    expect(won!.verdicts[1]).toEqual({ name: '맞춤', text: '1번 98.490 1등 자리 · 2번 98.940 1등 자리보다 높음', first: true });
     expect(won!.won).toBe(true);
     expect(blank!.title).toBe('제목 미확인');
     expect(blank!.winner).toBeNull();
@@ -71,6 +73,16 @@ describe('복기 표시', () => {
       '이 달 맞춤·전국 공식 값은 그때 화면에 없던 값이에요. 지금 규칙을 그 달 자료에 다시 돌린 것이에요. 화면에 실제로 보였던 값과의 대조는 그 값을 기록하기 시작한 뒤의 공고부터 쌓여요.',
       '예정가격이 아직 안 나온 공고 1건은 대조에서 뺐어요.'
     ]);
+  });
+
+  test('기대가 모두 0인 달에는 어느 방법에도 기대 가장 높음을 달지 않는다', () => {
+    const zero = {
+      ...bidReview,
+      selected: { ...bidReview.selected!, summaries: bidReview.selected!.summaries.map((summary) => ({ ...summary, expectedWins: '0.0' })) }
+    };
+    const view = presentReview(zero);
+    if (view.kind !== 'review') throw new Error('복기가 있어야 한다');
+    expect(view.summary.map((row) => row.lead)).toEqual([false, false, false, false]);
   });
 
   test('기대를 센 예정가격 분포의 판과 공고 수를 판 표시에 밝히고, 아침 갱신 값이 없는 달은 범례에서도 뺀다', () => {

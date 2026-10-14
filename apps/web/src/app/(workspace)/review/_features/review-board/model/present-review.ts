@@ -142,8 +142,9 @@ function ownLabels(rounds: readonly BidReviewRoundWire[]): string {
 function summaryRows(selected: Selected): readonly ReviewSummaryRow[] {
   const window = `${monthNumber(selected.marketPick.window.fromMonth)}~${monthNumber(selected.marketPick.window.throughMonth)}월`;
   const marketRatios = selected.marketPick.ratios;
+  // 기대가 모두 0인 달(공고가 막 쌓이기 시작한 달)에 표시를 달면 0.0을 추천처럼 읽는다.
   const leadKey = selected.summaries
-    .filter((summary) => summary.method !== 'own' && summary.rounds > 0)
+    .filter((summary) => summary.method !== 'own' && summary.rounds > 0 && Number(summary.expectedWins) > 0)
     .reduce<Summary | null>((best, summary) => (best === null || Number(summary.expectedWins) > Number(best.expectedWins) ? summary : best), null)
     ?.method;
   return selected.summaries.map((summary) => {
@@ -179,15 +180,18 @@ function summaryRows(selected: Selected): readonly ReviewSummaryRow[] {
   });
 }
 
+/**
+ * 칩은 값을 늘 적는다. 눈금자 그림의 위치만으로는 몇이었는지 읽을 수 없다. 판정이 같으면 끝에 한 번("…, 둘 다 하한 미달"),
+ * 갈리면 값마다 붙인다.
+ */
 function verdictText(name: string, entries: readonly { readonly who: string; readonly ratio: string; readonly verdict: Verdict }[]) {
-  const first = entries.find((entry) => entry.verdict === 'first' || entry.verdict === 'won');
-  if (first !== undefined) {
-    return { name, text: `${first.who} ${assessmentText(first.ratio)} ${VERDICT_TEXT[first.verdict]}`, first: true };
-  }
-  if (entries.every((entry) => entry.verdict === entries[0]!.verdict)) {
-    return { name, text: `${entries.length > 1 ? '둘 다 ' : ''}${VERDICT_TEXT[entries[0]!.verdict]}`, first: false };
-  }
-  return { name, text: entries.map((entry) => `${assessmentText(entry.ratio)} ${VERDICT_TEXT[entry.verdict]}`).join(' · '), first: false };
+  const values = entries.map((entry) => `${entry.who} ${assessmentText(entry.ratio)}`);
+  const first = entries.some((entry) => entry.verdict === 'first' || entry.verdict === 'won');
+  const verdict = entries[0]!.verdict;
+  const text = entries.every((entry) => entry.verdict === verdict)
+    ? `${values.join(' · ')}${entries.length > 1 ? ', 둘 다' : ''} ${VERDICT_TEXT[verdict]}`
+    : entries.map((entry, index) => `${values[index]} ${VERDICT_TEXT[entry.verdict]}`).join(' · ');
+  return { name, text, first };
 }
 
 function rowView(round: BidReviewRoundWire): ReviewRowView {
