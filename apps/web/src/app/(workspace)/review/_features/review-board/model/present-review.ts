@@ -158,7 +158,8 @@ function summaryRows(selected: Selected): readonly ReviewSummaryRow[] {
         ? `${window} ${selected.marketPick.marketRounds ?? 0}건으로 고름${recomputed}`
         : summary.method === 'national-rule'
           ? `참여 수에 따라 표에서${recomputed}`
-          : '화면에 보인 공고만';
+          // 휴대폰에서는 공고 열이 밀려 안 보인다. 맞춤보다 적은 이유를 설명 줄에서 건수로 바로 읽게 한다.
+          : summary.recomputedRounds > 0 ? `마감 10분 전에 켜진 공고 ${summary.rounds}건만 · 다시 계산` : '화면에 보인 공고만';
     const values = summary.method === 'market-pick' && marketRatios !== null
       ? marketRatios.map((ratio) => assessmentText(ratio.value)).join(' / ')
       : summary.method === 'national-rule' ? '참여 수별' : '공고마다';
@@ -253,9 +254,14 @@ export function presentReview(response: MyBidReviewV1Response): ReviewView {
   const summary = summaryRows(selected);
   const market = summary.find((row) => row.key === 'market-pick');
   const ownWins = selected.rounds.filter((round) => round.winner?.mine === true).length;
-  const recomputed = selected.summaries.some((entry) => entry.recomputedRounds > 0);
+  // 다시 고른 아침 갱신은 따로 한 문단으로 전제까지 말하므로 여기 목록에 겹쳐 넣지 않는다.
+  const recomputedNames = selected.summaries
+    .filter((entry) => entry.method !== 'own' && entry.method !== 'morning-habit' && entry.recomputedRounds > 0)
+    .map((entry) => shortName(entry.method));
+  const habitRecomputed = selected.summaries.some((entry) => entry.method === 'morning-habit' && entry.recomputedRounds > 0);
   const rows = selected.rounds.map(rowView);
   const distribution = selected.plannedDistribution;
+  const habitVersion = selected.rounds.flatMap((round) => round.methods).find((values) => values.method === 'morning-habit')?.version;
   return {
     kind: 'review',
     month: selected.month,
@@ -266,10 +272,21 @@ export function presentReview(response: MyBidReviewV1Response): ReviewView {
       .map((month) => ({ month: month.month, label: `${monthNumber(month.month)}월`, rounds: month.rounds, wins: month.wins })),
     lede: `${monthNumber(selected.month)}월 공고 ${selected.rounds.length}건에 내 사업자가 넣었고, 실제 낙찰은 ${ownWins}건이에요.`
       + (market === undefined || market.rounds === 0 ? '' : ` 같은 공고에서 맞춤 값이 1등 자리에 든 공고는 ${market.first}건이에요.`),
-    stamp: `맞춤 ${selected.marketPick.version}판 · 전국 공식 ${selected.nationalRuleVersion}판 · 기대는 예정가격 추첨 평균(${distribution.version}판, 공고 ${grouped(String(distribution.sourceRounds))}건)`,
+    stamp: [
+      `맞춤 ${selected.marketPick.version}판`,
+      `전국 공식 ${selected.nationalRuleVersion}판`,
+      ...(habitVersion === undefined ? [] : [`아침 갱신 ${habitVersion}판`]),
+      `기대는 예정가격 추첨 평균(${distribution.version}판, 공고 ${grouped(String(distribution.sourceRounds))}건)`
+    ].join(' · '),
     summary,
     notes: [
-      ...(recomputed ? ['이 달 맞춤·전국 공식 값은 그때 화면에 없던 값이에요. 지금 규칙을 그 달 자료에 다시 돌린 것이에요. 화면에 실제로 보였던 값과의 대조는 그 값을 기록하기 시작한 뒤의 공고부터 쌓여요.'] : []),
+      ...(recomputedNames.length === 0 ? [] : [
+        `이 달 ${recomputedNames.join('·')} 값은 그때 화면에 없던 값이에요. 지금 규칙을 그 달 자료에 다시 돌린 것이에요. 화면에 실제로 보였던 값과의 대조는 그 값을 기록하기 시작한 뒤의 공고부터 쌓여요.`
+      ]),
+      // 다시 고른 아침 갱신은 결과가 제때 수집됐다는 전제 위의 값이다. 그 전제가 이 값의 가장 큰 단서라 숨기지 않는다.
+      ...(habitRecomputed ? [
+        '아침 갱신은 공고마다 마감 10분 전에, 그때까지 나온 같은 날 결과로 다시 골랐어요. 같은 날 결과가 모자란 공고는 그 시각에 값이 없어 빠졌고, 그래서 공고 수가 맞춤보다 적어요. 그날 수집이 늦었던 공고는 이 값이 그때 화면엔 없었을 수 있어요.'
+      ] : []),
       ...(selected.unplannedRounds > 0 ? [`예정가격이 아직 안 나온 공고 ${selected.unplannedRounds}건은 대조에서 뺐어요.`] : [])
     ],
     rows,

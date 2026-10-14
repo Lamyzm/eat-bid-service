@@ -132,6 +132,24 @@ describe("아침 습관 맞춤 결정", () => {
     expect(asked.firms).toHaveLength(0);
   });
 
+  test("지난 공고 여러 개를 마감 10분 전마다 다시 고르면 시장·이력을 한 번만 읽고도, 시각 하나씩 따로 읽은 결정과 같은 자리·덮임이 나온다", async () => {
+    const asked = { market: [] as HabitWindow[], firms: [] as (HabitWindow & { readonly supplierPartyIds: readonly bigint[] })[] };
+    const early = instant(FIXTURE.market[20]![1]);
+    const times = [...FIXTURE.expected.map((entry) => instant(entry.deadlineMinute).subtract({ seconds: 600 })), early];
+    const many = await decider({ businesses: ours, reader: fixtureReader(asked) }).decideAt({ workspaceId: 4n, decisionTimes: times });
+    expect(asked.market).toHaveLength(1);
+    expect(asked.firms).toHaveLength(1);
+    expect(many).toHaveLength(times.length);
+    for (const [index, entry] of FIXTURE.expected.entries()) {
+      const one = await decider({ businesses: ours, now: times[index] }).decide({ workspaceId: 4n });
+      const auction = { baseAmount: tenMillion, floorRate: ninety, deadlineAt: instant(entry.deadlineMinute), competitorCount: entry.competitorCount };
+      expect(many[index]!.decidedAt.toString()).toBe(times[index]!.toString());
+      expect(morningHabitPickFor(many[index]!, auction)).toEqual(morningHabitPickFor(one, auction));
+    }
+    // 시장 공고가 모자란 이른 시각은 그 시각만 닫힌다.
+    expect(many.at(-1)).toMatchObject({ kind: "not-applicable", reasons: ["market-rounds-below-minimum"] });
+  });
+
   test("시장 조회가 실패하면 예외 대신 계산하지 못했다는 결정으로 닫는다", async () => {
     const broken: MorningHabitReader = {
       findMarketRounds: async () => { throw new Error("private connection failure"); },
