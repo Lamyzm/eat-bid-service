@@ -4,8 +4,8 @@ import 'server-only';
 import { cookies } from 'next/headers';
 
 import { readServerApiOrigin } from './api-origin';
-import { createContractRequest } from './request-contract';
-import { transportResilience } from './request-resilience';
+import { createContractRequest, type FetchImplementation } from './request-contract';
+import { transportResilience, type TransportResilience } from './request-resilience';
 
 /**
  * provider가 소유한 쿠키 이름만 전달한다. 요청 헤더 전체를 relay하면 내부 origin 호출에 사용자 헤더가
@@ -26,22 +26,26 @@ async function authCookieHeader(): Promise<string | undefined> {
   return forwarded.length ? forwarded.join('; ') : undefined;
 }
 
+const privateFetch: FetchImplementation = async (input, init) => {
+  const cookie = await authCookieHeader();
+  return fetch(input, {
+    ...init,
+    // 개인 응답은 어떤 공유 캐시에도 남지 않는다. 서버가 붙이는 `private, no-store`와 같은 판정을
+    // 요청 쪽에서도 한 번 더 고정해 Next data cache가 사용자 간에 응답을 재사용하지 못하게 한다.
+    cache: 'no-store',
+    headers: cookie === undefined ? init?.headers : { ...init?.headers, cookie }
+  });
+};
+
+const privateRequestWith = (resilience: TransportResilience) =>
+  createContractRequest({ fetch: privateFetch, resolveOrigin: () => readServerApiOrigin(process.env), resilience });
+
 /**
  * 개인 응답 전용 server adapter다. `serverRequest`와 나누는 이유는 하나다. 공개 read는 `use cache`
  * 경계 안에서 실행되고 그 안에서는 `cookies()`를 읽을 수 없으므로, 쿠키를 읽는 adapter를 하나로 합치면
  * 공개 read가 통째로 깨진다. 이 adapter를 쓰는 함수에는 `use cache`를 두지 않는다(ADR 0028 §4).
  */
-export const privateServerRequest = createContractRequest({
-  fetch: async (input, init) => {
-    const cookie = await authCookieHeader();
-    return fetch(input, {
-      ...init,
-      // 개인 응답은 어떤 공유 캐시에도 남지 않는다. 서버가 붙이는 `private, no-store`와 같은 판정을
-      // 요청 쪽에서도 한 번 더 고정해 Next data cache가 사용자 간에 응답을 재사용하지 못하게 한다.
-      cache: 'no-store',
-      headers: cookie === undefined ? init?.headers : { ...init?.headers, cookie }
-    });
-  },
-  resolveOrigin: () => readServerApiOrigin(process.env),
-  resilience: transportResilience.privateServerRead
-});
+export const privateServerRequest = privateRequestWith(transportResilience.privateServerRead);
+
+/** 복기처럼 지난 결정을 다시 돌리는 무거운 개인 조회 전용이다. 예산만 다르고 쿠키·캐시 금지 규칙은 같다. */
+export const privateServerReviewRequest = privateRequestWith(transportResilience.privateServerReviewRead);

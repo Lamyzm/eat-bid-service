@@ -210,4 +210,10 @@ describe('전송 계층 시간 제한과 재시도', () => {
       transportResilience.publicServerRead.retryLimit
     );
   });
+
+  test('복기 조회만 운영 실측(약 3초)보다 넉넉한 예산을 받고, 무거운 계산을 두 번 시키지 않게 재시도하지 않는다', () => {
+    expect(transportResilience.privateServerReviewRead.timeout).toBeGreaterThan(transportResilience.privateServerRead.timeout);
+    expect(transportResilience.privateServerReviewRead.timeout).toBeGreaterThanOrEqual(10_000);
+    expect(transportResilience.privateServerReviewRead.retryLimit).toBe(0);
+  });
 });
