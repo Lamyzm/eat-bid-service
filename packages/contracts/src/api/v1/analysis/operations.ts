@@ -67,6 +67,11 @@ function dayOrdinal(date: string): number {
   return era * 146_097 + dayOfEra;
 }
 
+/** 양끝 포함 기간의 날 수다. 하한선 자리 조회(`floor-lines.operations`)가 같은 셈법으로 기간 상한을 닫는다. */
+export function analysisPeriodDayCount(from: string, to: string): number {
+  return dayOrdinal(to) - dayOrdinal(from) + 1;
+}
+
 /**
  * 비교 모집단과 그 축의 짝이다. 전국은 지역을 갖지 않고, 지역은 **체계와 코드값을 함께** 가져야 한다.
  *

@@ -27,6 +27,9 @@ describe("canonical OpenAPI 산출물", () => {
       // 조건 사전 조회다. 비교 지역·품목·기관 여닫이 셋이 같은 조건을 세 번 묻지 않도록 한 응답을 나눠 쓴다.
       "/api/v1/analysis/condition-options",
       "/api/v1/analysis/distribution",
+      // 하한선 자리(PDR-0009)다. 지역 목록을 고정 경로로 먼저 두어 같은 prefix의 조회와 겹치지 않게 한다.
+      "/api/v1/analysis/floor-lines",
+      "/api/v1/analysis/floor-lines/regions",
       "/api/v1/analysis/history",
       "/api/v1/analysis/time-series",
       "/api/v1/auctions",
@@ -74,6 +77,8 @@ describe("canonical OpenAPI 산출물", () => {
         "findAnalysisHistory",
         "findAnalysisTimeSeries",
         "findAuction",
+        "findFloorLineRegions",
+        "findFloorLines",
         "findMyBidObservations",
         "getAuctionBidPosition",
         "getAuctionRoster",

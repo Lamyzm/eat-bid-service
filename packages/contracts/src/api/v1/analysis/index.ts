@@ -18,3 +18,6 @@ export * from "./find-analysis-history.response";
 export * from "./distribution.resource";
 export * from "./find-analysis-distribution.response";
 export * from "./operations";
+export * from "./floor-lines.resource";
+export * from "./find-floor-lines.response";
+export * from "./floor-lines.operations";

@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import request from "supertest";
 import {
   analysisV1Operations,
+  floorLineV1Operations,
   auctionV1Operations,
   codeSchemeV1Operations,
 } from "@eatbid/contracts";
@@ -31,6 +32,9 @@ const sharedReadPaths: readonly (readonly [string, string])[] = [
   ["분석 분포", analysisV1Operations.findDistribution.openApiPath],
   ["분석 전체 이력", analysisV1Operations.findHistory.openApiPath],
   ["분석 조건 목록", analysisV1Operations.findConditionOptions.openApiPath],
+  // 하한선 자리(PDR-0009)도 분석과 같은 게이트를 지난다.
+  ["하한선 자리", floorLineV1Operations.findFloorLines.openApiPath],
+  ["하한선 자리 지역 목록", floorLineV1Operations.findRegions.openApiPath],
   [
     "코드 목록",
     codeSchemeV1Operations.listCodes.buildPath({
