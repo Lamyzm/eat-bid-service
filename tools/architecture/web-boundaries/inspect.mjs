@@ -163,6 +163,8 @@ function exactContractRequestTypeImport(node) {
   return exactNamedImport(node, "ContractRequest") && (node.importClause.isTypeOnly || node.importClause.namedBindings.elements[0].isTypeOnly);
 }
 
+const PRIVATE_SERVER_ADAPTERS = ["privateServerRequest", "privateServerReviewRequest"];
+
 function exactRuntimeNamedImport(node, name) {
   return exactNamedImport(node, name) && !node.importClause.isTypeOnly && !node.importClause.namedBindings.elements[0].isTypeOnly;
 }
@@ -326,8 +328,13 @@ function transportViolation(root, layer, file, target, node, reference) {
   if (targetPath === "apps/web/src/api/_transport/browser-request.ts") return isResourceIndex && exactRuntimeNamedImport(node, "browserRequest") ? undefined : "browser-request는 exact resource index.ts의 exact runtime import만 허용합니다.";
   if (targetPath === "apps/web/src/api/_transport/server-request.server.ts") return isResourceServer && exactRuntimeNamedImport(node, "serverRequest") ? undefined : "server-request.server는 exact resource server.ts의 exact runtime import만 허용합니다.";
   // 개인 응답 adapter는 요청 쿠키를 읽으므로 `use cache` 경계 안에서 실행될 수 없다. 공개 read adapter와
-  // 같은 자리에 두면 하나의 import 실수가 사용자 응답을 공유 캐시에 넣는다(ADR 0032 §1).
-  if (targetPath === "apps/web/src/api/_transport/private-server-request.server.ts") return isResourceServer && exactRuntimeNamedImport(node, "privateServerRequest") ? undefined : "private-server-request.server는 exact resource server.ts의 exact runtime import만 허용합니다.";
+  // 같은 자리에 두면 하나의 import 실수가 사용자 응답을 공유 캐시에 넣는다(ADR 0032 §1). 복기 조회용 adapter는 예산만 다른
+  // 같은 개인 adapter라 같은 규칙(resource server.ts의 exact runtime import)으로 허용한다.
+  if (targetPath === "apps/web/src/api/_transport/private-server-request.server.ts") {
+    return isResourceServer && PRIVATE_SERVER_ADAPTERS.some((name) => exactRuntimeNamedImport(node, name))
+      ? undefined
+      : "private-server-request.server는 exact resource server.ts의 exact runtime import만 허용합니다.";
+  }
   if (targetPath === "apps/web/src/api/_transport/request-contract.ts") return isOperation && exactContractRequestTypeImport(node) ? undefined : "resource operation은 exact ContractRequest만 exact type-only import할 수 있습니다.";
   return "resource는 승인되지 않은 api/_transport module을 import 또는 re-export할 수 없습니다.";
 }

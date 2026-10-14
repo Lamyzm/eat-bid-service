@@ -14,6 +14,7 @@ import type { CurrentSessionV1Response } from '@eatbid/contracts/api/v1/session'
 import { cache } from 'react';
 
 import { privateServerRequest } from '../_transport/private-server-request.server';
+import { privateServerReviewRequest } from '../_transport/private-server-request.server';
 import { getCurrentSessionWith } from './get-current-session';
 import { getMyBidBoardWith, type MyBidBoardInput, type MyBidBoardRead } from './get-my-bid-board';
 import { getMyBidReviewWith, type MyBidReviewInput, type MyBidReviewRead } from './get-my-bid-review';
@@ -133,7 +134,7 @@ export type { MyBidBoardRead };
 
 /** 복기 한 달이다. 운영자가 아니면 `forbidden`이고, 그 밖의 실패는 그대로 던져 화면의 실패 갈래가 다룬다. */
 export async function getMyBidReviewFromServer(input: Omit<MyBidReviewInput, 'signal'>): Promise<MyBidReviewRead> {
-  return await getMyBidReviewWith(privateServerRequest, input);
+  return await getMyBidReviewWith(privateServerReviewRequest, input);
 }
 
 export type { MyBidReviewRead };

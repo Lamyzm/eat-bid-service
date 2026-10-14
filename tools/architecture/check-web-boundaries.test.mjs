@@ -584,17 +584,19 @@ test("server transport는 canonical server-request.server.ts만 resource server�
   ]);
 });
 
-test("개인 응답 transport는 resource server.ts의 exact runtime import만 허용한다", async () => {
+test("개인 응답 transport(복기 조회 adapter 포함)는 resource server.ts의 exact runtime import만 허용한다", async () => {
   const report = await inspect({
-    "apps/web/src/api/account/server.ts": "import { privateServerRequest } from '@/api/_transport/private-server-request.server'; void privateServerRequest;\n",
+    "apps/web/src/api/account/server.ts": "import { privateServerRequest } from '@/api/_transport/private-server-request.server';\nimport { privateServerReviewRequest } from '@/api/_transport/private-server-request.server'; void privateServerRequest; void privateServerReviewRequest;\n",
     "apps/web/src/api/account/index.ts": "import { privateServerRequest } from '@/api/_transport/private-server-request.server'; void privateServerRequest;\n",
     "apps/web/src/api/orders/server.ts": "import { privateServerRequest as request } from '@/api/_transport/private-server-request.server'; void request;\n",
+    "apps/web/src/api/orders/index.ts": "import { privateServerReviewRequest } from '@/api/_transport/private-server-request.server'; void privateServerReviewRequest;\n",
     "apps/web/src/capabilities/setup/view.ts": "import { privateServerRequest } from '@/api/_transport/private-server-request.server'; void privateServerRequest;\n",
-    "apps/web/src/api/_transport/private-server-request.server.ts": "export const privateServerRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/private-server-request.server.ts": "export const privateServerRequest = () => undefined;\nexport const privateServerReviewRequest = () => undefined;\n",
   });
 
   assert.deepEqual(report.findings.filter((finding) => finding.rule === "resource-transport-import").map((finding) => finding.path).sort(), [
     "apps/web/src/api/account/index.ts",
+    "apps/web/src/api/orders/index.ts",
     "apps/web/src/api/orders/server.ts",
     "apps/web/src/capabilities/setup/view.ts",
   ]);

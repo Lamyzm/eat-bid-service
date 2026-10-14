@@ -40,6 +40,12 @@ export const transportResilience = {
    */
   privateServerRead: { timeout: elapsedSeconds(3), retryLimit: 1 },
   /**
+   * 개인 서버의 무거운 대조 조회(복기). 한 달의 공고마다 지난 결정을 다시 돌려 운영 실측 3초 안팎이 걸린다(2026-10-14, 9월
+   * 75건 2,974ms). 3초 예산은 정상 응답까지 잘라 화면이 "불러오지 못했다"가 되므로 따로 넉넉히 두고, 같은 계산을 한 번 더
+   * 시키지 않게 재시도는 하지 않는다. 다른 개인 조회에 쓰면 실패를 오래 숨긴다.
+   */
+  privateServerReviewRead: { timeout: elapsedSeconds(15), retryLimit: 0 },
+  /**
    * 브라우저 조회. 상호작용 이후 조회라 이미 그려진 화면이 대기 상태를 말할 수 있고 모바일 네트워크의
    * 왕복이 서버 내부 호출보다 느리므로 8초까지 허용하되 재시도는 서버 공개 조회와 같은 두 번으로 맞춘다.
    */
