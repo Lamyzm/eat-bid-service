@@ -56,6 +56,8 @@ delivery acceptance로 사용하지 않는다.
 시점에 관측 가능한 값에만 조건화) 아래 판단 재료로 허용된다. 지금 공고 상세의 추천 투찰가 칸이 전국 공식과 내 사업자 맞춤
 금액을 근거와 함께 보이고, 같은 금액을 방법별로 나란히 보이는 오늘 투찰 화면은
 [PDR-0008](decisions/0008-my-bids-market-pick-and-work-screen.md)이 정한다. 확률은 모형이 실제보다 높게 말해 아직 보이지 않는다.
+하한선이 어디에 떨어지는지는 예비가격 추첨이라 예측하지 않는다. 지역별 하한선 점과 규칙이 정한 범위를 보이는 하한선 자리 화면은
+[PDR-0009](decisions/0009-floor-line-place-shows-rule-range-not-prediction.md)가 정한다.
 
 ## 2. 핵심 사용자와 사용 맥락
 
