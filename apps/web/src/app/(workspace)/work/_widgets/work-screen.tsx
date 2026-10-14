@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 import { BidBoardList } from '../_features/bid-board/ui/bid-board-list';
 import { ItemChips } from '../_features/bid-board/ui/item-chips';
+import { SchoolFilterProvider, SchoolSearch } from '../_features/bid-board/ui/school-filter';
 import type { WorkView } from '../_lib/load-work-page';
 import { WorkFrame } from './work-frame';
 
@@ -60,14 +61,25 @@ export function WorkScreen({ view }: { readonly view: WorkView }) {
       </WorkFrame>
     );
   }
+  // 학교 거르기는 이미 받은 행만 좁힌다. 검색 칸과 목록이 같은 검색어를 보도록 화면 전체를 감싼다.
+  const targets = view.groups.flatMap((group) => group.rows.map((row) => ({ organization: row.organization, title: row.title })));
+  const filters = (
+    <>
+      <ConditionLine summary={view.summary} />
+      <ItemChips />
+      {targets.length === 0 ? null : <SchoolSearch />}
+    </>
+  );
   return (
-    <WorkFrame lede={view.lede} stamp={view.stamp} filters={<><ConditionLine summary={view.summary} /><ItemChips /></>}>
-      {view.truncatedNote === null ? null : (
-        <p role='status' className='mt-4 rounded-lg border border-dashed border-border px-3 py-2 text-[13px] font-semibold'>
-          {view.truncatedNote}
-        </p>
-      )}
-      {view.groups.length === 0 ? null : <BidBoardList view={view} />}
-    </WorkFrame>
+    <SchoolFilterProvider targets={targets}>
+      <WorkFrame lede={view.lede} stamp={view.stamp} filters={filters}>
+        {view.truncatedNote === null ? null : (
+          <p role='status' className='mt-4 rounded-lg border border-dashed border-border px-3 py-2 text-[13px] font-semibold'>
+            {view.truncatedNote}
+          </p>
+        )}
+        {view.groups.length === 0 ? null : <BidBoardList view={view} />}
+      </WorkFrame>
+    </SchoolFilterProvider>
   );
 }
