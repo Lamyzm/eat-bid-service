@@ -34,7 +34,7 @@ const USABLE_RATE_CEILING = 200;
  * 하한선이 그어진 회차다. 예정가격이 없으면 하한선도 없다. 격리된 회차는 화면 조회에서 뺀다(EAT-199). 분석 코호트와 달리
  * 낙찰 사정률을 요구하지 않는다 — 유찰된 공고도 그날 하한선은 그어졌다.
  */
-function floorLinePredicate(window: FloorLineWindow): SQL {
+export function floorLinePredicate(window: FloorLineWindow): SQL {
   return sql`summary.build_id = ${ACTIVE_BUILD}
      and summary.quarantine_reason is null
      and summary.opened_at >= ${window.from.toString()}::timestamptz

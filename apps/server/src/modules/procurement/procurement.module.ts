@@ -24,6 +24,9 @@ import type { AnalysisDistributionReader } from "./application/analysis-distribu
 import { FindFloorLineRegions, FindFloorLines } from "./application/find-floor-lines";
 import type { FloorLineReader } from "./application/floor-line-reader";
 import { FloorLinesController } from "./presentation/http/floor-lines.controller";
+import { FindMyFloorBids } from "./application/find-my-floor-bids";
+import type { MyFloorBidReader } from "./application/my-floor-bid-reader";
+import { MyFloorBidsController } from "./presentation/http/my-floor-bids.controller";
 import type { AnalysisHistoryReader } from "./application/analysis-history-reader";
 import { FindAnalysisTimeSeries } from "./application/find-analysis-time-series";
 import type { AnalysisConditionOptionsReader } from "./application/analysis-condition-options-reader";
@@ -51,6 +54,7 @@ import {
   ANALYSIS_DISTRIBUTION_READER,
   ANALYSIS_TIME_SERIES_READER,
   FLOOR_LINE_READER,
+  MY_FLOOR_BID_READER,
   AUCTION_READER,
   AUCTION_ROSTER_READER,
   BID_DISPLAY_LEDGER,
@@ -189,6 +193,19 @@ const findFloorLineRegionsProvider = {
   useFactory: (reader: FloorLineReader) => new FindFloorLineRegions(reader),
 };
 
+/** 하한선 자리의 내 투찰은 복기처럼 등록 사업자 목록과 투찰을 한 스냅샷에서 읽는다. 지역 존재는 분석과 같은 port로 확인한다. */
+const findMyFloorBidsProvider = {
+  provide: FindMyFloorBids,
+  inject: [READ_SNAPSHOT, REGISTERED_BUSINESS_READER, MY_FLOOR_BID_READER, FLOOR_LINE_READER, ANALYSIS_TIME_SERIES_READER],
+  useFactory: (
+    snapshot: UnitOfWork,
+    businesses: RegisteredBusinessReader,
+    reader: MyFloorBidReader,
+    labels: FloorLineReader,
+    axes: AnalysisTimeSeriesReader,
+  ) => new FindMyFloorBids(snapshot, businesses, reader, labels, axes),
+};
+
 const listEligibilityAreasProvider = {
   provide: ListEligibilityAreas,
   inject: [ELIGIBILITY_AREA_READER],
@@ -255,6 +272,7 @@ const findMyBidObservationsProvider = {
   controllers: [
     AnalysisController,
     FloorLinesController,
+    MyFloorBidsController,
     AuctionBidPositionController,
     AuctionController,
     AuctionRosterController,
@@ -279,6 +297,7 @@ const findMyBidObservationsProvider = {
     findAnalysisDistributionProvider,
     findFloorLinesProvider,
     findFloorLineRegionsProvider,
+    findMyFloorBidsProvider,
     listOpenAuctionsProvider,
     summarizeOpenAuctionsProvider,
     listEligibilityAreasProvider,

@@ -37,6 +37,7 @@ import { DrizzleAnalysisConditionOptionsReader } from "../../modules/procurement
 import { DrizzleAnalysisHistoryReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-history-reader";
 import { DrizzleAnalysisDistributionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-distribution-reader";
 import { DrizzleFloorLineReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-floor-line-reader";
+import { DrizzleMyFloorBidReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-my-floor-bid-reader";
 import { DrizzleAnalysisTimeSeriesReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-time-series-reader";
 import { DrizzleCodeReader } from "../../modules/reference/infrastructure/drizzle/drizzle-code-reader";
 import type { Environment } from "../config/environment";
@@ -69,6 +70,7 @@ import {
   ANALYSIS_DISTRIBUTION_READER,
   ANALYSIS_HISTORY_READER,
   FLOOR_LINE_READER,
+  MY_FLOOR_BID_READER,
   ANALYSIS_TIME_SERIES_READER,
 } from "./database.tokens";
 import { createUnitOfWork, type UnitOfWork } from "./unit-of-work";
@@ -167,6 +169,11 @@ export class DatabaseModule {
         // 복기도 맞춤처럼 스냅샷 handle만 받아 읽는다.
         provide: BID_REVIEW_READER,
         useValue: new DrizzleBidReviewReader(),
+      },
+      {
+        // 하한선 자리의 내 투찰도 등록 사업자 목록과 같은 스냅샷에서 읽는다.
+        provide: MY_FLOOR_BID_READER,
+        useValue: new DrizzleMyFloorBidReader(),
       },
       {
         provide: AUCTION_READER,
@@ -295,6 +302,7 @@ export class DatabaseModule {
         ANALYSIS_HISTORY_READER,
         ANALYSIS_DISTRIBUTION_READER,
         FLOOR_LINE_READER,
+        MY_FLOOR_BID_READER,
         CODE_READER,
       ],
     };

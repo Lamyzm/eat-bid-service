@@ -2,6 +2,8 @@ export * from "./bid-board.operations";
 export * from "./bid-board.response";
 export * from "./bid-review.operations";
 export * from "./bid-review.response";
+export * from "./floor-bids.operations";
+export * from "./floor-bids.response";
 export * from "./business.resource";
 export * from "./bid-observation.resource";
 export * from "./bid-observations.operations";

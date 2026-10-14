@@ -57,6 +57,8 @@ describe("canonical OpenAPI 산출물", () => {
       "/api/v1/me/filter-combinations",
       "/api/v1/me/filter-combinations/counts",
       "/api/v1/me/filter-combinations/{filterCombinationId}",
+      // 하한선 자리에 겹칠 내 사업자 투찰이다(PDR-0009). 등록 사업자로 범위가 정해져 me에 산다.
+      "/api/v1/me/floor-bids",
       "/api/v1/me/initialization",
       // 조회와 통째 교체 두 method가 한 path에 있다. 부분 갱신 command는 만들지 않는다.
       "/api/v1/me/region-preference",
@@ -80,6 +82,7 @@ describe("canonical OpenAPI 산출물", () => {
         "findFloorLineRegions",
         "findFloorLines",
         "findMyBidObservations",
+        "findMyFloorBids",
         "getAuctionBidPosition",
         "getAuctionRoster",
         "getCurrentSession",

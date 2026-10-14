@@ -18,7 +18,8 @@ const FLOOR_LINE_MAX_PERIOD_DAYS = 1_130;
 
 type FloorLinePeriodQuery = { from: string; to: string };
 
-function floorLinePeriodRule<Query extends FloorLinePeriodQuery>(ctx: z.core.ParsePayload<Query>): void {
+/** 기간 규칙이다. 내 사업자 투찰을 겹치는 개인 조회(`me/floor-bids`)도 같은 창을 받아 같은 규칙으로 닫는다. */
+export function floorLinePeriodRule<Query extends FloorLinePeriodQuery>(ctx: z.core.ParsePayload<Query>): void {
   const days = analysisPeriodDayCount(ctx.value.from, ctx.value.to);
   if (days <= 0) ctx.issues.push({ code: "custom", message: "기간은 시간순이어야 합니다.", input: ctx.value, path: ["to"] });
   else if (days > FLOOR_LINE_MAX_PERIOD_DAYS) {
@@ -41,10 +42,18 @@ const floorLineRegionsQuerySchema = z.strictObject(floorLinePeriodFields).check(
  *
  * `include=ranks`는 공고마다 1~10등 사다리를 함께 달라는 뜻이다. 명단을 읽어 무거우므로 켤 때만 받는다.
  */
-const floorLinesQuerySchema = z.strictObject({
+/**
+ * 시군구 하나·기간·하한율 창이다. 시장 조회와 내 투찰 조회가 **같은 창**을 받아야 화면이 겹친 점이 같은 공고를 가리킨다.
+ * 그래서 필드는 여기 한 번만 선언하고 두 schema가 나눠 쓴다.
+ */
+export const floorLineRegionWindowQueryFields = {
   ...floorLinePeriodFields,
   regionScheme: z.literal(CODE_SCHEME_NAMES.auctionLocationSigungu),
   regionCodeValueId: positiveBigintTextSchema,
+} as const;
+
+const floorLinesQuerySchema = z.strictObject({
+  ...floorLineRegionWindowQueryFields,
   include: z.literal("ranks").optional(),
 }).check(floorLinePeriodRule);
 
