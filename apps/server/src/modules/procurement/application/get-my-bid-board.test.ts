@@ -116,29 +116,30 @@ describe("오늘 투찰 한 장 use case", () => {
     expect(asked).toHaveLength(0);
   });
 
-  test("KST 23:50에 부르면 모레 0시 전 마감까지 고른다 — 남은 24시간 10분을 올림해 25시간을 묻는다", async () => {
+  test("KST 23:50에 부르면 30일 뒤 0시 전 마감까지 고른다 — 남은 696시간 10분을 올림해 697시간을 묻는다", async () => {
     const asked: OpenAuctionQuery[] = [];
     const result = await run(board({ asked }), ["육류", "가금류"]);
     if (result.state !== "confirmed") throw new Error("확인된 지역이어야 한다");
-    expect(asked[0]!.closesWithinHours).toBe(25);
+    expect(asked[0]!.closesWithinHours).toBe(697);
     expect(asked[0]!.eligibilityAreaCodeValueIds).toEqual([15653n]);
     expect(asked[0]!.itemAtoms).toEqual(["육류", "가금류"]);
     expect(asked[0]!.limit).toBe(200);
-    expect(result.closesBeforeDate).toBe("2026-10-14");
+    expect(result.closesBeforeDate).toBe("2026-11-11");
   });
 
-  test("하한율 90·88 공고만 남기고, 모레 0시 이후 마감과 마감 미관측 공고는 뺀다", async () => {
+  test("하한율 90·88 공고만 남기고, 모레 이후 마감도 남기되 30일 뒤 0시 이후 마감과 마감 미관측 공고는 뺀다", async () => {
     const result = await run(board({
       auctions: [
         auction({ auctionAttemptId: 1n }),
         auction({ auctionAttemptId: 2n, floorRate: bidRate(canonicalDecimal("88.000", 3)) }),
         auction({ auctionAttemptId: 3n, floorRate: bidRate(canonicalDecimal("87.500", 3)) }),
-        auction({ auctionAttemptId: 4n, closesAt: Temporal.Instant.from("2026-10-13T15:00:00Z") }),
+        auction({ auctionAttemptId: 4n, closesAt: Temporal.Instant.from("2026-11-10T15:00:00Z") }),
         auction({ auctionAttemptId: 5n, closesAt: null }),
+        auction({ auctionAttemptId: 6n, closesAt: Temporal.Instant.from("2026-10-16T01:00:00Z") }),
       ],
     }));
     if (result.state !== "confirmed") throw new Error("확인된 지역이어야 한다");
-    expect(result.rows.map((row) => row.auction.auctionAttemptId)).toEqual([1n, 2n]);
+    expect(result.rows.map((row) => row.auction.auctionAttemptId)).toEqual([1n, 2n, 6n]);
   });
 
   test("하한율 90 공고는 맞춤 두 장·한 장·예비 셋과 전국 공식을 함께 내고, 88 공고는 맞춤 밖이다", async () => {

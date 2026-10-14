@@ -1,5 +1,5 @@
 /**
- * @module 책임: 요청자 워크스페이스의 관심 지역에서 오늘·내일 마감하는 하한율 90·88 공고를 고르고, 공고마다 전국 공식·이번 달 맞춤
+ * @module 책임: 요청자 워크스페이스의 관심 지역에서 앞으로 30일 안에 마감하는(사실상 열린) 하한율 90·88 공고를 고르고, 공고마다 전국 공식·이번 달 맞춤
  * 금액(두 장·한 장·예비)과 요청하면 아침 갱신 금액을 계산하는 오늘 투찰 use case와 그 내부 record를 소유한다.
  */
 import type { AuctionItemAtom } from "@eatbid/contracts";
@@ -30,6 +30,11 @@ const BOARD_PAGE_SIZE = 200;
  * 겹쳐도 넉넉하게 잡고(1,000건), 그래도 남으면 잘렸다고 응답에 싣는다 — 늦게 마감하는 공고가 말없이 빠지면 안 된다.
  */
 const BOARD_MAX_PAGES = 5;
+/**
+ * 마감 창의 길이(KST 날짜 수)다. 사장님은 오늘·내일만이 아니라 열린 공고를 다 보고 미리 준비한다(2026-10-14 사용자). eaT 공고는
+ * 게시부터 마감까지 길어야 두세 주라 30일이면 열린 공고 전부이고, 목록 reader의 시간 창 상한(720시간)에도 든다.
+ */
+const BOARD_WINDOW_DAYS = 30;
 /** 이 조각이 다루는 하한율이다. 88은 금액을 화면에 보이지 않지만 공고는 목록에 남긴다(PDR-0008). */
 const BOARD_FLOOR_RATES: readonly string[] = ["90.000", "88.000"];
 
@@ -47,7 +52,7 @@ export type MyBidBoardRecord =
   | {
     readonly state: "confirmed";
     readonly asOf: Temporal.Instant;
-    /** 이 KST 날짜 0시 전에 마감하는 공고만 담았다 — 오늘과 내일이다. */
+    /** 이 KST 날짜 0시 전에 마감하는 공고만 담았다 — 오늘부터 `BOARD_WINDOW_DAYS`일, 사실상 열린 공고 전부다. */
     readonly closesBeforeDate: string;
     readonly decision: MarketPickDecision;
     /** 요청이 아침 갱신을 고르지 않았으면 null이다. */
@@ -66,7 +71,7 @@ export interface GetMyBidBoardInput {
 
 /**
  * 관심 지역은 query가 아니라 저장소에서 읽는다. 화면이 보낸 지역으로 남의 시장을 펼치지 않게 하는 것은 조합 건수 operation과
- * 같은 이유다(PDR-0001). "오늘·내일"은 KST 달력이다 — UTC로 자르면 밤 9시 이후 요청이 하루 밀린다.
+ * 같은 이유다(PDR-0001). 마감 창은 KST 달력이다 — UTC로 자르면 밤 9시 이후 요청이 하루 밀린다.
  */
 export class GetMyBidBoard {
   constructor(
@@ -92,7 +97,7 @@ export class GetMyBidBoard {
     if (preference.confirmedAt === null) return { state: "unconfirmed", asOf };
 
     const today = asOf.toZonedDateTimeISO(KST_TIME_ZONE).toPlainDate();
-    const closesBeforeDate = today.add({ days: 2 });
+    const closesBeforeDate = today.add({ days: BOARD_WINDOW_DAYS });
     const closesBefore = closesBeforeDate.toZonedDateTime(KST_TIME_ZONE).toInstant();
     // 목록 reader는 시간 창만 받는다. 올림한 만큼 넘친 행은 아래에서 날짜 경계로 다시 자른다.
     const hours = Math.min(720, Math.max(1, Math.ceil(asOf.until(closesBefore).total({ unit: "hours" }))));

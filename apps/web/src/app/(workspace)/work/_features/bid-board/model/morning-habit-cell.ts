@@ -41,7 +41,8 @@ export type HabitCellView =
       readonly text: string;
       readonly detail: string;
       /** 내일 아침 결과를 기다리는 칸이다. 머리 문장이 "내일 아침에 다시 열면"을 몇 건인지 센다. */
-      readonly tomorrow: boolean;
+      /** 마감이 오늘보다 뒤라 그날 아침에 다시 열어야 하는 칸이다. */
+      readonly later: boolean;
     };
 
 function clockText(instant: string): string {
@@ -62,24 +63,31 @@ const MEANWHILE = '그 전까지는 파란 테두리가 다른 칸에 있어요.
 function coverageReason(cell: Extract<HabitCell, { state: 'not-applicable' }>, closesAt: string | null, asOf: string) {
   const seen = cell.coverage !== null && cell.coverage.value !== '0.000000';
   if (seen) {
-    return { text: '단골 결과가 아직 적어요', detail: `오늘 단골 결과가 아직 적어 금액을 내지 않았어요. 결과가 더 나오면 생길 수 있어요. ${MEANWHILE}`, tomorrow: false };
+    return { text: '단골 결과가 아직 적어요', detail: `오늘 단골 결과가 아직 적어 금액을 내지 않았어요. 결과가 더 나오면 생길 수 있어요. ${MEANWHILE}`, later: false };
   }
-  const waiting = { text: '앞선 결과 기다리는 중', detail: `오늘 앞서 개찰되는 공고의 결과가 나오면 금액이 생겨요. ${MEANWHILE}`, tomorrow: false };
+  const waiting = { text: '앞선 결과 기다리는 중', detail: `오늘 앞서 개찰되는 공고의 결과가 나오면 금액이 생겨요. ${MEANWHILE}`, later: false };
   if (closesAt === null) return waiting;
   const closingDay = Temporal.Instant.from(closesAt).toZonedDateTimeISO(KST).toPlainDate();
   const today = Temporal.Instant.from(asOf).toZonedDateTimeISO(KST).toPlainDate();
   if (Temporal.PlainDate.compare(closingDay, today) <= 0) return waiting;
+  if (today.add({ days: 1 }).equals(closingDay)) {
+    return {
+      text: '내일 아침에 다시 열면 계산돼요',
+      detail: `내일 아침 그날 앞선 공고의 결과가 나오면 금액이 생겨요. 지금은 전날이라 볼 결과가 없어요. ${MEANWHILE}`,
+      later: true
+    };
+  }
   return {
-    text: '내일 아침에 다시 열면 계산돼요',
-    detail: `내일 아침 그날 앞선 공고의 결과가 나오면 금액이 생겨요. 지금은 전날이라 볼 결과가 없어요. ${MEANWHILE}`,
-    tomorrow: true
+    text: '마감 날 아침에 다시 열면 계산돼요',
+    detail: `마감 날 아침 그날 앞선 공고의 결과가 나오면 금액이 생겨요. 지금은 그 전이라 볼 결과가 없어요. ${MEANWHILE}`,
+    later: true
   };
 }
 
 export function habitCellOf(row: BidBoardRowWire, asOf: string): HabitCellView {
   const cell = row.morningHabit;
   if (cell === undefined || cell === null) {
-    return { kind: 'reason', text: '기초금액 미확인', detail: '기초금액이 아직 나오지 않아 금액을 내지 않았어요.', tomorrow: false };
+    return { kind: 'reason', text: '기초금액 미확인', detail: '기초금액이 아직 나오지 않아 금액을 내지 않았어요.', later: false };
   }
   if (cell.state === 'not-applicable') {
     if (cell.reasons.includes('same-day-coverage-below-threshold')) {
@@ -89,7 +97,7 @@ export function habitCellOf(row: BidBoardRowWire, asOf: string): HabitCellView {
       .filter((reason): reason is Exclude<Reason, 'same-day-coverage-below-threshold'> => reason !== 'same-day-coverage-below-threshold')
       .map((reason) => REASONS[reason])
       .join(' · ');
-    return { kind: 'reason', text, detail: `이 공고에는 아침 갱신 금액이 없어요(${text}).`, tomorrow: false };
+    return { kind: 'reason', text, detail: `이 공고에는 아침 갱신 금액이 없어요(${text}).`, later: false };
   }
   const floor = row.floorRate?.value ?? null;
   const seenAt = cell.latestSameDayOpenedAt === null ? null : clockText(cell.latestSameDayOpenedAt);

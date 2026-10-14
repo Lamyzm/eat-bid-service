@@ -79,7 +79,7 @@ export const myBidBoardV1ResponseSchema = z.discriminatedUnion("regionPreference
   z.strictObject({
     regionPreference: z.literal("confirmed"),
     asOf: instantTextSchema,
-    /** 이 날짜 KST 0시 전에 마감하는 공고만 실었다 — 오늘과 내일이다. */
+    /** 이 날짜 KST 0시 전에 마감하는 공고만 실었다 — 오늘부터 30일, 사실상 열린 공고 전부다. */
     closesBeforeDate: kstDateTextSchema,
     rule: bidPositionRuleSchema,
     marketPick: bidBoardMarketPickSchema,

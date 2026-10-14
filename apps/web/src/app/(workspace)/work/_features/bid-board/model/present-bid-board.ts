@@ -9,7 +9,7 @@ import type { BidBoardRowWire, MyBidBoardV1Response } from '@eatbid/contracts/ap
 
 import { decimalScale, scaledText, sumAtScale } from '@/shared/lib/decimal-sum';
 import { amountLine, type AmountLine } from './amount-line';
-import { groupLabel, hourMinuteText, kstOf, relativeText } from './closing-time';
+import { daysUntil, groupLabel, hourMinuteText, kstOf, relativeText } from './closing-time';
 import { habitCellOf, habitGuide, habitHeadRecord, habitHeadSample, habitRecordText, type HabitCellView } from './morning-habit-cell';
 import { EMPTY_MORE, moreOf, recordOf, ruleBasisText, type BoardRecord, type MarketWords, type RowMore } from './row-more';
 
@@ -53,7 +53,7 @@ export interface BoardRowView {
 
 export interface ClosingGroupView {
   readonly label: string;
-  /** 오늘 마감 묶음만 남은 시간을 단다. 내일 묶음은 이름이 이미 "내일 · "로 시작한다. */
+  /** 오늘 마감 묶음만 남은 시간을 단다. 내일 이후 묶음은 이름이 이미 "내일 · "나 날짜로 시작한다. */
   readonly relative: string | null;
   readonly rows: readonly BoardRowView[];
 }
@@ -212,14 +212,16 @@ function rowOf(row: BidBoardRowWire, head: MarketHead, habit: HabitHead, words: 
  * 머리 문장이다. 아침 갱신이 실렸으면 이 화면을 언제 다시 열지를 같이 말한다 — 전날 저녁에는 칸이 비어 있고 당일 아침에 결과가
  * 나와야 금액이 생기므로, 그 사실을 칸 하나하나가 아니라 맨 위 한 문장에서 먼저 안다.
  */
-function ledeOf(today: number, tomorrow: number, habitViews: readonly HabitCellView[] | null): string {
-  if (today + tomorrow === 0) return '오늘·내일 마감 공고가 없어요.';
-  const base = `오늘 마감 ${today}건, 내일 마감 ${tomorrow}건이에요.`;
+function ledeOf(counts: { readonly total: number; readonly today: number; readonly tomorrow: number }, habitViews: readonly HabitCellView[] | null): string {
+  if (counts.total === 0) return '열린 공고가 없어요.';
+  // 괄호 안 수를 더하면 합계가 되게 한다 — 모자라면 나머지가 어디 갔는지 다시 세게 된다.
+  const later = counts.total - counts.today - counts.tomorrow;
+  const base = `열린 공고 ${counts.total}건이에요(오늘 마감 ${counts.today}건, 내일 마감 ${counts.tomorrow}건${later > 0 ? `, 그 뒤 ${later}건` : ''}).`;
   if (habitViews === null) return base;
   const moved = habitViews.filter((view) => view.kind === 'amounts').length;
   if (moved > 0) return `${base} 아침 결과로 ${moved}건의 금액을 다시 골랐어요.`;
-  const waiting = habitViews.filter((view) => view.kind === 'reason' && view.tomorrow).length;
-  return waiting > 0 ? `${base} 내일 마감 ${waiting}건은 내일 아침에 다시 열면 아침 갱신 금액이 생길 수 있어요.` : base;
+  const waiting = habitViews.filter((view) => view.kind === 'reason' && view.later).length;
+  return waiting > 0 ? `${base} 내일 이후 마감 ${waiting}건은 마감 날 아침에 다시 열면 아침 갱신 금액이 생길 수 있어요.` : base;
 }
 
 function guideOf(words: MarketWords, habit: HabitHead): readonly string[] {
@@ -243,14 +245,15 @@ export function presentBidBoard(response: MyBidBoardV1Response): BoardView {
   const habit = response.morningHabit;
   const groups = new Map<string, { label: string; relative: string | null; rows: BoardRowView[] }>();
   const habitViews: HabitCellView[] = [];
-  let today = 0;
-  let tomorrow = 0;
+  const counts = { total: 0, today: 0, tomorrow: 0 };
   // 서버가 마감 순으로 준다. 같은 마감 시각끼리 한 묶음이다.
   for (const row of response.rows) {
     if (row.closesAt === null) continue;
     const closes = kstOf(row.closesAt);
-    if (closes.toPlainDate().equals(asOf.toPlainDate())) today += 1;
-    else tomorrow += 1;
+    const days = daysUntil(asOf, closes);
+    counts.total += 1;
+    if (days <= 0) counts.today += 1;
+    else if (days === 1) counts.tomorrow += 1;
     const habitView = habit === undefined || row.floorRate?.value === '88.000' ? null : habitCellOf(row, response.asOf);
     if (habitView !== null) habitViews.push(habitView);
     const key = closes.toString();
@@ -260,7 +263,7 @@ export function presentBidBoard(response: MyBidBoardV1Response): BoardView {
   }
   return {
     kind: 'board',
-    lede: ledeOf(today, tomorrow, habit === undefined ? null : habitViews),
+    lede: ledeOf(counts, habit === undefined ? null : habitViews),
     stamp: `${hourMinuteText(asOf)} 기준 · ${marketStamp(response.marketPick, words)}`,
     ...columnsOf(response.marketPick, habit, words),
     columnCaption: '지난 공고에 1번·2번을 넣었다고 치고 센 낙찰 수',

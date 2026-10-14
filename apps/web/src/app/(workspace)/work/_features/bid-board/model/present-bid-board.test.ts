@@ -20,14 +20,14 @@ const rowOf = (view: ReturnType<typeof boardView>, auctionId: string) =>
   view.groups.flatMap((group) => group.rows).find((row) => row.auctionId === auctionId)!;
 
 describe('오늘 투찰 표시', () => {
-  test('공고를 KST 마감 시각으로 묶고 마감 순으로 세우며 내일 묶음은 이름에만 내일을 붙인다', () => {
+  test('공고를 KST 마감 시각으로 묶고 마감 순으로 세우며 묶음 이름 앞에 오늘·내일을 붙인다', () => {
     const view = boardView();
     expect(view.groups.map((group) => [group.label, group.relative, group.rows.length])).toEqual([
-      ['오전 10시 마감', '13분 뒤', 5],
-      ['오후 3시 10분 마감', '5시간 23분 뒤', 1],
+      ['오늘 · 오전 10시 마감', '13분 뒤', 5],
+      ['오늘 · 오후 3시 10분 마감', '5시간 23분 뒤', 1],
       ['내일 · 오전 9시 마감', null, 1]
     ]);
-    expect(view.lede).toBe('오늘 마감 6건, 내일 마감 1건이에요.');
+    expect(view.lede).toBe('열린 공고 7건이에요(오늘 마감 6건, 내일 마감 1건).');
     expect(view.stamp).toBe('09:47 기준 · 10월 맞춤 금액은 7~9월 내 사업자 공고 164건으로 골랐어요');
   });
 
@@ -177,10 +177,20 @@ describe('오늘 투찰 표시', () => {
       .toEqual({ kind: 'region-unconfirmed' });
   });
 
-  test('오늘·내일 마감 공고가 없으면 빈 목록이라고 말한다', () => {
+  test('열린 공고가 없으면 빈 목록이라고 말한다', () => {
     const view = boardView(withRows([]));
     expect(view.groups).toEqual([]);
-    expect(view.lede).toBe('오늘·내일 마감 공고가 없어요.');
+    expect(view.lede).toBe('열린 공고가 없어요.');
+  });
+
+  test('모레 이후 마감 공고도 보이고, 묶음 이름에 요일 붙은 날짜를 달아 같은 시각의 다른 날과 헷갈리지 않게 한다', () => {
+    const later = { ...boardRows.deokjeongTomorrow, auctionId: '3906450', closesAt: '2026-09-25T01:00:00Z' };
+    const view = boardView(withRows([boardRows.deokjeongTomorrow, later]));
+    expect(view.groups.map((group) => [group.label, group.relative, group.rows.length])).toEqual([
+      ['내일 · 오전 9시 마감', null, 1],
+      ['09.25(금) · 오전 10시 마감', null, 1]
+    ]);
+    expect(view.lede).toBe('열린 공고 2건이에요(오늘 마감 0건, 내일 마감 1건, 그 뒤 1건).');
   });
 
   test('화면 문구는 NeaT 입력 지시·단정·반사실 같은 금지 문형을 쓰지 않는다', () => {

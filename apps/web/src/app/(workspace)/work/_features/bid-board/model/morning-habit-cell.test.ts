@@ -55,16 +55,18 @@ describe('오늘 투찰 아침 갱신 칸', () => {
     expect(cell.detail).toBe('09:30까지 나온 오늘 결과에서 단골 11곳이 넣은 사정률을 보고 다시 고른 금액이에요. 결과가 더 나오면 바뀌니 넣기 직전에 새로고침해 보세요.');
   });
 
-  test('오늘 자리가 안 보인 칸은 내일 마감이면 내일 아침에 다시 열라고, 오늘 마감이면 앞선 결과를 기다린다고 쓴다', () => {
+  test('오늘 자리가 안 보인 칸은 내일 마감이면 내일 아침, 모레 이후 마감이면 마감 날 아침에 다시 열라고, 오늘 마감이면 앞선 결과를 기다린다고 쓴다', () => {
     expect(habitCellOf({ ...boardRows.deokjeongTomorrow, morningHabit: closed('0.000000') }, asOf))
-      .toMatchObject({ kind: 'reason', text: '내일 아침에 다시 열면 계산돼요', tomorrow: true });
+      .toMatchObject({ kind: 'reason', text: '내일 아침에 다시 열면 계산돼요', later: true });
+    expect(habitCellOf({ ...boardRows.deokjeongTomorrow, closesAt: '2026-09-25T01:00:00Z', morningHabit: closed('0.000000') }, asOf))
+      .toMatchObject({ kind: 'reason', text: '마감 날 아침에 다시 열면 계산돼요', later: true });
     expect(habitCellOf({ ...boardRows.tongyeong, morningHabit: closed('0.000000') }, asOf))
-      .toMatchObject({ kind: 'reason', text: '앞선 결과 기다리는 중', tomorrow: false });
+      .toMatchObject({ kind: 'reason', text: '앞선 결과 기다리는 중', later: false });
   });
 
   test('조금 보였지만 문턱 아래인 칸은 단골 결과가 아직 적다고 쓴다', () => {
     expect(habitCellOf({ ...boardRows.tongyeong, morningHabit: closed('0.129900') }, asOf))
-      .toMatchObject({ kind: 'reason', text: '단골 결과가 아직 적어요', tomorrow: false });
+      .toMatchObject({ kind: 'reason', text: '단골 결과가 아직 적어요', later: false });
   });
 
   test('열 머리는 맞춤보다 늘어난 낙찰 수를 맞춤과 견준 수라고 밝히고, 잰 조건(마감 직전)과 공고 수를 바로 아래에 단다', () => {
@@ -104,8 +106,8 @@ describe('오늘 투찰 아침 갱신 칸', () => {
       rows: [{ ...boardRows.deokjeongTomorrow, morningHabit: closed('0.000000') }]
     });
     if (morning.kind !== 'board' || evening.kind !== 'board') throw new Error('목록이어야 한다');
-    expect(morning.lede).toBe('오늘 마감 1건, 내일 마감 1건이에요. 아침 결과로 1건의 금액을 다시 골랐어요.');
-    expect(evening.lede).toBe('오늘 마감 0건, 내일 마감 1건이에요. 내일 마감 1건은 내일 아침에 다시 열면 아침 갱신 금액이 생길 수 있어요.');
+    expect(morning.lede).toBe('열린 공고 2건이에요(오늘 마감 1건, 내일 마감 1건). 아침 결과로 1건의 금액을 다시 골랐어요.');
+    expect(evening.lede).toBe('열린 공고 1건이에요(오늘 마감 0건, 내일 마감 1건). 내일 이후 마감 1건은 마감 날 아침에 다시 열면 아침 갱신 금액이 생길 수 있어요.');
     // 더 보기의 아침 갱신 상자는 꺼진 칸에도 언제 생기는지를 말한다.
     const tomorrowRow = evening.groups[0]!.rows[0]!;
     expect(tomorrowRow.more.habit?.text.startsWith('내일 아침 그날 앞선 공고의 결과가 나오면 금액이 생겨요.')).toBe(true);
