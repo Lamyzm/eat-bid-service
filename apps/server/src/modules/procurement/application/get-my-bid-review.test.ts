@@ -6,6 +6,8 @@ import type { RegisteredBusinessReader } from "../../account/application/registe
 import { MARKET_POSITION_PICK } from "../domain/market-position-pick-table";
 import type { BidReviewLedgerRecord, BidReviewReader, BidReviewRoundRecord } from "./bid-review-reader";
 import type { DecideMarketPick, MarketPickDecision } from "./decide-market-pick";
+import type { DecideMorningHabitPick, MorningHabitDecision } from "./decide-morning-habit-pick";
+import { MORNING_HABIT_PICK } from "../domain/morning-habit-pick-table";
 import { GetMyBidReview } from "./get-my-bid-review";
 
 const businesses = {
@@ -52,6 +54,7 @@ function useCase(options: {
   readonly ledger?: readonly BidReviewLedgerRecord[];
   readonly months?: Awaited<ReturnType<BidReviewReader["listMonths"]>>;
   readonly asked?: string[];
+  readonly habitAsked?: string[];
 }) {
   const reader: BidReviewReader = {
     listMonths: async () => options.months ?? [{ month: "2026-08", rounds: 1, bids: 2, wins: 0 }, { month: "2026-09", rounds: 2, bids: 4, wins: 1 }],
@@ -62,8 +65,17 @@ function useCase(options: {
     findLedger: async () => options.ledger ?? [],
   };
   const decide = { decide: async () => picked } as unknown as DecideMarketPick;
+  // 아침 갱신 계산 자체는 review-morning-habit 테스트가 실제 엔진으로 본다. 여기서는 언제 다시 고르러 가는지만 본다.
+  const habit = {
+    decideAt: async (input: { readonly decisionTimes: readonly Temporal.Instant[] }): Promise<MorningHabitDecision[]> => {
+      options.habitAsked?.push(...input.decisionTimes.map((at) => at.toString()));
+      return input.decisionTimes.map((decidedAt) => ({
+        kind: "not-applicable", method: MORNING_HABIT_PICK, decidedAt, reasons: ["same-day-coverage-below-threshold"], marketRounds: 120,
+      }));
+    },
+  } as unknown as DecideMorningHabitPick;
   const snapshot = { run: async <A>(work: (snapshot: never) => Promise<A>) => work(undefined as never) };
-  return new GetMyBidReview(snapshot, businesses, reader, decide, fixedClock(Temporal.Instant.from("2026-10-14T00:00:00Z")));
+  return new GetMyBidReview(snapshot, businesses, reader, decide, habit, fixedClock(Temporal.Instant.from("2026-10-14T00:00:00Z")));
 }
 
 const run = (target: GetMyBidReview, month: string | null = "2026-09") =>
@@ -87,8 +99,10 @@ describe("내 투찰 복기", () => {
     expect(only!.own.map((bid) => [bid.label, bid.verdict])).toEqual([["내 업체 1", "won"], ["내 업체 2", "below-floor"]]);
   });
 
-  test("장부가 없던 달은 맞춤·전국 공식을 다시 계산한 값으로 붙이고 아침 갱신은 비운다", async () => {
-    const record = await run(useCase({ rounds: [round({ auctionAttemptId: 1n })] }));
+  test("장부가 없던 달은 맞춤·전국 공식을 다시 계산한 값으로 붙이고, 아침 갱신은 마감 10분 전에 다시 골라 켜지지 않으면 비운다", async () => {
+    const habitAsked: string[] = [];
+    const record = await run(useCase({ rounds: [round({ auctionAttemptId: 1n })], habitAsked }));
+    expect(habitAsked).toEqual(["2026-09-15T23:50:00Z"]);
     const methods = record.selected!.rounds[0]!.methods;
     expect(methods.map((values) => [values.method, values.source])).toEqual([["market-pick", "recomputed"], ["national-rule", "recomputed"]]);
     expect(methods[0]!.positions).toEqual([{ ratio: "0.984900", verdict: "below-floor" }, { ratio: "0.989400", verdict: "first" }]);
@@ -108,7 +122,9 @@ describe("내 투찰 복기", () => {
       { auctionAttemptId: 1n, method: "market-pick", methodVersion: "2026-09-01", floorRate: "90.000", baseRelativeRates: ["80.0000"], firstServedAt: at("2026-09-16T00:30:00Z") },
       { auctionAttemptId: 1n, method: "morning-habit", methodVersion: "2026-10-11", floorRate: "90.000", baseRelativeRates: ["88.9000"], firstServedAt: at("2026-09-15T23:40:00Z") },
     ];
-    const record = await run(useCase({ rounds: [round({ auctionAttemptId: 1n })], ledger }));
+    const habitAsked: string[] = [];
+    const record = await run(useCase({ rounds: [round({ auctionAttemptId: 1n })], ledger, habitAsked }));
+    expect(habitAsked).toEqual([]);
     const methods = record.selected!.rounds[0]!.methods;
     expect(methods.map((values) => [values.method, values.source, values.version])).toEqual([
       ["morning-habit", "ledger", "2026-10-11"],

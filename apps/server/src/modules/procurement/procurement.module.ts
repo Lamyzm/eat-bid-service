@@ -203,14 +203,15 @@ const getMyBidBoardProvider = {
 // 복기는 오늘 투찰과 같은 맞춤 결정을 그 달 기준으로 돌린다. 달 목록·회차·장부는 한 스냅샷에서 읽는다.
 const getMyBidReviewProvider = {
   provide: GetMyBidReview,
-  inject: [READ_SNAPSHOT, REGISTERED_BUSINESS_READER, BID_REVIEW_READER, DecideMarketPick, CLOCK],
+  inject: [READ_SNAPSHOT, REGISTERED_BUSINESS_READER, BID_REVIEW_READER, DecideMarketPick, DecideMorningHabitPick, CLOCK],
   useFactory: (
     snapshot: UnitOfWork,
     businesses: RegisteredBusinessReader,
     reader: BidReviewReader,
     decideMarketPick: DecideMarketPick,
+    decideMorningHabit: DecideMorningHabitPick,
     clock: Clock,
-  ) => new GetMyBidReview(snapshot, businesses, reader, decideMarketPick, clock),
+  ) => new GetMyBidReview(snapshot, businesses, reader, decideMarketPick, decideMorningHabit, clock),
 };
 
 const listOpenAuctionsProvider = {

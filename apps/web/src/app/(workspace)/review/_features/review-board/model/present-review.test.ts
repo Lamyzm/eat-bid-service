@@ -85,6 +85,33 @@ describe('복기 표시', () => {
     expect(view.summary.map((row) => row.lead)).toEqual([false, false, false, false]);
   });
 
+  test('다시 고른 아침 갱신이 있으면 성적 표·판 표시·읽는 법이 그 사실과 전제(마감 10분 전, 결과가 제때 들어왔다고 봄)를 말한다', () => {
+    const selected = bidReview.selected!;
+    const habit = {
+      ...bidReview,
+      selected: {
+        ...selected,
+        summaries: selected.summaries.map((summary) => (summary.method === 'morning-habit'
+          ? { ...summary, rounds: 1, first: 1, allBelowFloor: 0, expectedWins: '0.2', recomputedRounds: 1 } : summary)),
+        rounds: selected.rounds.map((round, index) => (index !== 1 ? round : {
+          ...round,
+          methods: [
+            { method: 'morning-habit' as const, source: 'recomputed' as const, version: '2026-10-11', positions: [{ ratio: { value: '0.985200', unit: 'ratio' as const }, verdict: 'first' as const }], expectedWins: '0.2000' },
+            ...round.methods
+          ]
+        }))
+      }
+    };
+    const view = presentReview(habit);
+    if (view.kind !== 'review') throw new Error('복기가 있어야 한다');
+    expect(view.summary[3]!.note).toBe('마감 10분 전에 켜진 공고 1건만 · 다시 계산');
+    expect(view.stamp).toContain('아침 갱신 2026-10-11판');
+    expect(view.notes[0]).toStartWith('이 달 맞춤·전국 공식 값은 그때 화면에 없던 값이에요.');
+    expect(view.notes[1]).toContain('그날 수집이 늦었던 공고는 이 값이 그때 화면엔 없었을 수 있어요.');
+    expect(view.hasHabit).toBe(true);
+    expect(view.rows[1]!.verdicts.find((verdict) => verdict.name === '아침 갱신')?.text).toBe('1번 98.520 1등 자리');
+  });
+
   test('기대를 센 예정가격 분포의 판과 공고 수를 판 표시에 밝히고, 아침 갱신 값이 없는 달은 범례에서도 뺀다', () => {
     const view = reviewView();
     expect(view.stamp).toBe('맞춤 2026-10-10판 · 전국 공식 2026-10-10판 · 기대는 예정가격 추첨 평균(2026-10-10판, 공고 108,126건)');
