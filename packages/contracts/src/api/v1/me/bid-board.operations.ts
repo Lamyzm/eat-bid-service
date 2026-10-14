@@ -8,7 +8,7 @@ import { myBidBoardV1ResponseSchema } from "./bid-board.response";
 
 /**
  * 품목만 받는다. 지역은 저장된 관심 지역을 서버가 읽는다 — 화면이 보낸 지역으로 남의 시장을 펼치지 않게 하는 것은 조합 건수
- * operation과 같은 이유다. 마감 창도 받지 않는다. "오늘·내일"은 서버 clock 하나로 정해야 화면마다 다른 날을 보지 않는다.
+ * operation과 같은 이유다. 마감 창도 받지 않는다. 창(열린 공고 전부)은 서버 clock 하나로 정해야 화면마다 다른 날을 보지 않는다.
  */
 export const myBidBoardQuerySchema = z.strictObject({
   items: itemsFilterSchema.optional(),

@@ -97,7 +97,8 @@ describe("오늘 투찰 HTTP 경계", () => {
       expect(response.status).toBe(200);
       expect(myBidBoardV1ResponseSchema.safeParse(response.body).success).toBe(true);
       expect(response.body.regionPreference).toBe("confirmed");
-      expect(response.body.closesBeforeDate).toBe("2026-10-14");
+      // 마감 창은 오늘부터 30일이다(EAT-350) — 열린 공고 전부를 싣는다.
+      expect(response.body.closesBeforeDate).toBe("2026-11-11");
       expect(response.body.rows).toHaveLength(1);
       expect(response.body.rows[0].auctionId).toBe("2797346");
       expect(response.body.rows[0].rule.state).toBe("applicable");
