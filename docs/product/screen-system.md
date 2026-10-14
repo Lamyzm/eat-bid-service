@@ -75,6 +75,8 @@ eatbid의 화면은 사용자가 값을 대신 받아 가는 곳이 아니라 **
 정확한 `BidWorkItem`에서만 연다. 최근 분석 대상·saved analysis library의 반복 필요가 확인되기
 전에는 맥락 없는 전역 `분석` 메뉴를 만들지 않는다. 구현되지 않은 Enterprise 메뉴도 빈 화면으로
 먼저 만들지 않으며 `자동화`와 조직 관리 항목은 해당 roadmap gate가 통과할 때 추가한다.
+예외로 하한선 자리(`/floor`)는 사용자의 관심 지역에 묶인 시장 화면이며 반복 필요가 사용자 확인으로 검증됐다
+([PDR-0009](decisions/0009-floor-line-place-shows-rule-range-not-prediction.md)). 다른 맥락 없는 분석 메뉴를 늘리는 근거로 쓰지 않는다.
 
 URL: 오늘 `/today`(열린 공고 목록, §10.4), 투찰 업무 `/work`, 복기 `/review`, 성과 `/performance`, 분석 상세
 `/work-items/[workItemId]/analysis`. 2026-09 현재 실제로 있는 route는 `/today`와 결정 화면 `/auctions/[auctionId]`이며
