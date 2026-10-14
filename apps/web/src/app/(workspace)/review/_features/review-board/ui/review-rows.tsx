@@ -54,7 +54,8 @@ function Lane({ name, marks, shape }: { readonly name: string; readonly marks: r
 function Ruler({ row }: { readonly row: ReviewRowView }) {
   const methods = METHOD_LANES.filter((lane) => row.lanes[lane.key].length > 0);
   return (
-    <div className='grid gap-1.5'>
+    // 휴대폰에서는 공고 정보 바로 아래에 이어지므로 옅은 선으로 갈라, 사실 줄이 공고 정보의 연장으로 읽히지 않게 한다.
+    <div className='grid gap-1.5 border-t border-border/60 pt-3 md:border-t-0 md:pt-0'>
       <p className='flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground tabular-nums'>
         {row.facts.map((fact, index) => (
           <span key={fact} className='whitespace-nowrap'>{index > 0 ? '· ' : ''}{fact}</span>
@@ -159,13 +160,20 @@ export function ReviewRows({ rows, hasHabit }: { readonly rows: readonly ReviewR
         <p className='py-6 text-[14px] text-muted-foreground'>이 조건에 맞는 공고가 없어요.</p>
       ) : (
         shown.map((row) => (
-          <article key={row.id} className='grid gap-x-6 gap-y-2.5 border-t border-border py-4 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)]'>
-            <div className='min-w-0'>
-              <Link href={row.href} className='text-[15px] font-bold tracking-[-0.02em] hover:underline'>{row.title}</Link>
-              <p className='mt-1 flex flex-wrap gap-x-2.5 text-[13px] text-muted-foreground tabular-nums'>
-                {row.meta.map((item) => <span key={item}>{item}</span>)}
-              </p>
-              {row.won ? <span className='mt-1.5 inline-block rounded-md bg-emerald-600 px-2 py-0.5 text-[12px] font-extrabold text-white'>우리 낙찰</span> : null}
+          <article key={row.id} className='grid gap-x-6 gap-y-3 border-t border-border py-4 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)] md:gap-y-2.5'>
+            {/* 언제(머리말) → 무엇(제목) → 얼마(이름표와 값) 순으로 읽힌다. 공고번호는 찾을 때만 보므로 흐리게 맨 아래다. */}
+            <div className='grid min-w-0 content-start gap-1'>
+              <p className='text-[12.5px] font-semibold text-muted-foreground tabular-nums'>{row.opened}</p>
+              <Link href={row.href} className='break-keep text-[16px] font-bold leading-snug tracking-[-0.02em] hover:underline'>{row.title}</Link>
+              {row.won ? <span className='w-fit rounded-md bg-emerald-600 px-2 py-0.5 text-[12px] font-extrabold text-white'>우리 낙찰</span> : null}
+              <dl className='mt-1.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-[13px]'>
+                {row.details.map((detail) => (
+                  <div key={detail.label} className='contents'>
+                    <dt className='text-muted-foreground'>{detail.label}</dt>
+                    <dd className={`tabular-nums ${detail.quiet ? 'text-muted-foreground' : 'font-semibold text-foreground'}`}>{detail.value}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
             <Ruler row={row} />
           </article>
