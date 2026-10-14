@@ -21,6 +21,9 @@ import { FindAnalysisConditionOptions } from "./application/find-analysis-condit
 import { FindAnalysisHistory } from "./application/find-analysis-history";
 import { FindAnalysisDistribution } from "./application/find-analysis-distribution";
 import type { AnalysisDistributionReader } from "./application/analysis-distribution-reader";
+import { FindFloorLineRegions, FindFloorLines } from "./application/find-floor-lines";
+import type { FloorLineReader } from "./application/floor-line-reader";
+import { FloorLinesController } from "./presentation/http/floor-lines.controller";
 import type { AnalysisHistoryReader } from "./application/analysis-history-reader";
 import { FindAnalysisTimeSeries } from "./application/find-analysis-time-series";
 import type { AnalysisConditionOptionsReader } from "./application/analysis-condition-options-reader";
@@ -47,6 +50,7 @@ import {
   ANALYSIS_HISTORY_READER,
   ANALYSIS_DISTRIBUTION_READER,
   ANALYSIS_TIME_SERIES_READER,
+  FLOOR_LINE_READER,
   AUCTION_READER,
   AUCTION_ROSTER_READER,
   BID_DISPLAY_LEDGER,
@@ -172,6 +176,19 @@ const findAnalysisDistributionProvider = {
     new FindAnalysisDistribution(reader, axes),
 };
 
+/** 하한선 자리도 지역 축의 존재를 분석과 같은 port로 확인한다. 없는 시군구를 빈 점으로 답하지 않는다. */
+const findFloorLinesProvider = {
+  provide: FindFloorLines,
+  inject: [FLOOR_LINE_READER, ANALYSIS_TIME_SERIES_READER],
+  useFactory: (reader: FloorLineReader, axes: AnalysisTimeSeriesReader) => new FindFloorLines(reader, axes),
+};
+
+const findFloorLineRegionsProvider = {
+  provide: FindFloorLineRegions,
+  inject: [FLOOR_LINE_READER],
+  useFactory: (reader: FloorLineReader) => new FindFloorLineRegions(reader),
+};
+
 const listEligibilityAreasProvider = {
   provide: ListEligibilityAreas,
   inject: [ELIGIBILITY_AREA_READER],
@@ -237,6 +254,7 @@ const findMyBidObservationsProvider = {
 @Module({
   controllers: [
     AnalysisController,
+    FloorLinesController,
     AuctionBidPositionController,
     AuctionController,
     AuctionRosterController,
@@ -259,6 +277,8 @@ const findMyBidObservationsProvider = {
     findAnalysisConditionOptionsProvider,
     findAnalysisHistoryProvider,
     findAnalysisDistributionProvider,
+    findFloorLinesProvider,
+    findFloorLineRegionsProvider,
     listOpenAuctionsProvider,
     summarizeOpenAuctionsProvider,
     listEligibilityAreasProvider,

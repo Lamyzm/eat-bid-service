@@ -27,6 +27,7 @@ import type { OpenAuctionSummaryReader } from "../../modules/procurement/applica
 import type { AnalysisConditionOptionsReader } from "../../modules/procurement/application/analysis-condition-options-reader";
 import type { AnalysisHistoryReader } from "../../modules/procurement/application/analysis-history-reader";
 import type { AnalysisDistributionReader } from "../../modules/procurement/application/analysis-distribution-reader";
+import type { FloorLineReader } from "../../modules/procurement/application/floor-line-reader";
 import type { AnalysisTimeSeriesReader } from "../../modules/procurement/application/analysis-time-series-reader";
 import type { CodeReader } from "../../modules/reference/application/code-reader";
 import { DrizzleAuctionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
@@ -35,6 +36,7 @@ import { DrizzleOpenAuctionSummaryReader } from "../../modules/procurement/infra
 import { DrizzleAnalysisConditionOptionsReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-condition-options-reader";
 import { DrizzleAnalysisHistoryReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-history-reader";
 import { DrizzleAnalysisDistributionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-distribution-reader";
+import { DrizzleFloorLineReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-floor-line-reader";
 import { DrizzleAnalysisTimeSeriesReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-time-series-reader";
 import { DrizzleCodeReader } from "../../modules/reference/infrastructure/drizzle/drizzle-code-reader";
 import type { Environment } from "../config/environment";
@@ -66,6 +68,7 @@ import {
   ANALYSIS_CONDITION_OPTIONS_READER,
   ANALYSIS_DISTRIBUTION_READER,
   ANALYSIS_HISTORY_READER,
+  FLOOR_LINE_READER,
   ANALYSIS_TIME_SERIES_READER,
 } from "./database.tokens";
 import { createUnitOfWork, type UnitOfWork } from "./unit-of-work";
@@ -88,6 +91,7 @@ export interface DatabaseModuleOverrides {
   readonly analysisConditionOptionsReader?: AnalysisConditionOptionsReader;
   readonly analysisHistoryReader?: AnalysisHistoryReader;
   readonly analysisDistributionReader?: AnalysisDistributionReader;
+  readonly floorLineReader?: FloorLineReader;
   readonly codeReader?: CodeReader;
   readonly bidDisplayLedger?: BidDisplayLedger;
 }
@@ -214,6 +218,12 @@ export class DatabaseModule {
           overrides.analysisDistributionReader ?? new DrizzleAnalysisDistributionReader(connection.database),
       },
       {
+        provide: FLOOR_LINE_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): FloorLineReader =>
+          overrides.floorLineReader ?? new DrizzleFloorLineReader(connection.database),
+      },
+      {
         provide: CODE_READER,
         inject: [DATABASE_CONNECTION],
         useFactory: (connection: ManagedDatabase): CodeReader =>
@@ -284,6 +294,7 @@ export class DatabaseModule {
         ANALYSIS_CONDITION_OPTIONS_READER,
         ANALYSIS_HISTORY_READER,
         ANALYSIS_DISTRIBUTION_READER,
+        FLOOR_LINE_READER,
         CODE_READER,
       ],
     };
