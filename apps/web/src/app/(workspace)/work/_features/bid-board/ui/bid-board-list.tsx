@@ -9,6 +9,7 @@ import { BidFigureLine } from '@/entities/bid-figure/bid-figure-line';
 import { CopyValue } from '@/shared/ui/copy-value';
 import type { AmountCell, AmountLine, BoardRowView, BoardView, ClosingGroupView } from '../model/present-bid-board';
 import { PhoneFold } from './phone-fold';
+import { SchoolFilterGroup, SchoolFilterRow, SchoolGroupCount } from './school-filter';
 
 type Board = Extract<BoardView, { kind: 'board' }>;
 
@@ -225,16 +226,26 @@ function Row({ row, board }: { readonly row: BoardRowView; readonly board: Board
   );
 }
 
+const targetOf = (row: BoardRowView) => ({ organization: row.organization, title: row.title });
+
+/** 학교 이름으로 거르면 맞는 행만 남고, 하나도 안 남은 묶음은 머리까지 숨는다(화면 안 거르기, school-filter). */
 function Group({ group, board }: { readonly group: ClosingGroupView; readonly board: Board }) {
+  const targets = group.rows.map(targetOf);
   return (
-    <section aria-label={`${group.label} ${group.rows.length}건`} className='mt-5'>
-      <h3 className='flex items-baseline gap-2.5 border-b border-border pb-2'>
-        <span className='text-[16px] font-extrabold tracking-[-0.03em]'>{group.label}</span>
-        {group.relative === null ? null : <span className='text-[14px] font-semibold text-muted-foreground'>{group.relative}</span>}
-        <span className={`ml-auto text-[14px] font-semibold tabular-nums ${HINT}`}>{group.rows.length}건</span>
-      </h3>
-      {group.rows.map((row) => <Row key={row.auctionId} row={row} board={board} />)}
-    </section>
+    <SchoolFilterGroup targets={targets}>
+      <section aria-label={group.label} className='mt-5'>
+        <h3 className='flex items-baseline gap-2.5 border-b border-border pb-2'>
+          <span className='text-[16px] font-extrabold tracking-[-0.03em]'>{group.label}</span>
+          {group.relative === null ? null : <span className='text-[14px] font-semibold text-muted-foreground'>{group.relative}</span>}
+          <span className={`ml-auto text-[14px] font-semibold tabular-nums ${HINT}`}><SchoolGroupCount targets={targets} /></span>
+        </h3>
+        {group.rows.map((row) => (
+          <SchoolFilterRow key={row.auctionId} target={targetOf(row)}>
+            <Row row={row} board={board} />
+          </SchoolFilterRow>
+        ))}
+      </section>
+    </SchoolFilterGroup>
   );
 }
 
