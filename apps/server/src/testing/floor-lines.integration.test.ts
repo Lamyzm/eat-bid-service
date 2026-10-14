@@ -6,10 +6,12 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import type postgres from "postgres";
 
 import type { FloorLineWindow } from "../modules/procurement/application/floor-line-reader";
+import { DrizzleMyFloorBidReader } from "../modules/procurement/infrastructure/drizzle/drizzle-my-floor-bid-reader";
+import { createUnitOfWork } from "../platform/database/unit-of-work";
 import { kstDate, kstDayAfter, kstDayStart } from "../modules/procurement/domain/kst-day";
 import { DrizzleFloorLineReader } from "../modules/procurement/infrastructure/drizzle/drizzle-floor-line-reader";
 import { disposableDatabase } from "../../fixtures/disposable-database.fixture";
-import { seedOwnBid } from "../../fixtures/own-bid.fixture";
+import { MY_SUPPLIER_PARTY_ID, seedOwnBid } from "../../fixtures/own-bid.fixture";
 
 const SIDO = 4801n;
 const SIGUNGU = 4802n;
@@ -36,6 +38,7 @@ async function placeRegions(owner: ReturnType<typeof postgres>): Promise<void> {
                                                when 8102 then '2026-09-06T05:00:00Z'::timestamptz
                                                else '2026-09-10T05:00:00Z'::timestamptz end,
            base_amount = 1000000.00, planned_amount = 990000.00,
+           winner_supplier_party_id = case when auction_attempt_id = 8101 then 7701 else null end,
            region_sido_code_value_id = ${SIDO},
            region_sigungu_code_value_id = case when auction_attempt_id = 8106 then ${OTHER_SIGUNGU} else ${SIGUNGU} end
      where build_id = 601 and auction_attempt_id in (8101, 8102, 8106);
@@ -91,6 +94,33 @@ describe("하한선 자리 PostgreSQL 조회", () => {
       // KST 9월 6일 하루만 보면 8102 하나다. 끝은 다음 날 0시 미만이다.
       const oneDay = { ...window, from: kstDayStart(kstDate("2026-09-06")), before: kstDayAfter(kstDate("2026-09-06")) };
       expect((await reader.readPoints(oneDay, SIGUNGU)).map((point) => point.attemptId)).toEqual([8102n]);
+    });
+  }, 240_000);
+
+  test("내 사업자 투찰은 하한 미달과 하한 위 등수·낙찰을 나누고 회차의 명단 순서로 낸다", async () => {
+    await floorLineDatabase.withDatabase(async ({ api }) => {
+      const database = drizzle({ client: api });
+      const snapshot = createUnitOfWork({
+        transaction: (work) => database.transaction((transaction) => work(transaction), { isolationLevel: "repeatable read", accessMode: "read only" }),
+      });
+      const reader = new DrizzleMyFloorBidReader();
+      const bids = await snapshot.run((handle) => reader.readBids(handle, {
+        window,
+        sigunguCodeValueId: SIGUNGU,
+        supplierPartyIds: [MY_SUPPLIER_PARTY_ID, 7702n],
+      }));
+      // 8101 명단: 0번 7702 89.002(하한 아래), 1번 7701 101.975(하한 위, 낙찰 업체), 2번 7701 89.001(하한 아래).
+      // 8102 명단: 7702의 89.002·89.003 모두 하한 아래. 투찰률 × 990,000 ÷ 1,000,000으로 기초금액 대비가 된다.
+      expect(bids.map((bid) => [bid.attemptId, bid.supplierPartyId, bid.rate, bid.outcome])).toEqual([
+        [8101n, 7702n, "88.1120", { kind: "below-floor" }],
+        [8101n, 7701n, "100.9553", { kind: "valid", rank: 1, validBidderCount: 1, won: true }],
+        [8101n, 7701n, "88.1110", { kind: "below-floor" }],
+        [8102n, 7702n, "88.1120", { kind: "below-floor" }],
+        [8102n, 7702n, "88.1130", { kind: "below-floor" }],
+      ]);
+      // 다른 워크스페이스 사업자를 묻지 않으면 그 투찰은 나오지 않는다.
+      const onlyOther = await snapshot.run((handle) => reader.readBids(handle, { window, sigunguCodeValueId: SIGUNGU, supplierPartyIds: [7702n] }));
+      expect(onlyOther.every((bid) => bid.supplierPartyId === 7702n)).toBe(true);
     });
   }, 240_000);
 
