@@ -50,3 +50,25 @@ export const myFloorBidsV1ResponseSchema = z.strictObject({
 }).meta({ id: "EatbidApiV1MyFloorBids" });
 
 export type MyFloorBidsV1Response = z.infer<typeof myFloorBidsV1ResponseSchema>;
+
+/**
+ * 내 등록 사업자가 창 안에서 투찰한 회차를 공고지역 시군구로 세어 가장 많은 곳이다. 관심 지역(참가제한지역)은 공고지역과 다른
+ * 체계라 매핑 없이 잇지 않는다(AGENTS 6) — 대신 실제로 낸 공고가 어디서 열렸는지를 센다. 투찰이 없거나 연결된 사업자가 없으면
+ * null이고, 그 까닭은 meta의 연결·미연결 수가 말한다.
+ */
+export const myFloorRegionV1ResponseSchema = z.strictObject({
+  region: z.strictObject({
+    sido: floorLineRegionRefSchema,
+    sigungu: floorLineRegionRefSchema,
+    /** 이 시군구에서 내 등록 사업자가 투찰한 회차 수다. 한 회차에 사업자 둘이 내도 한 번이다. */
+    roundCount: nonNegativeCountSchema,
+  }).nullable(),
+  meta: z.strictObject({
+    period: analysisPeriodSchema,
+    floorRate: bidRateWireSchema,
+    linkedBusinessCount: nonNegativeCountSchema,
+    unlinkedBusinessCount: nonNegativeCountSchema,
+  }),
+}).meta({ id: "EatbidApiV1MyFloorRegion" });
+
+export type MyFloorRegionV1Response = z.infer<typeof myFloorRegionV1ResponseSchema>;

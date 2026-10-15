@@ -3644,6 +3644,61 @@
         ],
         "type": "object"
       },
+      "EatbidApiV1MyFloorRegion": {
+        "additionalProperties": false,
+        "properties": {
+          "meta": {
+            "additionalProperties": false,
+            "properties": {
+              "floorRate": {
+                "$ref": "#/components/schemas/BidRate"
+              },
+              "linkedBusinessCount": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              },
+              "period": {
+                "$ref": "#/components/schemas/AnalysisPeriod"
+              },
+              "unlinkedBusinessCount": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            },
+            "required": [
+              "period",
+              "floorRate",
+              "linkedBusinessCount",
+              "unlinkedBusinessCount"
+            ],
+            "type": "object"
+          },
+          "region": {
+            "additionalProperties": false,
+            "nullable": true,
+            "properties": {
+              "roundCount": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              },
+              "sido": {
+                "$ref": "#/components/schemas/FloorLineRegionRef"
+              },
+              "sigungu": {
+                "$ref": "#/components/schemas/FloorLineRegionRef"
+              }
+            },
+            "required": [
+              "sido",
+              "sigungu",
+              "roundCount"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "region",
+          "meta"
+        ],
+        "type": "object"
+      },
       "EatbidApiV1OpenAuctions": {
         "additionalProperties": false,
         "properties": {
@@ -9965,6 +10020,106 @@
           }
         },
         "summary": "공고지역 시군구 하나의 기간 안 공고에서 내 등록 사업자가 낸 투찰마다 기초금액 대비 값과 결과(하한 미달·하한 위 등수·낙찰)를 조회한다. 하한선 자리 점 위에 겹치는 개인 응답이며 운영자 전용이다.",
+        "tags": [
+          "내 계정과 조건"
+        ]
+      }
+    },
+    "/api/v1/me/floor-region": {
+      "get": {
+        "operationId": "findMyFloorRegion",
+        "parameters": [
+          {
+            "description": "Canonical KST calendar date text as YYYY-MM-DD; the day boundary is Asia/Seoul.",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/KstDateText"
+            }
+          },
+          {
+            "description": "Canonical KST calendar date text as YYYY-MM-DD; the day boundary is Asia/Seoul.",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/KstDateText"
+            }
+          },
+          {
+            "description": "Canonical bid-rate percentage-points text with exactly three fractional digits, matching numeric(6,3) mart columns; from 0.000 through 100.000.",
+            "in": "query",
+            "name": "floorRate",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/BidRateText"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EatbidApiV1MyFloorRegion"
+                }
+              }
+            },
+            "description": "조회 성공. 투찰이 없거나 연결된 사업자가 없으면 region이 null이고 그 수를 meta에 싣는다"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "query가 유효하지 않거나 기간 상한·순서를 어김"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "운영자 권한 없음, 신뢰하지 않는 Origin 또는 계정 초기화 미완료"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "기간·하한율 창에서 내 등록 사업자가 투찰한 회차를 공고지역 시군구로 세어 가장 많은 곳을 조회한다. 하한선 자리의 기본 지역이며 운영자 전용이다.",
         "tags": [
           "내 계정과 조건"
         ]
