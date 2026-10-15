@@ -56,6 +56,10 @@ export const CHART = {
   get own() { return currentPalette().own; },
   /** 참여 수 볼륨 */
   get volume() { return currentPalette().volume; },
+  /** 하한선 자리(PDR-0009)의 공고별 하한선 점. 그림의 주인공이라 테마 주 강조색을 쓴다. */
+  get floorPoint() { return currentPalette().win; },
+  /** 하한선 자리의 실제 투찰 1~10등 점. 하한선 점 뒤로 물러나는 중립 회색이다. */
+  get ladder() { return isDark() ? '#7d8590' : '#8b95a1'; },
 };
 
 /** 내 투찰 마커 — 다크에서 #111이 사라지는 문제 대응 */
