@@ -14,6 +14,7 @@ import pytest
 
 from eatbid.mart.derivations import (
     DISTRIBUTION_BIN_WIDTH,
+    amounts_comparable,
     awarded_bid_rate,
     below_day_floor_count,
     day_floor_amount,
@@ -129,6 +130,35 @@ def test_기초금액이_0이면_축을_옮기지_않고_거부한다() -> None:
             planned_amount=Decimal(1000),
             base_amount=Decimal(0),
         )
+
+
+def test_예정가격과_기초금액이_다른_것을_센_회차는_기초금액_축으로_옮기지_않는다() -> None:
+    # 2016-03 실제 회차 모양이다(EAT-365). 기초금액 430원에 예정가격 3,855만 원이면 하한이 726만%가 되어 투찰률 열을 넘친다.
+    for derive in (
+        lambda: day_floor_bid_rate(
+            floor_rate=Decimal("81.000"),
+            planned_amount=Decimal("38558100.00"),
+            base_amount=Decimal("430.00"),
+        ),
+        lambda: awarded_bid_rate(
+            assessment_rate=Decimal("83.003"),
+            planned_amount=Decimal("3462.50"),
+            base_amount=Decimal("1850314000.00"),
+        ),
+    ):
+        assert derive() is None
+
+
+def test_비교_가능한_금액_구간은_두_끝을_포함한다() -> None:
+    base = Decimal("1000.00")
+    assert amounts_comparable(planned_amount=Decimal("500.00"), base_amount=base)
+    assert amounts_comparable(planned_amount=Decimal("2000.00"), base_amount=base)
+    assert not amounts_comparable(planned_amount=Decimal("499.99"), base_amount=base)
+    assert not amounts_comparable(planned_amount=Decimal("2000.01"), base_amount=base)
+    # 구간 안에서는 지금까지와 같은 값을 낸다. 성수기 ±25% 안팎의 드문 회차도 그대로 옮긴다.
+    assert day_floor_bid_rate(
+        floor_rate=Decimal("90.000"), planned_amount=Decimal("800.00"), base_amount=base
+    ) == Decimal("72.0000")
 
 
 def test_호가창_칸은_반개구간이다() -> None:

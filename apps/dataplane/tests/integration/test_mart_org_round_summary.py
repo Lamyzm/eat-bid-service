@@ -224,6 +224,33 @@ def test_예정가격_미관측_회차는_그날_하한과_하한_미만_수를_
     assert row[10] is None
 
 
+def test_기초금액과_예정가격이_다른_것을_센_회차는_기초금액_축_비율만_비우고_build를_끝낸다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """왜: 2016-03 회차의 원천 `BGNG_PRC`가 430원이었다. 그 하한을 기초금액 축으로 옮긴 726만%가 투찰률 열
+    (numeric(9,4))을 넘쳐 과거 기록 mart build 전체가 실패했다(EAT-365). 그 값만 비우고 예정가격 축의 사실은 남긴다.
+    """
+    tiny_base = ROSTER_FIXTURE.read_bytes().replace(
+        b'<Col id="BGNG_PRC">6913400</Col>', b'<Col id="BGNG_PRC">430</Col>'
+    )
+    external_bid_id = _publish_and_project(pipeline_services, tiny_base)
+    plan = mart_plan(create_source_release(pipeline_services))
+
+    build_id, _ = build_mart(pipeline_services, plan, fill_org_round_summary)
+
+    (row,) = _rows_for(pipeline_services, build_id, external_bid_id)
+    assert row[1] == Decimal("430.00")
+    assert row[2] == Decimal("6762461.00")
+    assert row[4] == Decimal("90.218")
+    # 예정가격 축의 그날 하한 금액과 하한 미만 수는 그대로다.
+    assert row[6] == day_floor_amount(floor_rate=row[0], planned_amount=row[2])
+    assert row[10] == 0
+    # 기초금액 축으로 옮긴 두 값만 없다. 행은 격리하지 않는다.
+    assert row[7] is None
+    assert row[8] is None
+    assert row[17] is None
+
+
 def test_한_attempt의_최신_revision만_요약한다(
     pipeline_services: PipelineServices,
 ) -> None:
