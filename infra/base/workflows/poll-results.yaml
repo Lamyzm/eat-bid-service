@@ -17,6 +17,8 @@ spec:
   workflowSpec:
     workflowTemplateRef:
       name: eatbid-dataplane
+    # 실행 시간 상한이다(ADR 0069). 자물쇠 대기도 이 시간에 든다. 정상 회차 p99가 76분이다(2026-09-16~10-16 ingest.run).
+    activeDeadlineSeconds: 10800
     # 결과 전용 DAG다. 비우면 scheduled-pipeline이 불려 live key를 잡는다(workflow-template.yaml).
     entrypoint: results-pipeline
     priority: 100

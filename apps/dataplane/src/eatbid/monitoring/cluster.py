@@ -3,7 +3,8 @@
 왜 이 셋인가: 전부 DB에 흔적을 남기지 않는 사고다. 2026-09-10에 옛 VM 노드가 28시간 죽어 있었고 사용자가
 물어서 알았다 — 노드가 죽으면 이상한 행이 생기는 게 아니라 새 행이 안 생긴다. Application은 저장소와
 클러스터가 벌어진 것을 Argo CD가 이미 계산해 둔 답이다. cron 회차는 기동 전에 죽으면 `ingest.run`조차
-만들지 못한다(2026-09-14 전진 cron이 설정 검증에서 exit 64).
+만들지 못한다(2026-09-14 전진 cron이 설정 검증에서 exit 64). 끝난 단계가 자물쇠를 놓지 않으면 기다리는 회차는
+실패도 하지 않고 새 행도 만들지 않는다(2026-10-14~16, 35시간).
 
 왜 판정이 순수 함수인가: Ready·Synced·실패의 경계는 클러스터 없이 검증할 수 있어야 한다. 조회는
 호출자가 넣는다.
@@ -23,9 +24,11 @@ from .cluster_explanations import (
     NODE_EMPTY_EXPLANATION,
     NODE_NOT_READY_EXPLANATION,
     cron_explanation,
+    stuck_lock_explanation,
 )
 from .expectations import Violation
 from .explanation import check_failed_explanation
+from .stuck_locks import find_stuck_locks
 
 __all__ = [
     "APPLICATION_RUNBOOK",
@@ -37,6 +40,7 @@ __all__ = [
     "judge_applications",
     "judge_cron_workflows",
     "judge_nodes",
+    "judge_stuck_locks",
 ]
 
 NODE_RUNBOOK = "docs/operations/k3s-hyperv-vm.md"
@@ -249,12 +253,48 @@ def judge_applications(applications: Sequence[Mapping[str, Any]]) -> list[Violat
     return violations
 
 
+def judge_stuck_locks(
+    workflows: Sequence[Mapping[str, Any]],
+    *,
+    now: datetime,
+) -> list[Violation]:
+    """끝난 단계가 자물쇠를 놓지 않은 회차를 critical로 알린다(EAT-361).
+
+    대기는 실패가 아니라서 다른 기대가 원인을 말하지 못한다 — 2026-10-15에는 공고 수집 멈춤 경보가 열 번 울렸지만 무엇이
+    막고 있는지는 어디에도 없었다. 그래서 막은 회차 이름과 푸는 명령을 detail에 적는다.
+    """
+    violations: list[Violation] = []
+    by_workflow: dict[str, list[Any]] = {}
+    for stuck in find_stuck_locks(workflows, now=now):
+        by_workflow.setdefault(stuck.workflow, []).append(stuck)
+    for workflow, items in sorted(by_workflow.items()):
+        first = items[0]
+        locks = ", ".join(sorted({item.lock.rsplit("/", 1)[-1] for item in items}))
+        since = first.since.isoformat() if first.since is not None else "unknown"
+        remedy = (
+            f"kubectl -n eatbid patch wf {workflow} --type merge -p '{{\"spec\":{{\"shutdown\":\"Terminate\"}}}}'"
+            if first.releasable
+            else f"kubectl -n eatbid delete wf {workflow} 뒤 workflow-controller rollout restart(runbook §4.4)"
+        )
+        violations.append(
+            Violation(
+                key=f"stuck-lock:{workflow}",
+                title="끝난 단계가 자물쇠를 오래 쥐고 있지 않다",
+                runbook=CRON_RUNBOOK,
+                detail=f"회차={workflow}, 자물쇠={locks}, 보유 단계 상태={first.holder_phase}, 그때부터={since}, 푸는 법={remedy}",
+                severity="critical",
+                explanation=stuck_lock_explanation(first.cron or workflow, locks, releasable=first.releasable),
+            )
+        )
+    return violations
+
+
 def evaluate_cluster(
     list_resources: ResourceLister, *, now: datetime | None = None
 ) -> list[Violation]:
-    """노드·Application·cron 회차를 조회해 위반만 돌려준다.
+    """노드·Application·cron 회차·자물쇠 보유를 조회해 위반만 돌려준다.
 
-    셋을 따로 감싸는 이유는 한쪽 조회가 막혀도 나머지 판정은 살아야 하기 때문이다. Application 읽기
+    판정마다 따로 감싸는 이유는 한쪽 조회가 막혀도 나머지 판정은 살아야 하기 때문이다. Application 읽기
     권한만 빠져 있을 때 노드 상태까지 함께 모르는 상태가 되면 안 된다.
     """
     moment = now or datetime.now(UTC)
@@ -274,6 +314,13 @@ def evaluate_cluster(
             "cron의 최근 회차가 끝까지 갔다",
             CRON_RUNBOOK,
             lambda items: judge_cron_workflows(items, now=moment),
+        ),
+        (
+            WORKFLOWS_PATH,
+            "stuck-lock",
+            "끝난 단계가 자물쇠를 오래 쥐고 있지 않다",
+            CRON_RUNBOOK,
+            lambda items: judge_stuck_locks(items, now=moment),
         ),
     ):
         try:

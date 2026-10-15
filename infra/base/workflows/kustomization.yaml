@@ -16,3 +16,4 @@ resources:
   - mart-reap.yaml
   - history-marts.yaml
   - replay-advance.yaml
+  - lock-release.yaml

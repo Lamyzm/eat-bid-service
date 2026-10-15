@@ -279,6 +279,14 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
   `retryStrategy`는 정시 실행의 경계를 넘지 못하므로 이 결정은 표에 있어야 한다. 사람이 부르는 백필·replay는
   보류를 보지 않는다.
 - canonical publication/projector에는 mutex를 둬 서로 다른 실행의 활성화가 엇갈리지 않게 한다.
+- **멈춘 회차는 사람 손 없이 풀린다**(2026-10-16, EAT-361, [ADR 0069](../adr/0069-collection-self-heals-stuck-locks.md)).
+  예약이 모두 `concurrencyPolicy: Forbid`라 끝나지 않는 회차 하나가 그 예약의 다음 회차를 전부 지운다. 그래서 모든
+  CronWorkflow는 `activeDeadlineSeconds`를 갖는다(자물쇠 대기 포함, 정상 실측 최대보다 길게). 재시작으로 죽은 단계가
+  쥔 자물쇠는 상한이 끊지 못한다 — 단계가 이미 실패해 있어 끊을 파드가 없다. 그것은 `eatbid-lock-release`가 10분마다
+  Terminate와 결과 보고 완료 표시로 풀고, 주인이 놓은 자물쇠를 아직 기다리는 회차를 깨운다. 이 예약은 전용
+  ServiceAccount(Workflow patch·WorkflowTaskResult patch만)로 돌고 자물쇠·DB를 쓰지 않으며 `Replace`다. 이미 끝난
+  회차가 남긴 자물쇠는 감시가 critical `stuck-lock`으로 알리고 사람이 [runbook §4.4](../operations/collection-runbook.md)
+  마지막 단계로 푼다.
 - pod는 stateless다. hostPath, 로컬 SQLite, 공유 JSON 파일을 단계 계약으로 쓰지 않는다.
 - 각 실행/관측/로그에 `run_id`, correlation ID, Git SHA, image digest, parser/projector version을 남긴다.
 - 목록 응답의 `TOT_CNT`와 실제 발견 건수를 request unit 단위로 정확히 대조한다. 상세 캡처 건수는

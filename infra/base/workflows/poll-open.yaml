@@ -21,6 +21,9 @@ spec:
   workflowSpec:
     workflowTemplateRef:
       name: eatbid-dataplane
+    # 실행 시간 상한이다(ADR 0069). 자물쇠 대기도 이 시간에 든다. 2026-09 성수기 따라잡기 회차가 정상으로 최대 349분 걸렸다(ingest.run). 그보다 길게
+    # 둔다.
+    activeDeadlineSeconds: 21600
     # 신규 공고 노출 SLO의 보장은 이 priority가 아니라 source semaphore key 분리다 — 스케줄 수집은
     # eatbid-source-live, backfill은 eatbid-source-backfill을 잡아 아예 같은 대기열에 서지 않는다
     # (semaphore.yaml, workflow-template.yaml의 backfill-pipeline, 2026-09-11 EAT-164). 이전에는 이

@@ -397,6 +397,18 @@ kubectl -n eatbid get wf <waiting-workflow> -o jsonpath='{.status.synchronizatio
 
 ### 4.4 재부팅·컨트롤러 재시작이 남긴 semaphore 교착 풀기 (2026-09-10, EAT-129)
 
+> **2026-10-16부터 1·2단계는 예약 `eatbid-lock-release`가 10분마다 한다(EAT-361, ADR 0069).** 보유 단계가 끝난 지
+> 10분이 지난 Running 회차에 Terminate를 걸고, 그 단계의 결과 보고(WorkflowTaskResult의
+> `workflows.argoproj.io/report-outputs-completed`)가 `false`면 `true`로 표시하고, 주인이 놓은 자물쇠를 아직 기다리는
+> 회차에 `eatbid.dev/nudge`를 단다. 감시가 `stuck-lock:<회차>`를 critical로 알리고 다음 회차에 해소되면 스스로 풀린
+> 것이다. 사람이 할 일은 둘이다. 경보가 해소되지 않거나 경보 문장이 "사람이 풀어야 한다"면(이미 끝난 회차가 자물쇠를
+> 남긴 꼴) 아래 마지막 단계로 푼다. `cron-workflow:eatbid-lock-release` 실패가 오면 풀기 회차의 로그(한 줄 JSON의
+> `failures`)를 본다.
+>
+> 원인(2026-10-16 로컬 재현): 재시작 때 단계 파드의 wait 컨테이너가 결과 보고를 끝내지 못하고 죽으면 Argo v4.0.8은
+> 그 보고를 미완료로 남긴다. 단계는 Failed인데 끝난 시각이 없고, 회차는 Running인 채 자물쇠를 다시 잡는다.
+> `activeDeadlineSeconds`도 이 꼴을 끊지 못한다. DAG 회차는 Terminate로 풀리고 Steps 회차는 보고 표시까지 해야 풀린다.
+
 노드 재부팅이나 controller 재시작이 capture 파드를 죽이면, 죽은 노드가 source semaphore 보유자로 남아
 이후 모든 수집이 대기한다. Argo controller는 시작할 때 각 Workflow의 `status.synchronization.holding`에서
 보유자를 다시 읽으므로 controller를 다시 재시작해도 같은 보유자가 복원되어 스스로는 풀리지 않는다.

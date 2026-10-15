@@ -9,7 +9,6 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from functools import partial
-from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
@@ -44,6 +43,7 @@ from eatbid.ingest.postgres_run_closure import (
     # 맞게 풀리지만, 읽는 사람이 재귀로 오해할 자리라 별칭을 준다.
     close_stalled_run as close_stalled_run_in,
 )
+from eatbid.kubernetes_api import InClusterApi
 from eatbid.mart.build_marts import (
     build_marts,
     resolve_marts,
@@ -957,27 +957,8 @@ class _MonitoringRunner:
         return [run for run in runs or () if isinstance(run, Mapping)]
 
     def _list_cluster_resources(self, path: str) -> list[Mapping[str, Any]]:
-        """클러스터 안에서 Kubernetes API를 읽는다.
-
-        왜 kubernetes client 패키지를 쓰지 않는가: 필요한 것이 목록 GET 몇 개뿐이라 의존성 하나를 더하는 값이
-        없다. ServiceAccount token과 CA는 kubelet이 파드 안에 놓아 주며, 그 경로는 Kubernetes가
-        정한 자리다.
-
-        왜 token을 매번 읽는가: projected token은 만료 전에 파일이 갱신된다. 한 번 읽어 두면 오래 사는
-        프로세스에서 만료된 token을 계속 보내게 된다 — 감시는 15분마다 새로 뜨지만 그 가정에 기대지 않는다.
-        """
-        root = Path("/var/run/secrets/kubernetes.io/serviceaccount")
-        token = (root / "token").read_text(encoding="utf-8").strip()
-        response = httpx.get(
-            f"https://kubernetes.default.svc{path}",
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-            verify=str(root / "ca.crt"),
-            timeout=20.0,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        items = payload.get("items") if isinstance(payload, Mapping) else None
-        return [item for item in items or () if isinstance(item, Mapping)]
+        """클러스터 안에서 Kubernetes API 목록을 읽는다. 감시 ServiceAccount에는 읽기 Role만 붙어 있다."""
+        return InClusterApi().list_items(path)
 
     def _list_backup_objects(
         self, expectation: BackupExpectation

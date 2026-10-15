@@ -106,6 +106,31 @@ def test_클러스터_판정의_모든_갈래가_설명을_든다() -> None:
         }
         for cron in CRON_IMPACTS
     ]
+    # 끝난 단계가 자물쇠를 쥔 회차다(EAT-361). 이 갈래도 설명을 들어야 한다.
+    실패한_회차.append(
+        {
+            "metadata": {"name": "죽은보유-1"},
+            "status": {
+                "phase": "Running",
+                "nodes": {
+                    "죽은보유-1-9": {
+                        "phase": "Failed",
+                        "startedAt": (_지금 - timedelta(minutes=40)).isoformat(),
+                    }
+                },
+                "synchronization": {
+                    "mutex": {
+                        "holding": [
+                            {
+                                "mutex": "eatbid/Mutex/eatbid-core-publication",
+                                "holder": "eatbid/죽은보유-1/죽은보유-1-9",
+                            }
+                        ]
+                    }
+                },
+            },
+        }
+    )
 
     판정 = evaluate_cluster(
         _목록(nodes=나쁜_노드, apps=어긋난_앱, workflows=실패한_회차), now=_지금
@@ -120,7 +145,9 @@ def test_클러스터_판정의_모든_갈래가_설명을_든다() -> None:
         "node-health",
         "argocd-application",
         "cron-workflow",
+        "stuck-lock",
     }
+    assert "stuck-lock:죽은보유-1" in {v.key for v in 판정}
     cron_위반 = [v for v in 판정 if v.key.startswith("cron-workflow:")]
     assert len(cron_위반) == len(CRON_IMPACTS)
     assert all(
