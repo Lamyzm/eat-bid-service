@@ -32,6 +32,7 @@ export function FloorPointsChart({
   layers,
   histogram,
   range,
+  initialZoom,
   palette,
   label,
   onRange,
@@ -41,6 +42,8 @@ export function FloorPointsChart({
   readonly layers: PointsLayers;
   readonly histogram: readonly HistogramBin[];
   readonly range: { readonly start: number; readonly end: number };
+  /** 처음 그릴 때만 쓰는 확대 범위다. 그 뒤로는 사용자가 확대한 범위를 지킨다. */
+  readonly initialZoom: readonly [number, number] | null;
   readonly palette: PointsPalette | null;
   readonly label: string;
   readonly onRange: (range: readonly [number, number]) => void;
@@ -49,6 +52,7 @@ export function FloorPointsChart({
   const host = useRef<HTMLDivElement>(null);
   const [chart, setChart] = useState<{ readonly instance: ECharts; readonly narrow: boolean } | null>(null);
   const shownHistogram = useRef(histogram);
+  const initialZoomRef = useRef(initialZoom);
   /** 전체 설정이 한 번 들어간 뒤에만 막대 계열을 따로 갈아 끼울 수 있다. 그 전에는 계열 종류를 모른다. */
   const drawn = useRef(false);
   // 처리기는 그림을 만든 때가 아니라 그 순간의 입력을 봐야 한다.
@@ -101,7 +105,8 @@ export function FloorPointsChart({
 
   useEffect(() => {
     if (palette === null || chart === null) return;
-    const option = floorPointsOption({ data, layers, histogram: shownHistogram.current, range, palette, narrow: chart.narrow });
+    const zoom = drawn.current ? null : initialZoomRef.current;
+    const option = floorPointsOption({ data, layers, histogram: shownHistogram.current, range, palette, narrow: chart.narrow, zoom });
     chart.instance.setOption(option, { replaceMerge: ['series'] });
     drawn.current = true;
   }, [chart, data, layers, range, palette]);

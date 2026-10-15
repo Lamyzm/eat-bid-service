@@ -7,7 +7,7 @@
 import { Temporal } from '@eatbid/domain';
 import type { FloorLineRegionsV1Response, FloorLinesV1Response, MyFloorBidsRead } from '@/api/floor-lines';
 
-import type { FloorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
+import type { FloorPeriod } from '@/entities/floor-line/floor-period';
 
 const WEEKDAY = ['', '월', '화', '수', '목', '금', '토', '일'];
 const UNKNOWN_LABEL = '이름 없음';
@@ -107,7 +107,16 @@ export type FloorScreenView =
       readonly regionId: string;
       readonly sidoId: string;
     }
-  | { readonly kind: 'ready'; readonly groups: readonly FloorRegionGroup[]; readonly period: FloorPeriod; readonly data: FloorData };
+  | {
+      readonly kind: 'ready';
+      readonly groups: readonly FloorRegionGroup[];
+      readonly period: FloorPeriod;
+      readonly data: FloorData;
+      /** 복기 입구 줄이 연 달(`2026-09`)이다. 창 안의 달일 때만 있다. */
+      readonly focusMonth: string | null;
+      /** 지역을 어디서 정했는지다. 내 업체 지역으로 열었으면 화면이 그 까닭을 한 줄로 말한다. */
+      readonly openedBy: 'address' | 'remembered' | 'my-bids';
+    };
 
 export function presentRegionGroups(response: FloorLineRegionsV1Response): FloorRegionGroup[] {
   return response.groups

@@ -2,8 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import { Temporal } from '@eatbid/domain';
 
 import { linesResponse, myBidsResponse, regionsResponse } from '@/app/(workspace)/floor/__fixtures__/floor-lines';
-import { floorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
+import { floorPeriod } from '@/entities/floor-line/floor-period';
 import { findRegion, presentFloorData, presentRegionGroups } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
+import { presentRecentEntry } from '@/entities/floor-line/floor-entry';
 import { presentSummary } from './present-summary';
 
 const period = floorPeriod(Temporal.PlainDate.from('2026-10-15'), '1y');
@@ -32,5 +33,13 @@ describe('하한선 자리 요약', () => {
     const view = presentSummary({ ...data, points: data.points.slice(0, 5) }, period);
     expect(view.range).toBeNull();
     expect(view.caution).toBe('이 기간엔 공고가 적어 범위를 말하기 어려워요.');
+  });
+
+  test('다른 화면의 입구 줄과 같은 창·같은 함수라 범위와 이번 달 수가 같다', () => {
+    const entry = presentRecentEntry({ response: linesResponse(), place: '김해시', regionId: '459', currentMonth: period.currentMonth, form: 'mine' });
+    const view = presentSummary(data, period);
+    expect(entry.strong).toBe(view.range?.strong ?? null);
+    expect(entry.rest).toContain('이번 달 개찰 3건');
+    expect(view.thisMonth).toContain('공고 3건');
   });
 });

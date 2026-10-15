@@ -5,7 +5,12 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { createLoader } from 'nuqs/server';
 import { systemClock } from '@eatbid/domain';
 
-import { findFloorLineRegionsFromServer, findFloorLinesFromServer, findMyFloorBidsFromServer } from '@/api/floor-lines/server';
+import {
+  findFloorLineRegionsFromServer,
+  findFloorLinesFromServer,
+  findMyFloorBidsFromServer,
+  findMyFloorRegionFromServer
+} from '@/api/floor-lines/server';
 import { loadFloorView } from './_features/floor-board/model/load-floor-view';
 import { FLOOR_REGION_COOKIE, floorSearchParsers } from './_lib/floor-search';
 import { FloorScreen } from './_widgets/floor-screen';
@@ -23,7 +28,7 @@ async function FloorLoader({ searchParams }: Props) {
       // 기간은 요청 시각의 함수다. 컴포넌트 안에서 시계를 부르지 않고 여기서 한 번 읽는다.
       today: systemClock.now().toZonedDateTimeISO('Asia/Seoul').toPlainDate()
     },
-    { regions: findFloorLineRegionsFromServer, lines: findFloorLinesFromServer, mine: findMyFloorBidsFromServer }
+    { regions: findFloorLineRegionsFromServer, lines: findFloorLinesFromServer, mine: findMyFloorBidsFromServer, myRegion: findMyFloorRegionFromServer }
   );
   return (
     <NuqsAdapter>

@@ -1,7 +1,7 @@
 /** @module 책임: 하한선이 떨어지는 자리를 점 20개로 쌓아 그리고, 넣을 값과 이번 달 실제 하한선을 같은 눈금에 겹친다. */
 'use client';
 import { twentyDots } from '@/app/(workspace)/floor/_lib/floor-rule';
-import { basePercentOf, manText, organizationLabel, rateText } from '@/app/(workspace)/floor/_lib/floor-units';
+import { basePercentOf, manText, organizationLabel, rateText } from '@/entities/floor-line/floor-units';
 import type { FloorData, FloorPoint } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 import { useFigureWidth } from '@/app/(workspace)/floor/_features/floor-board/model/use-figure-width';
 

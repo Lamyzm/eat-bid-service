@@ -1,4 +1,4 @@
-/** @module 책임: RSC에서만 쓰는, 세션 쿠키를 실어 나르는 하한선 자리 세 조회를 예상된 실패까지 결과 값으로 돌려준다. */
+/** @module 책임: RSC에서만 쓰는, 세션 쿠키를 실어 나르는 하한선 자리 네 조회를 예상된 실패까지 결과 값으로 돌려준다. */
 import 'server-only';
 
 import type { FloorLineRegionsV1Response } from '@eatbid/contracts/api/v1/analysis';
@@ -8,10 +8,12 @@ import {
   findFloorLineRegionsWith,
   findFloorLinesWith,
   findMyFloorBidsWith,
+  findMyFloorRegionWith,
   type FloorLinePeriodInput,
   type FloorLinesRead,
   type FloorLineWindowInput,
-  type MyFloorBidsRead
+  type MyFloorBidsRead,
+  type MyFloorRegionRead
 } from './floor-lines';
 
 /**
@@ -55,4 +57,15 @@ export async function findMyFloorBidsFromServer(
   }
 }
 
-export type { FloorLinesRead, MyFloorBidsRead };
+export async function findMyFloorRegionFromServer(
+  input: FloorLinePeriodInput
+): Promise<MyFloorRegionRead | { readonly kind: 'read-failed' }> {
+  try {
+    return await findMyFloorRegionWith(privateServerRequest, input);
+  } catch (error) {
+    if (privateServerRequest.isUpstreamUnavailable(error)) return { kind: 'read-failed' };
+    throw error;
+  }
+}
+
+export type { FloorLinesRead, MyFloorBidsRead, MyFloorRegionRead };

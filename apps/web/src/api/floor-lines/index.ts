@@ -3,5 +3,5 @@ export type {
   FloorLineRegionsV1Response,
   FloorLinesV1Response
 } from '@eatbid/contracts/api/v1/analysis';
-export type { MyFloorBidsV1Response } from '@eatbid/contracts/api/v1/me';
-export type { FloorLinePeriodInput, FloorLinesRead, FloorLineWindowInput, MyFloorBidsRead } from './floor-lines';
+export type { MyFloorBidsV1Response, MyFloorRegionV1Response } from '@eatbid/contracts/api/v1/me';
+export type { FloorLinePeriodInput, FloorLinesRead, FloorLineWindowInput, MyFloorBidsRead, MyFloorRegionRead } from './floor-lines';

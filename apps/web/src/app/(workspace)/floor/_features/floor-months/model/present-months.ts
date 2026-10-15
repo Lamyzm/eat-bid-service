@@ -3,9 +3,9 @@
  *
  * 공고가 적은 달도 줄에서 빼지 않는다. 빼면 그 달이 없던 것처럼 읽힌다 — 칸을 고르지 않은 까닭(건수)을 그 줄에 적는다.
  */
-import type { FloorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
+import type { FloorPeriod } from '@/entities/floor-line/floor-period';
 import { MIN_MONTH_COUNT, monthBands, type MonthBand } from '@/app/(workspace)/floor/_lib/floor-stats';
-import { manText, monthLabel, monthNumber, rateText } from '@/app/(workspace)/floor/_lib/floor-units';
+import { manText, monthLabel, monthNumber, rateText } from '@/entities/floor-line/floor-units';
 import type { FloorPoint } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 
 export type MonthRow =

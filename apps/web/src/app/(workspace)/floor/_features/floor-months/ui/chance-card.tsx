@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 
 import { drawFloors, seededRandom } from '@/app/(workspace)/floor/_lib/floor-rule';
 import { hottestBand } from '@/app/(workspace)/floor/_lib/floor-stats';
-import { basePercentOf, rateText } from '@/app/(workspace)/floor/_lib/floor-units';
+import { basePercentOf, rateText } from '@/entities/floor-line/floor-units';
 import { useFigureWidth } from '@/app/(workspace)/floor/_features/floor-board/model/use-figure-width';
 import type { ChanceView } from '../model/present-chance';
 
@@ -35,7 +35,7 @@ function MonthStrip({
   const band = hottestBand(values, width);
   const jitter = seededRandom(seed);
   const dotsTop = narrow ? 26 : 12;
-  const hot = `가장 많이 몰린 사정률 ${rateText(band.lo, 1)}~${rateText(band.lo + width, 1)} · ${band.inside}건(${Math.round((100 * band.inside) / values.length)}%)`;
+  const hot = `가장 많이 몰린 사정률 ${rateText(band.lo, 2)}~${rateText(band.lo + width, 2)} · ${band.inside}건(${Math.round((100 * band.inside) / values.length)}%)`;
   return (
     <g>
       <rect x={x(band.lo)} y={top + 6} width={x(band.lo + width) - x(band.lo)} height={rowHeight - 30} rx={3} style={{ fill: color, opacity: 0.2 }} />

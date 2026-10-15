@@ -175,9 +175,3 @@ export function shuffledFloors(points: readonly StatPoint[], random: () => numbe
   );
   return points.map((point, index) => ({ ...point, floor: values[index]! }));
 }
-
-/** 정렬된 값의 분위수다. 요약 문장의 "열 번 중 다섯 번"이 쓴다. */
-export function quantileOf(sortedValues: readonly number[], p: number): number {
-  if (sortedValues.length === 0) return Number.NaN;
-  return sortedValues[Math.floor(p * (sortedValues.length - 1))]!;
-}

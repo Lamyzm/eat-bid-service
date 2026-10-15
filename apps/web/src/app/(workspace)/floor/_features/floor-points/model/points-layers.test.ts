@@ -2,7 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import { Temporal } from '@eatbid/domain';
 
 import { linesResponse, myBidsResponse, regionsResponse } from '@/app/(workspace)/floor/__fixtures__/floor-lines';
-import { floorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
+import { floorPeriod } from '@/entities/floor-line/floor-period';
+import { monthBands } from '@/app/(workspace)/floor/_lib/floor-stats';
+import { rateText } from '@/entities/floor-line/floor-units';
 import { findRegion, presentFloorData, presentRegionGroups } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 import { bandRects, ladderDots, mineDots, windowSummary } from './points-layers';
 
@@ -34,5 +36,13 @@ describe('공고별 보기의 층', () => {
     expect(summary.note).toBe('추첨만 돌려도 가장 잦은 칸엔 이 정도가 들어가요(칸 하나에 10번 중 1번꼴). 특별히 몰리는 자리라는 뜻이 아니에요.');
     expect(summary.histogram.reduce((sum, bin) => sum + bin[2], 0)).toBe(243);
     expect(windowSummary(data.points, [0, 1], 0.1).headline).toBe('이 기간에는 공고가 없어요.');
+  });
+
+  test('한 달로 확대하면 가장 잦은 칸이 달 띠·달별 표와 같은 칸·같은 건수다', () => {
+    const start = period.monthStarts['2026-09']!;
+    const end = period.monthStarts['2026-10']! - 1;
+    const band = monthBands(data.points, 0.2).find((entry) => entry.month === '2026-09')!;
+    const summary = windowSummary(data.points, [start, end], 0.2);
+    expect(summary.headline).toContain(`가장 잦은 칸은 사정률 ${rateText(band.lo, 2)}~${rateText(band.hi, 2)}(${band.inside}건,`);
   });
 });

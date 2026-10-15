@@ -3,7 +3,7 @@
 import { useQueryStates } from 'nuqs';
 import { useRef, useState, type KeyboardEvent } from 'react';
 
-import type { FloorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
+import type { FloorPeriod } from '@/entities/floor-line/floor-period';
 import { FLOOR_VIEWS, floorSearchParsers, type FloorViewKey } from '@/app/(workspace)/floor/_lib/floor-search';
 import type { BandWidth } from '@/app/(workspace)/floor/_lib/floor-stats';
 import { MonthsPanel } from '@/app/(workspace)/floor/_features/floor-months/ui/months-panel';
@@ -20,7 +20,7 @@ const TAB =
  * 공고별 그림은 탭을 옮겨도 떼어내지 않는다 — 다시 만들면 확대해 둔 기간이 풀린다. 달별·넣을 값 탭은 처음 열 때 만든다. 달별은
  * 순열 검정을 수천 번 세므로 열지 않은 사람에게 그 값을 치르게 하지 않는다.
  */
-export function FloorBoard({ data, period }: { readonly data: FloorData; readonly period: FloorPeriod }) {
+export function FloorBoard({ data, period, focusMonth }: { readonly data: FloorData; readonly period: FloorPeriod; readonly focusMonth: string | null }) {
   const [{ view }, setView] = useQueryStates({ view: floorSearchParsers.view }, { shallow: true, history: 'replace', scroll: false });
   const [width, setWidth] = useState<BandWidth>(0.2);
   const [opened, setOpened] = useState<ReadonlySet<FloorViewKey>>(() => new Set([view]));
@@ -60,10 +60,10 @@ export function FloorBoard({ data, period }: { readonly data: FloorData; readonl
         ))}
       </div>
       <section role='tabpanel' id='floor-panel-points' aria-labelledby='floor-tab-points' hidden={view !== 'points'}>
-        <PointsPanel data={data} period={period} width={width} onWidth={setWidth} />
+        <PointsPanel data={data} period={period} width={width} onWidth={setWidth} focusMonth={focusMonth} />
       </section>
       <section role='tabpanel' id='floor-panel-months' aria-labelledby='floor-tab-months' hidden={view !== 'months'}>
-        {opened.has('months') ? <MonthsPanel data={data} period={period} width={width} /> : null}
+        {opened.has('months') ? <MonthsPanel data={data} period={period} width={width} focusMonth={focusMonth} /> : null}
       </section>
       <section role='tabpanel' id='floor-panel-rule' aria-labelledby='floor-tab-rule' hidden={view !== 'rule'}>
         {opened.has('rule') ? <RulePanel data={data} period={period} /> : null}

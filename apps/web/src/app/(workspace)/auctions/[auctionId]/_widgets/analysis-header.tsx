@@ -1,7 +1,9 @@
-/** @module 책임: 구매기관을 중심으로 공고 원문 제목과 확인된 조건·일정을 표시한다. */
+/** @module 책임: 구매기관을 중심으로 공고 원문 제목과 확인된 조건·일정, 그 지역 하한선 자리로 가는 입구 줄을 표시한다. */
+import type { ReactNode } from 'react';
+
 import type { AnalysisHeaderView } from '../_lib/present-analysis-header';
 
-export function AnalysisHeader({ header }: { readonly header: AnalysisHeaderView }) {
+export function AnalysisHeader({ header, floorEntry = null }: { readonly header: AnalysisHeaderView; readonly floorEntry?: ReactNode }) {
   return (
     <div className='min-w-0'>
       <div className='mb-3 flex flex-wrap items-center gap-2 text-xs'>
@@ -33,6 +35,7 @@ export function AnalysisHeader({ header }: { readonly header: AnalysisHeaderView
           </div>
         ))}
       </dl>
+      {floorEntry === null ? null : <div className='mt-4'>{floorEntry}</div>}
       <details className='mt-4 text-xs'>
         <summary className='w-fit cursor-pointer text-muted-foreground underline underline-offset-4'>
           공고 정보

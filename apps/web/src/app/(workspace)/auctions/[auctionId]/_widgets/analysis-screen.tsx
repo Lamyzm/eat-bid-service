@@ -1,4 +1,5 @@
 /** @module 책임: 새 상세 전용 공고·추천 투찰가·공통 조건·분석 준비 영역을 조립하며 이전 상세 화면에는 의존하지 않는다. */
+import type { ReactNode } from 'react';
 import type { loadAnalysisPage } from '../_lib/load-analysis-page';
 import { presentAnalysisContext } from '../_features/analysis-filters/model/present-analysis-context';
 import { AnalysisFilters } from '../_features/analysis-filters/ui/analysis-filters';
@@ -35,9 +36,12 @@ function sampleCountsOf(view: TimeSeriesView | null): AnalysisSampleCounts | nul
 }
 
 export function AnalysisScreen({
-  data
+  data,
+  floorEntry = null
 }: {
   readonly data: NonNullable<Awaited<ReturnType<typeof loadAnalysisPage>>>;
+  /** 이 공고 지역의 하한선 자리 입구 줄이다(EAT-356). 호출자가 Suspense로 감싸 분석을 막지 않는다. */
+  readonly floorEntry?: ReactNode;
 }) {
   const context = presentAnalysisContext(data.setup, data.applied);
   // 분석 표본은 이 하한율로 걸러져 있으므로 고른 회차의 하한도 이 값이다.
@@ -46,7 +50,7 @@ export function AnalysisScreen({
     <AnalysisWorkspace
       header={
         <>
-          <AnalysisHeader header={data.header} />
+          <AnalysisHeader header={data.header} floorEntry={floorEntry} />
           {data.bidPosition === null ? null : <BidPositionPanel view={data.bidPosition} />}
         </>
       }

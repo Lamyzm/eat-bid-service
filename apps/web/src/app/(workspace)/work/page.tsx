@@ -3,7 +3,12 @@ import { Suspense } from 'react';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { createLoader } from 'nuqs/server';
 
+import { systemClock } from '@eatbid/domain';
+
 import { getMyBidBoardFromServer, getMyRegionPreferenceFromServer, listMyBusinessesFromServer } from '@/api/account/server';
+import { findFloorLinesFromServer, findMyFloorRegionFromServer } from '@/api/floor-lines/server';
+import { loadRecentEntry } from '@/entities/floor-line/floor-entry';
+import { FloorEntryLine } from '@/entities/floor-line/floor-entry-line';
 import { loadWorkPage } from './_lib/load-work-page';
 import { workSearchParsers } from './_lib/work-search';
 import { WorkScreen } from './_widgets/work-screen';
@@ -21,12 +26,28 @@ async function readConditions() {
   };
 }
 
+/** 하한선 자리 입구 줄이다(EAT-356). 내 업체 주 공고지역과 그 최근 1년 하한선을 따로 읽어, 늦거나 실패해도 목록을 막지 않는다. */
+async function WorkFloorEntry() {
+  const view = await loadRecentEntry(systemClock.now().toZonedDateTimeISO('Asia/Seoul').toPlainDate(), {
+    myRegion: findMyFloorRegionFromServer,
+    lines: findFloorLinesFromServer
+  });
+  return view === null ? null : <FloorEntryLine view={view} />;
+}
+
 async function WorkLoader({ searchParams }: Props) {
   const search = await loadSearch(searchParams);
   const view = await loadWorkPage(search, { readBoard: getMyBidBoardFromServer, readConditions });
   return (
     <NuqsAdapter>
-      <WorkScreen view={view} />
+      <WorkScreen
+        view={view}
+        floorEntry={
+          <Suspense fallback={null}>
+            <WorkFloorEntry />
+          </Suspense>
+        }
+      />
     </NuqsAdapter>
   );
 }

@@ -1,4 +1,6 @@
 /** @module 책임: 새 상세에 필요한 공고 한 건과 적용된 조건의 시간축·분포 자료, 운영자용 추천 투찰가를 읽고 기존 기관 이력·분포 조회와 분리한다. */
+import { CODE_SCHEME_NAMES } from '@eatbid/contracts/atoms/code-scheme-names';
+import { FLOOR_RATE_TEXT } from '@/entities/floor-line/floor-units';
 import type { AuctionBidPositionRead, AuctionRead } from '@/api/auctions/server';
 import type { AnalysisDistributionRead, AnalysisTimeSeriesRead } from '@/api/analysis/server';
 import { analysisTimeSeriesQueryOf } from '@/api/analysis';
@@ -42,6 +44,17 @@ type Dependencies = {
   }) => Promise<AuctionBidPositionRead>;
   readonly now: () => string;
 };
+/**
+ * 하한선 자리 입구 줄의 지역이다(EAT-356). 공고에 적힌 공고지역 시군구이고 체계가 맞을 때만 쓴다(AGENTS 6). 하한선 자리는 하한율
+ * 90% 공고만 다뤄서 다른 하한율 공고에는 줄을 내지 않는다.
+ */
+function floorRegionOf(auction: { readonly terms: { readonly floorRate: { readonly value: string } | null } | null; readonly location: { readonly sigungu: { readonly codeValueId: string; readonly scheme: string; readonly label: string | null } | null } | null }) {
+  const sigungu = auction.location?.sigungu ?? null;
+  if (sigungu === null || sigungu.scheme !== CODE_SCHEME_NAMES.auctionLocationSigungu) return null;
+  if (auction.terms?.floorRate?.value !== FLOOR_RATE_TEXT) return null;
+  return { id: sigungu.codeValueId, label: sigungu.label };
+}
+
 export async function loadAnalysisPage(
   rawId: string,
   rawFilter: string | null,
@@ -67,6 +80,7 @@ export async function loadAnalysisPage(
   ]);
   return {
     header: presentAnalysisHeader(result.response, now),
+    floorRegion: floorRegionOf(result.response),
     setup,
     applied,
     timeSeries: series?.view ?? null,
