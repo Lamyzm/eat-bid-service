@@ -48,7 +48,10 @@ async function myMainRegion(today: Temporal.PlainDate, readers: FloorViewReaders
 export async function loadFloorView(input: FloorViewInput, readers: FloorViewReaders): Promise<FloorScreenView> {
   const period = floorPeriod(input.today, input.search.period);
   const window = { from: period.from, to: period.to, floorRate: FLOOR_RATE_TEXT };
-  const regionId = regionIdOf(input.search.region) ?? regionIdOf(input.rememberedRegion) ?? (await myMainRegion(input.today, readers));
+  const addressed = regionIdOf(input.search.region);
+  const remembered = addressed === null ? regionIdOf(input.rememberedRegion) : null;
+  const regionId = addressed ?? remembered ?? (await myMainRegion(input.today, readers));
+  const openedBy = addressed !== null ? 'address' : remembered !== null ? 'remembered' : 'my-bids';
   // 지역을 알면 세 조회를 함께 보낸다. 지역 목록 검사는 응답이 온 뒤에 한다 — 차례로 부르면 기다림이 두 배다.
   const [regions, lines, mine] = await Promise.all([
     readers.regions(window),
@@ -65,5 +68,5 @@ export async function loadFloorView(input: FloorViewInput, readers: FloorViewRea
   if (lines.kind === 'read-failed') return { kind: 'lines-failed', groups, period, regionId, sidoId: region.group.id };
   const month = monthKeyOf(input.search.month);
   const focusMonth = month !== null && period.monthStarts[month] !== undefined && month <= period.currentMonth ? month : null;
-  return { kind: 'ready', groups, period, data: presentFloorData({ lines: lines.response, mine, region }), focusMonth };
+  return { kind: 'ready', groups, period, data: presentFloorData({ lines: lines.response, mine, region }), focusMonth, openedBy };
 }

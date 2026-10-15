@@ -114,6 +114,8 @@ export type FloorScreenView =
       readonly data: FloorData;
       /** 복기 입구 줄이 연 달(`2026-09`)이다. 창 안의 달일 때만 있다. */
       readonly focusMonth: string | null;
+      /** 지역을 어디서 정했는지다. 내 업체 지역으로 열었으면 화면이 그 까닭을 한 줄로 말한다. */
+      readonly openedBy: 'address' | 'remembered' | 'my-bids';
     };
 
 export function presentRegionGroups(response: FloorLineRegionsV1Response): FloorRegionGroup[] {

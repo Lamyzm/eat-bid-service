@@ -100,7 +100,7 @@ describe('하한선 자리 화면 상태', () => {
     });
     const view = await loadFloorView({ search: search(null), rememberedRegion: undefined, today }, value);
     expect(asked).toEqual([{ from: '2025-10-01', to: '2026-10-15', floorRate: '90.000' }]);
-    expect(view.kind === 'ready' && view.data.region.id).toBe('459');
+    expect(view.kind === 'ready' && [view.data.region.id, view.openedBy]).toEqual(['459', 'my-bids']);
     expect(calls.lines).toHaveLength(1);
   });
 
@@ -121,5 +121,20 @@ describe('하한선 자리 화면 상태', () => {
     expect(await focus('2024-03')).toBeNull();
     expect(await focus('2026-11')).toBeNull();
     expect(await focus('2026-9')).toBeNull();
+  });
+
+  test('주소의 지역이 쿠키보다 먼저이고, 둘 다 있으면 내 업체 지역을 묻지 않는다', async () => {
+    let asked = 0;
+    const { value } = readers({
+      myRegion: async () => {
+        asked += 1;
+        return { kind: 'region', response: myRegionResponse() };
+      }
+    });
+    const addressed = await loadFloorView({ search: search('459'), rememberedRegion: '460', today }, value);
+    const remembered = await loadFloorView({ search: search(null), rememberedRegion: '459', today }, value);
+    expect(addressed.kind === 'ready' && addressed.openedBy).toBe('address');
+    expect(remembered.kind === 'ready' && remembered.openedBy).toBe('remembered');
+    expect(asked).toBe(0);
   });
 });

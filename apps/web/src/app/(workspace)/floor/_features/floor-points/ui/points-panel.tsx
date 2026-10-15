@@ -6,7 +6,11 @@ import { useMemo, useState, useTransition, type CSSProperties } from 'react';
 import type { FloorPeriod } from '@/entities/floor-line/floor-period';
 import { floorSearchParsers } from '@/app/(workspace)/floor/_lib/floor-search';
 import type { BandWidth } from '@/app/(workspace)/floor/_lib/floor-stats';
-import { countText } from '@/entities/floor-line/floor-units';
+import Link from 'next/link';
+
+import { floorRange } from '@/entities/floor-line/floor-range';
+import { countText, monthNumber, rateText } from '@/entities/floor-line/floor-units';
+import { buildFloorRoute } from '@/routing/floor';
 import type { FloorData } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 import { bandRects, ladderDots, mineDots, windowSummary } from '../model/points-layers';
 import { usePointsPalette } from '../model/use-points-palette';
@@ -79,9 +83,34 @@ export function PointsPanel({
           : data.mine.unlinkedBusinessCount > 0
             ? `아직 eaT 기록에서 찾지 못한 사업자 ${data.mine.unlinkedBusinessCount}곳의 값은 빠져 있어요.`
             : null;
+  const focus = useMemo(() => {
+    if (focusMonth === null || initialZoom === null) return null;
+    const floors = data.points.filter((point) => point.month === focusMonth).map((point) => point.floor);
+    const range = floorRange(floors);
+    return {
+      name: `${monthNumber(focusMonth)}월`,
+      count: floors.length,
+      range: range === null ? null : `사정률 ${rateText(range.low, 1)}~${rateText(range.high, 1)}`
+    };
+  }, [data.points, focusMonth, initialZoom]);
   const label = `${data.region.place} 공고 ${countText(data.points.length)}건의 하한선 점 그림. 가로는 개찰 날짜, 세로는 하한선(사정률과 기초금액 대비 %)`;
   return (
     <div className='grid gap-4'>
+      {focus === null ? null : (
+        // 복기 입구 줄과 같은 숫자를 첫 화면에서 바로 찾게 한다. 맨 위 요약은 고른 기간(최근 1년) 그대로 둔다(2026-10-15 리뷰).
+        <p className='rounded-xl bg-primary/10 px-3.5 py-2.5 text-[15px] leading-relaxed text-foreground'>
+          <b>복기에서 고른 {focus.name}로 확대해 열었어요.</b> {focus.name} 공고 {countText(focus.count)}건
+          {focus.range === null ? '' : ' · 열 번 중 다섯 번은 '}
+          {focus.range === null ? null : <b>{focus.range}</b>}
+          {focus.range === null ? '' : '(넣을 자리는 아니에요)'}
+          <Link
+            href={buildFloorRoute({ region: data.region.id, period: period.key })}
+            className='ml-2 font-bold whitespace-nowrap text-primary hover:underline'
+          >
+            {period.label} 전체 보기
+          </Link>
+        </p>
+      )}
       <p className='max-w-[66ch] text-muted-foreground'>
         점 하나가 공고 하나의 하한선이에요. 가로는 개찰 날짜, 세로는 하한선이 기초금액의 몇 %에 나왔는지예요.
       </p>

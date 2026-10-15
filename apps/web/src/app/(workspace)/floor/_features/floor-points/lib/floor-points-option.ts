@@ -41,14 +41,14 @@ function bandItem(palette: PointsPalette) {
     const y = topLeft[1]!;
     const width = bottomRight[0]! - x;
     const height = bottomRight[1]! - y;
-    const range = `${rateText(Number(api.value(2)), 1)}~${rateText(Number(api.value(3)), 1)}`;
+    const range = `${rateText(Number(api.value(2)), 2)}~${rateText(Number(api.value(3)), 2)}`;
     return {
       type: 'group',
       children: [
         { type: 'rect', shape: { x: x + 1, y, width: Math.max(1, width - 2), height }, style: { fill: palette.point, opacity: 0.16 } },
         { type: 'line', shape: { x1: x + 1, y1: y, x2: x + width - 1, y2: y }, style: { stroke: palette.point, lineWidth: 2, opacity: 0.9 } },
         { type: 'line', shape: { x1: x + 1, y1: y + height, x2: x + width - 1, y2: y + height }, style: { stroke: palette.point, lineWidth: 2, opacity: 0.9 } },
-        ...(width > 84
+        ...(width > 96
           ? [{ type: 'text' as const, x: x + 4, y: y - 4, style: { text: range, fill: palette.text, font: '600 11px sans-serif', verticalAlign: 'bottom' as const } }]
           : [])
       ]

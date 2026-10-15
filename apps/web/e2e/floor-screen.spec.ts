@@ -67,9 +67,10 @@ test('넣을 값은 사정률과 기초금액 대비 % 사이를 오가도 같�
   await expect(result).toContainText('기초금액의 89.500%');
 });
 
-test('주소에 지역이 없으면 내 업체가 가장 많이 넣은 공고지역으로 연다', async ({ page }) => {
+test('주소에 지역이 없으면 내 업체가 가장 많이 넣은 공고지역으로 열고 그 까닭을 말한다', async ({ page }) => {
   await page.goto('/floor');
   await expect(page.getByLabel('요약')).toContainText('경남 김해시 · 최근 1년');
+  await expect(page.getByText('내 업체가 최근 1년 가장 많이 넣은 지역이라 이 지역부터 보여 줘요.')).toBeVisible();
 });
 
 test('오늘 투찰·공고 상세의 입구 줄은 하한선 자리 요약과 같은 범위를 말하고 그 지역으로 연다', async ({ page }) => {
@@ -91,6 +92,9 @@ test('복기의 입구 줄은 그 달로 확대한 하한선 자리를 열고 �
   const range = await entry.locator('b').innerText();
   await entry.getByRole('link', { name: '9월 하한선 보기 →' }).click();
   await expect(page).toHaveURL(/month=2026-09/);
+  // 첫 화면 그림 위에 고른 달 줄이 같은 숫자로 서고, 그림 아래 보이는 기간 문장도 같은 숫자를 말한다.
+  await expect(page.getByText('복기에서 고른 9월로 확대해 열었어요.')).toBeVisible();
+  await expect(page.getByText('복기에서 고른 9월로 확대해 열었어요.').locator('..')).toContainText(`9월 공고 20건 · 열 번 중 다섯 번은 ${range}`);
   await expect(page.locator('[aria-live="polite"]').filter({ hasText: '넓게 보면' })).toContainText(`공고 20건: 넓게 보면 열 번 중 다섯 번이 ${range}`);
   await page.getByRole('tab', { name: '달별' }).click();
   await expect(page.getByRole('row', { name: /복기에서 고른 달/ })).toContainText('26년 9월');

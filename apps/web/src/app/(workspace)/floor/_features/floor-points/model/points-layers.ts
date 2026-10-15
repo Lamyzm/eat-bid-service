@@ -4,7 +4,7 @@
  * 층은 모두 점 목록의 번호로 공고를 가리킨다. 그림에서 어느 점을 눌러도 같은 공고 카드가 열려야 해서다.
  */
 import type { FloorPeriod } from '@/entities/floor-line/floor-period';
-import { MIN_MONTH_COUNT, monthBands } from '@/app/(workspace)/floor/_lib/floor-stats';
+import { hottestBand, MIN_MONTH_COUNT, monthBands } from '@/app/(workspace)/floor/_lib/floor-stats';
 import { quantileOf } from '@/entities/floor-line/floor-range';
 import { countText, rateText } from '@/entities/floor-line/floor-units';
 import type { FloorData, FloorPoint } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
@@ -81,6 +81,9 @@ export interface WindowSummary {
 /**
  * 확대한 기간의 공고만으로 칸별 건수와 문장을 만든다. 가장 잦은 칸을 말할 때는 추첨만 돌려도 그만큼 든다는 말을 함께 둔다
  * — 0.2 폭 하나가 규칙상 담는 몫이 최대 약 11%라, 10% 남짓은 몰림이 아니다(PDR-0009 결정 3).
+ *
+ * 가장 잦은 칸은 막대 칸(87.5부터 고정 간격)이 아니라 달 띠·달별 표와 같은 계산(`hottestBand`, 0.1 눈금에서 미끄러지는 칸)으로
+ * 고른다. 막대 칸으로 고르면 같은 9월이 그림 띠·표·문장에서 서로 다른 칸을 말했다(2026-10-15 리뷰).
  */
 export function windowSummary(points: readonly FloorPoint[], range: readonly [number, number], width: number): WindowSummary {
   const inside = points.filter((point) => point.t >= range[0] && point.t <= range[1]);
@@ -95,18 +98,14 @@ export function windowSummary(points: readonly FloorPoint[], range: readonly [nu
   if (inside.length === 0) return { histogram, headline: '이 기간에는 공고가 없어요.', note: null };
   const first = inside[0]!.date;
   const last = inside[inside.length - 1]!.date;
-  let best = 0;
-  counts.forEach((count, slot) => {
-    if (count > counts[best]!) best = slot;
-  });
   const sorted = inside.map((point) => point.floor).toSorted((left, right) => left - right);
-  const low = bins[best]!;
+  const band = hottestBand(sorted, width);
   return {
     histogram,
     headline:
       `${first} ~ ${last} 공고 ${countText(inside.length)}건: 넓게 보면 열 번 중 다섯 번이 사정률 ` +
       `${rateText(quantileOf(sorted, 0.25), 1)}~${rateText(quantileOf(sorted, 0.75), 1)}, 그중 가장 잦은 칸은 ` +
-      `사정률 ${rateText(low, 1)}~${rateText(low + width, 1)}(${counts[best]}건, ${Math.round((100 * counts[best]!) / inside.length)}%)이에요.`,
+      `사정률 ${rateText(band.lo, 2)}~${rateText(band.lo + width, 2)}(${band.inside}건, ${Math.round((100 * band.inside) / inside.length)}%)이에요.`,
     note: `추첨만 돌려도 가장 잦은 칸엔 이 정도가 들어가요(칸 하나에 ${width === 0.2 ? '10번 중 1번' : '20번 중 1번'}꼴). 특별히 몰리는 자리라는 뜻이 아니에요.`
   };
 }

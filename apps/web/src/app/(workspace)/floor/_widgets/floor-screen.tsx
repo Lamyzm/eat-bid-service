@@ -45,6 +45,9 @@ export function FloorScreen({ view }: { readonly view: FloorScreenView }) {
   }
   return (
     <FloorFrame bar={bar}>
+      {view.openedBy === 'my-bids' ? (
+        <p className='-mt-2 text-[13px] text-muted-foreground'>내 업체가 최근 1년 가장 많이 넣은 지역이라 이 지역부터 보여 줘요. 다른 지역은 위에서 고르세요.</p>
+      ) : null}
       <FloorSummary view={presentSummary(view.data, view.period)} />
       <FloorBoard data={view.data} period={view.period} focusMonth={view.focusMonth} />
       <FloorEvidence data={view.data} periodLabel={view.period.label} />
