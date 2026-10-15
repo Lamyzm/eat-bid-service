@@ -15,6 +15,11 @@ from datetime import date, datetime
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
+from eatbid.mart.plausibility import (
+    COMPARABLE_PLANNED_TO_BASE_MAX,
+    COMPARABLE_PLANNED_TO_BASE_MIN,
+)
+
 KST = ZoneInfo("Asia/Seoul")
 
 # 금액은 원 단위 소수 둘째 자리, 표시용 투찰률은 소수 넷째 자리, 사정률 구간은 소수 셋째 자리다.
@@ -46,26 +51,40 @@ def day_floor_amount(*, floor_rate: Decimal, planned_amount: Decimal) -> Decimal
     )
 
 
+def amounts_comparable(*, planned_amount: Decimal, base_amount: Decimal) -> bool:
+    """예정가격과 기초금액이 같은 것을 센 금액인지다. 아니면 한 축의 비율을 다른 축으로 옮길 수 없다(plausibility.py)."""
+    return (
+        base_amount * COMPARABLE_PLANNED_TO_BASE_MIN
+        <= planned_amount
+        <= base_amount * COMPARABLE_PLANNED_TO_BASE_MAX
+    )
+
+
 def day_floor_bid_rate(
     *, floor_rate: Decimal, planned_amount: Decimal, base_amount: Decimal
-) -> Decimal:
-    """그날 하한을 투찰률 축으로 옮긴 표시값이다. 비교의 권위는 이 값이 아니라 금액이다."""
+) -> Decimal | None:
+    """그날 하한을 투찰률 축으로 옮긴 표시값이다. 비교의 권위는 이 값이 아니라 금액이다.
+
+    두 금액이 비교할 수 없는 회차는 None이다. 옮긴 값이 0.0083%나 726만%처럼 뜻 없는 숫자가 된다.
+    """
     return _to_bid_axis(floor_rate, planned_amount=planned_amount, base_amount=base_amount)
 
 
 def awarded_bid_rate(
     *, assessment_rate: Decimal, planned_amount: Decimal, base_amount: Decimal
-) -> Decimal:
+) -> Decimal | None:
     """낙찰 사정률을 같은 투찰률 축으로 옮긴 표시값이다."""
     return _to_bid_axis(assessment_rate, planned_amount=planned_amount, base_amount=base_amount)
 
 
 def _to_bid_axis(
     rate: Decimal, *, planned_amount: Decimal, base_amount: Decimal
-) -> Decimal:
+) -> Decimal | None:
     _require_observed_planned_amount(planned_amount)
     if base_amount <= 0:
         raise ValueError("base amount must be positive to translate a rate axis")
+    if not amounts_comparable(planned_amount=planned_amount, base_amount=base_amount):
+        return None
     return (rate * planned_amount / base_amount).quantize(
         DISPLAY_RATE_QUANTUM, rounding=ROUND_HALF_UP
     )

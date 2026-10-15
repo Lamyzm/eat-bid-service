@@ -15,6 +15,8 @@ from eatbid.mart.item_bridge import fill_item_bridge
 from eatbid.mart.latest_revision import latest_revision_order
 from eatbid.mart.models import MartBuildPlan
 from eatbid.mart.plausibility import (
+    COMPARABLE_PLANNED_TO_BASE_MAX,
+    COMPARABLE_PLANNED_TO_BASE_MIN,
     IMPLAUSIBLE_OPENING_GAP_DAYS,
     OPENING_GAP_QUARANTINE_REASON,
 )
@@ -34,6 +36,10 @@ from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
 # 예정가격에서 파생하는 값 — 그날 하한 금액·비율, 투찰률 축 낙찰률, 하한 미만 수 — 은 전부 null로
 # 둔다. 하한 미만 수까지 비우는 이유는 명단의 사정률이 예정가격 분모의 소스 계산값이라 예정가격이
 # 없는 회차에서는 그 부등식 자체가 성립하지 않기 때문이다(derivations.py).
+#
+# 기초금액 축의 두 값(그날 하한·낙찰)은 예정가격과 기초금액이 같은 것을 센 금액일 때만 만든다. 기초금액 430원·예정가격
+# 3,855만 원인 회차 하나가 투찰률 열을 넘쳐 build 전체를 실패시켰다(EAT-365, plausibility.py). 그날 하한 금액과 하한 미만 수는
+# 예정가격 축이라 그대로 만든다.
 ORG_ROUND_SUMMARY_FILL_SQL = f"""
 insert into mart.org_round_summary (
   build_id, auction_attempt_id, auction_revision_id, organization_id,
@@ -100,11 +106,15 @@ select
   case
     when latest.floor_rate is not null and latest.planned_amount > 0
          and latest.base_amount > 0
+         and latest.planned_amount >= latest.base_amount * %(comparable_min)s
+         and latest.planned_amount <= latest.base_amount * %(comparable_max)s
     then round(latest.floor_rate * latest.planned_amount / latest.base_amount, 4)
   end,
   case
     when award.awarded_rate is not null and latest.planned_amount > 0
          and latest.base_amount > 0
+         and latest.planned_amount >= latest.base_amount * %(comparable_min)s
+         and latest.planned_amount <= latest.base_amount * %(comparable_max)s
     then round(award.awarded_rate * latest.planned_amount / latest.base_amount, 4)
   end,
   roster.list_count,
@@ -206,6 +216,8 @@ def fill_org_round_summary(
                 "as_of": plan.as_of,
                 "gap_days": IMPLAUSIBLE_OPENING_GAP_DAYS,
                 "quarantine_reason": OPENING_GAP_QUARANTINE_REASON,
+                "comparable_min": COMPARABLE_PLANNED_TO_BASE_MIN,
+                "comparable_max": COMPARABLE_PLANNED_TO_BASE_MAX,
                 "region_scheme": plan.region_scheme,
             },
         )
