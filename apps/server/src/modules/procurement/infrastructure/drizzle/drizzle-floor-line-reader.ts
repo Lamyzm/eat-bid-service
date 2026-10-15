@@ -73,7 +73,7 @@ type RegionRow = Readonly<{
 }>;
 
 /** 코드값 하나의 가장 나중 관측 라벨이다. 이름은 정체성이 아니라 관측이다(AGENTS 2). */
-function latestCodeLabel(codeValueId: SQL): SQL {
+export function latestCodeLabel(codeValueId: SQL): SQL {
   return sql`(select observation.label from core.code_label_observation observation
                where observation.code_value_id = ${codeValueId}
                order by observation.observed_at desc, observation.code_label_observation_id desc

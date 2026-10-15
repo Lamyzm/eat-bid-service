@@ -25,8 +25,10 @@ import { FindFloorLineRegions, FindFloorLines } from "./application/find-floor-l
 import type { FloorLineReader } from "./application/floor-line-reader";
 import { FloorLinesController } from "./presentation/http/floor-lines.controller";
 import { FindMyFloorBids } from "./application/find-my-floor-bids";
-import type { MyFloorBidReader } from "./application/my-floor-bid-reader";
+import { FindMyFloorRegion } from "./application/find-my-floor-region";
+import type { MyFloorBidReader, MyFloorRegionReader } from "./application/my-floor-bid-reader";
 import { MyFloorBidsController } from "./presentation/http/my-floor-bids.controller";
+import { MyFloorRegionController } from "./presentation/http/my-floor-region.controller";
 import type { AnalysisHistoryReader } from "./application/analysis-history-reader";
 import { FindAnalysisTimeSeries } from "./application/find-analysis-time-series";
 import type { AnalysisConditionOptionsReader } from "./application/analysis-condition-options-reader";
@@ -206,6 +208,14 @@ const findMyFloorBidsProvider = {
   ) => new FindMyFloorBids(snapshot, businesses, reader, labels, axes),
 };
 
+/** 같은 adapter가 지역 세기도 맡는다(같은 회차 술어). 등록 사업자와 투찰을 한 스냅샷에서 읽는다. */
+const findMyFloorRegionProvider = {
+  provide: FindMyFloorRegion,
+  inject: [READ_SNAPSHOT, REGISTERED_BUSINESS_READER, MY_FLOOR_BID_READER],
+  useFactory: (snapshot: UnitOfWork, businesses: RegisteredBusinessReader, reader: MyFloorRegionReader) =>
+    new FindMyFloorRegion(snapshot, businesses, reader),
+};
+
 const listEligibilityAreasProvider = {
   provide: ListEligibilityAreas,
   inject: [ELIGIBILITY_AREA_READER],
@@ -273,6 +283,7 @@ const findMyBidObservationsProvider = {
     AnalysisController,
     FloorLinesController,
     MyFloorBidsController,
+    MyFloorRegionController,
     AuctionBidPositionController,
     AuctionController,
     AuctionRosterController,
@@ -298,6 +309,7 @@ const findMyBidObservationsProvider = {
     findFloorLinesProvider,
     findFloorLineRegionsProvider,
     findMyFloorBidsProvider,
+    findMyFloorRegionProvider,
     listOpenAuctionsProvider,
     summarizeOpenAuctionsProvider,
     listEligibilityAreasProvider,

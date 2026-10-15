@@ -1,4 +1,4 @@
-// docker 없이 Nest ingress만 세우고 하한선 자리 내 투찰 조회의 운영자 guard·query 검증을 실제 HTTP로 확인한다.
+// docker 없이 Nest ingress만 세우고 하한선 자리 개인 조회 둘(내 투찰, 내 업체 주 공고지역)의 운영자 guard·query 검증을 실제 HTTP로 확인한다.
 import { describe, expect, test } from "bun:test";
 import type { Server } from "node:http";
 import request from "supertest";
@@ -65,6 +65,26 @@ describe("하한선 자리 내 투찰 HTTP 경계", () => {
       const long = new URLSearchParams(창);
       long.set("from", "2023-01-01");
       expect((await request(server).get(`${path}?${long}`)).status).toBe(400);
+    });
+  });
+});
+
+describe("내 업체 주 공고지역 HTTP 경계", () => {
+  const regionPath = myFloorBidV1Operations.findMyFloorRegion.openApiPath;
+  const 기간 = new URLSearchParams({ from: "2025-10-01", to: "2026-10-15", floorRate: "90.000" });
+
+  test("운영자 권한이 없으면 403이다", async () => {
+    await withServer({ hasActiveGrant: async () => false }, async (server) => {
+      expect((await request(server).get(`${regionPath}?${기간}`)).status).toBe(403);
+    });
+  });
+
+  test("운영자라도 지역을 함께 보내거나 기간 상한을 어기면 400이다", async () => {
+    await withServer({ hasActiveGrant: async () => true }, async (server) => {
+      expect((await request(server).get(`${regionPath}?${창}`)).status).toBe(400);
+      const long = new URLSearchParams(기간);
+      long.set("from", "2023-01-01");
+      expect((await request(server).get(`${regionPath}?${long}`)).status).toBe(400);
     });
   });
 });

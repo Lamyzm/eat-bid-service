@@ -27,14 +27,15 @@ export function floorLinePeriodRule<Query extends FloorLinePeriodQuery>(ctx: z.c
   }
 }
 
-const floorLinePeriodFields = {
+/** 기간·하한율 창이다. 지역을 받지 않는 조회(지역 목록·내 업체 주 지역)가 함께 쓴다. */
+export const floorLinePeriodQueryFields = {
   from: kstDateTextSchema,
   to: kstDateTextSchema,
   // 하한율은 정의상 0~100이다. 미확인 하한율을 90으로 추정하지 않으므로 화면이 고른 값만 받는다.
   floorRate: bidRateTextSchema,
 } as const;
 
-const floorLineRegionsQuerySchema = z.strictObject(floorLinePeriodFields).check(floorLinePeriodRule);
+const floorLineRegionsQuerySchema = z.strictObject(floorLinePeriodQueryFields).check(floorLinePeriodRule);
 
 /**
  * 지역은 eaT 공고지역 **시군구**만 받는다. 시도 전체는 수만 점이라 PDR-0006처럼 점으로 보내지 않는다. 체계를
@@ -47,7 +48,7 @@ const floorLineRegionsQuerySchema = z.strictObject(floorLinePeriodFields).check(
  * 그래서 필드는 여기 한 번만 선언하고 두 schema가 나눠 쓴다.
  */
 export const floorLineRegionWindowQueryFields = {
-  ...floorLinePeriodFields,
+  ...floorLinePeriodQueryFields,
   regionScheme: z.literal(CODE_SCHEME_NAMES.auctionLocationSigungu),
   regionCodeValueId: positiveBigintTextSchema,
 } as const;

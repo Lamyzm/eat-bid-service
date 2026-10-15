@@ -124,6 +124,31 @@ describe("하한선 자리 PostgreSQL 조회", () => {
     });
   }, 240_000);
 
+  test("내 사업자 투찰이 가장 많은 공고지역은 하한선 점과 같은 회차로 세고, 투찰이 없으면 없다", async () => {
+    await floorLineDatabase.withDatabase(async ({ api }) => {
+      const database = drizzle({ client: api });
+      const snapshot = createUnitOfWork({
+        transaction: (work) => database.transaction((transaction) => work(transaction), { isolationLevel: "repeatable read", accessMode: "read only" }),
+      });
+      const reader = new DrizzleMyFloorBidReader();
+      const top = (supplierPartyIds: readonly bigint[], at: FloorLineWindow = window) =>
+        snapshot.run((handle) => reader.readTopRegion(handle, { window: at, supplierPartyIds }));
+      // 7701·7702는 같은 시군구의 8101·8102에 냈다. 한 회차에 둘이 내도 한 번으로 센다.
+      expect(await top([MY_SUPPLIER_PARTY_ID, 7702n])).toEqual({
+        sidoCodeValueId: SIDO,
+        sidoLabel: "가상도",
+        sigunguCodeValueId: SIGUNGU,
+        sigunguLabel: "가상시",
+        roundCount: 2,
+      });
+      expect((await top([MY_SUPPLIER_PARTY_ID]))?.roundCount).toBe(1);
+      // 투찰이 없는 업체, 하한율이 다른 창, 사업자가 없는 경우는 지역이 없다.
+      expect(await top([999_999n])).toBeNull();
+      expect(await top([MY_SUPPLIER_PARTY_ID], { ...window, floorRateMilli: 88_000n })).toBeNull();
+      expect(await top([])).toBeNull();
+    });
+  }, 240_000);
+
   test("검사가 만든 container를 남기지 않는다", async () => {
     await floorLineDatabase.expectOwnedContainersCleanedUp();
   });
