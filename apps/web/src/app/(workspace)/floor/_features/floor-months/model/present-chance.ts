@@ -4,7 +4,7 @@
  *
  * 몰림 숫자를 보일 때는 늘 섞은 값을 옆에 둔다(PDR-0009 결정 3). 난수는 씨앗을 고정해 같은 화면이 같은 숫자를 말하게 한다.
  */
-import type { FloorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
+import type { FloorPeriod } from '@/entities/floor-line/floor-period';
 import { drawFloors, seededRandom } from '@/app/(workspace)/floor/_lib/floor-rule';
 import {
   hottestBand,
@@ -15,7 +15,7 @@ import {
   shuffled,
   shuffledFloors
 } from '@/app/(workspace)/floor/_lib/floor-stats';
-import { monthNumber, tenthsText } from '@/app/(workspace)/floor/_lib/floor-units';
+import { monthNumber, tenthsText } from '@/entities/floor-line/floor-units';
 import type { FloorPoint } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 
 /** 견줄 한 달은 공고가 이만큼은 있어야 점 그림이 모양을 갖는다. */

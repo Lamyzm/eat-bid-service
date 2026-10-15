@@ -1,10 +1,10 @@
-/** @module 책임: 하한선 자리의 세 조회(지역 목록·공고별 하한선·내 사업자 투찰)를 계약 query로 호출하고 예상된 실패를 결과 값으로 돌려준다. */
+/** @module 책임: 하한선 자리의 네 조회(지역 목록·공고별 하한선·내 사업자 투찰·내 업체 주 공고지역)를 계약 query로 호출하고 예상된 실패를 결과 값으로 돌려준다. */
 import {
   floorLineV1Operations,
   type FloorLineRegionsV1Response,
   type FloorLinesV1Response
 } from '@eatbid/contracts/api/v1/analysis';
-import { myFloorBidV1Operations, type MyFloorBidsV1Response } from '@eatbid/contracts/api/v1/me';
+import { myFloorBidV1Operations, type MyFloorBidsV1Response, type MyFloorRegionV1Response } from '@eatbid/contracts/api/v1/me';
 import { CODE_SCHEME_NAMES } from '@eatbid/contracts/atoms/code-scheme-names';
 
 import type { ContractRequest } from '../_transport/request-contract';
@@ -31,6 +31,11 @@ export type MyFloorBidsRead =
   | { readonly kind: 'bids'; readonly response: MyFloorBidsV1Response }
   | { readonly kind: 'forbidden' }
   | { readonly kind: 'region-not-found' };
+
+/** 운영자가 아니면 내 업체 지역을 셀 수 없다. 화면은 그때 다른 방법(주소·마지막 본 지역)으로 지역을 고른다. */
+export type MyFloorRegionRead =
+  | { readonly kind: 'region'; readonly response: MyFloorRegionV1Response }
+  | { readonly kind: 'forbidden' };
 
 function windowQuery(input: FloorLineWindowInput) {
   return {
@@ -76,6 +81,20 @@ export async function findMyFloorBidsWith(
   } catch (error) {
     if (request.isProblem(error) && error.status === 403) return { kind: 'forbidden' };
     if (request.isProblem(error) && error.status === 404) return { kind: 'region-not-found' };
+    throw error;
+  }
+}
+
+export async function findMyFloorRegionWith(
+  request: ContractRequest,
+  input: FloorLinePeriodInput & { readonly signal?: AbortSignal }
+): Promise<MyFloorRegionRead> {
+  const operation = myFloorBidV1Operations.findMyFloorRegion;
+  const query = operation.querySchema.parse({ from: input.from, to: input.to, floorRate: input.floorRate });
+  try {
+    return { kind: 'region', response: await request({ operation, path: undefined, query, signal: input.signal }) };
+  } catch (error) {
+    if (request.isProblem(error) && error.status === 403) return { kind: 'forbidden' };
     throw error;
   }
 }

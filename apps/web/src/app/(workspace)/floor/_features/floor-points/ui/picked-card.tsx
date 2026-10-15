@@ -1,5 +1,5 @@
 /** @module 책임: 그림에서 누른 공고 하나의 하한선·기초금액·1~10등·내 업체 값을 글로 보인다. */
-import { countText, manCheonText, organizationLabel, per100MillionText, rateText } from '@/app/(workspace)/floor/_lib/floor-units';
+import { countText, manCheonText, organizationLabel, per100MillionText, rateText } from '@/entities/floor-line/floor-units';
 import type { FloorData, FloorMineBid } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 
 function mineLine(bid: FloorMineBid, floor: number, baseAmount: number): string {

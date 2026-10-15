@@ -2,6 +2,7 @@
  * @module 책임: 복기 화면의 상태(대조할 달·내 공고 없음·권한 없음)를 하나씩 그린다. 상태마다 사용자가 할 일이 다르므로 같은 빈 화면으로
  * 합치지 않는다.
  */
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 
 import { MonthNav } from '../_features/review-board/ui/month-nav';
@@ -22,7 +23,7 @@ function Notice({ title, body, action }: { readonly title: string; readonly body
   );
 }
 
-export function ReviewScreen({ view }: { readonly view: ReviewScreenView }) {
+export function ReviewScreen({ view, floorEntry = null }: { readonly view: ReviewScreenView; readonly floorEntry?: ReactNode }) {
   if (view.kind === 'forbidden') {
     return (
       <ReviewFrame lede={null} stamp={null}>
@@ -44,6 +45,8 @@ export function ReviewScreen({ view }: { readonly view: ReviewScreenView }) {
   return (
     <ReviewFrame lede={view.lede} stamp={view.stamp}>
       <MonthNav year={view.year} month={view.month} years={view.years} monthTabs={view.monthTabs} />
+      {/* 고른 달의 하한선 자리 입구 줄이다(EAT-356). 따로 조회해 늦게 와도 성적 표를 막지 않는다. */}
+      {floorEntry === null ? null : <div className='mt-4'>{floorEntry}</div>}
       <ReviewSummary rows={view.summary} />
       <section aria-label='읽는 법' className='mt-5 grid max-w-[76ch] gap-1.5 rounded-xl bg-muted/60 px-4 py-3 text-[13.5px] text-muted-foreground'>
         <p>

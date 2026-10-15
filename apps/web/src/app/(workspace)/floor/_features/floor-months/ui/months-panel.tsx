@@ -2,7 +2,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 
-import type { FloorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
+import type { FloorPeriod } from '@/entities/floor-line/floor-period';
 import type { FloorData } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 import { presentChance } from '../model/present-chance';
 import { presentMonths } from '../model/present-months';
@@ -12,7 +12,17 @@ import { MonthsTable } from './months-table';
 
 const SEGMENT = 'min-h-11 px-4 text-[14px] font-semibold text-muted-foreground aria-pressed:bg-foreground aria-pressed:text-background';
 
-export function MonthsPanel({ data, period, width }: { readonly data: FloorData; readonly period: FloorPeriod; readonly width: number }) {
+export function MonthsPanel({
+  data,
+  period,
+  width,
+  focusMonth
+}: {
+  readonly data: FloorData;
+  readonly period: FloorPeriod;
+  readonly width: number;
+  readonly focusMonth: string | null;
+}) {
   const [shape, setShape] = useState<'table' | 'ridge'>('table');
   const months = useMemo(() => presentMonths(data.points, period, width), [data.points, period, width]);
   // 순열 검정은 수천 번 다시 센다. 탭을 처음 열 때 한 번, 칸 너비를 바꿀 때 한 번만 센다.
@@ -37,7 +47,7 @@ export function MonthsPanel({ data, period, width }: { readonly data: FloorData;
         </p>
       </div>
       {shape === 'table' ? (
-        <MonthsTable view={months} />
+        <MonthsTable view={months} focusMonth={focusMonth} />
       ) : (
         <MonthsRidge months={months.ridgeMonths} points={data.points} quantiles={data.quantiles} place={data.region.place} />
       )}

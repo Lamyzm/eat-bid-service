@@ -4,13 +4,10 @@
  * 범위 문장 바로 뒤에 "이 안에 넣으면 된다는 뜻이 아니다"를 붙인다. 가운데 절반 범위만 보이면 그 안이 안전한 자리로 읽힌다
  * (2026-10-15 처음 보는 사장님 리뷰). 가운데값에 넣어도 절반은 하한 미달이라는 사실이 그 오독을 바로 막는다.
  */
-import type { FloorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
+import type { FloorPeriod } from '@/entities/floor-line/floor-period';
 import type { FloorData } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
-import { quantileOf } from '@/app/(workspace)/floor/_lib/floor-stats';
-import { countText, monthNumber, organizationLabel, per100MillionText, rateText } from '@/app/(workspace)/floor/_lib/floor-units';
-
-/** 공고가 이보다 적으면 범위를 말하지 않는다. 몇 건의 사분위는 공고 하나만 바뀌어도 크게 흔들린다. */
-const MIN_RANGE_COUNT = 8;
+import { floorRange } from '@/entities/floor-line/floor-range';
+import { countText, monthNumber, organizationLabel, per100MillionText, rateText } from '@/entities/floor-line/floor-units';
 
 export interface FloorSummaryView {
   readonly headline: string;
@@ -20,8 +17,8 @@ export interface FloorSummaryView {
 }
 
 export function presentSummary(data: FloorData, period: FloorPeriod): FloorSummaryView {
-  const sorted = data.points.map((point) => point.floor).toSorted((left, right) => left - right);
-  const headline = `${data.region.place} · ${period.label} 하한율 90% 공고 ${countText(sorted.length)}건`;
+  const range = floorRange(data.points.map((point) => point.floor));
+  const headline = `${data.region.place} · ${period.label} 하한율 90% 공고 ${countText(data.points.length)}건`;
   const current = data.points.filter((point) => point.month === period.currentMonth);
   const monthName = `이번 달(${monthNumber(period.currentMonth)}월)`;
   const thisMonth =
@@ -32,12 +29,10 @@ export function presentSummary(data: FloorData, period: FloorPeriod): FloorSumma
           .toReversed()
           .map((point) => `${point.date.slice(5)} ${organizationLabel(data.organizations, point.organization)} 사정률 ${rateText(point.floor, 3)}`)
           .join(' · ')}`;
-  if (sorted.length < MIN_RANGE_COUNT) {
+  if (range === null) {
     return { headline, range: null, caution: '이 기간엔 공고가 적어 범위를 말하기 어려워요.', thisMonth };
   }
-  const low = quantileOf(sorted, 0.25);
-  const high = quantileOf(sorted, 0.75);
-  const middle = quantileOf(sorted, 0.5);
+  const { low, middle, high } = range;
   return {
     headline,
     range: {

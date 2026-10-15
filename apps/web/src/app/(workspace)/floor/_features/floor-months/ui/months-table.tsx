@@ -3,7 +3,7 @@ import type { MonthsView } from '../model/present-months';
 
 const HEADERS = ['가장 많이 나온 칸(사정률)', '그 칸에 든 공고', '기초금액 대비', '1억 공고면'] as const;
 
-export function MonthsTable({ view }: { readonly view: MonthsView }) {
+export function MonthsTable({ view, focusMonth }: { readonly view: MonthsView; readonly focusMonth: string | null }) {
   return (
     <div className='grid gap-2'>
       <p className='text-[14px] text-muted-foreground sm:hidden'>옆으로 밀면 기초금액 대비 %와 1억 공고 금액이 더 있어요.</p>
@@ -31,9 +31,14 @@ export function MonthsTable({ view }: { readonly view: MonthsView }) {
               </td>
             </tr>
             {view.rows.map((row) => (
-              <tr key={row.month}>
-                <th scope='row' className='sticky left-0 z-[1] h-10 border-t border-r border-border bg-background px-2.5 text-left font-bold whitespace-nowrap'>
+              // 복기에서 고른 달은 줄 바탕을 칠하고 이름 옆에 글로도 적는다(색만으로 말하지 않는다).
+              <tr key={row.month} aria-current={row.month === focusMonth ? 'true' : undefined} className={row.month === focusMonth ? 'bg-primary/10' : undefined}>
+                <th
+                  scope='row'
+                  className={`sticky left-0 z-[1] h-10 border-t border-r border-border px-2.5 text-left font-bold whitespace-nowrap ${row.month === focusMonth ? 'bg-primary/10' : 'bg-background'}`}
+                >
                   {row.label}
+                  {row.month === focusMonth ? <span className='ml-1.5 text-[12px] font-semibold text-primary'>복기에서 고른 달</span> : null}
                 </th>
                 {row.kind === 'thin' ? (
                   <td colSpan={4} className='border-t border-border px-3 text-left text-muted-foreground'>

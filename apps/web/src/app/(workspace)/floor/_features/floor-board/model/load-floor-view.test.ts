@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { Temporal } from '@eatbid/domain';
 
-import { linesResponse, myBidsResponse, regionsResponse } from '@/app/(workspace)/floor/__fixtures__/floor-lines';
+import { linesResponse, myBidsResponse, myRegionResponse, regionsResponse } from '@/app/(workspace)/floor/__fixtures__/floor-lines';
 import { loadFloorView, type FloorViewReaders } from './load-floor-view';
 
 const today = Temporal.PlainDate.from('2026-10-15');
@@ -18,15 +18,17 @@ function readers(overrides: Partial<FloorViewReaders> = {}) {
       calls.mine.push(input);
       return { kind: 'bids', response: myBidsResponse() };
     },
+    // 기본은 운영자가 아닌 사용자다. 내 업체 지역을 셀 수 없다.
+    myRegion: async () => ({ kind: 'forbidden' }),
     ...overrides
   };
   return { value, calls };
 }
 
-const search = (region: string | null, ranks = false) => ({ region, period: '1y' as const, ranks });
+const search = (region: string | null, ranks = false, month: string | null = null) => ({ region, period: '1y' as const, ranks, month });
 
 describe('하한선 자리 화면 상태', () => {
-  test('주소에도 쿠키에도 지역이 없으면 점을 부르지 않고 지역을 고르게 한다', async () => {
+  test('주소·쿠키에 지역이 없고 내 업체 지역도 셀 수 없으면 점을 부르지 않고 지역을 고르게 한다', async () => {
     const { value, calls } = readers();
     const view = await loadFloorView({ search: search(null), rememberedRegion: undefined, today }, value);
     expect(view.kind).toBe('pick');
@@ -86,5 +88,38 @@ describe('하한선 자리 화면 상태', () => {
     expect(empty.kind === 'pick' && [empty.reason, empty.regionId]).toEqual(['empty', '999']);
     expect(linesFailed.kind === 'lines-failed' && [linesFailed.regionId, linesFailed.sidoId]).toEqual(['459', '40']);
     expect(regionsFailed.kind).toBe('regions-failed');
+  });
+
+  test('주소·쿠키에 지역이 없으면 내 업체가 가장 많이 넣은 공고지역을 최근 1년 창으로 세어 연다', async () => {
+    const asked: unknown[] = [];
+    const { value, calls } = readers({
+      myRegion: async (input) => {
+        asked.push(input);
+        return { kind: 'region', response: myRegionResponse() };
+      }
+    });
+    const view = await loadFloorView({ search: search(null), rememberedRegion: undefined, today }, value);
+    expect(asked).toEqual([{ from: '2025-10-01', to: '2026-10-15', floorRate: '90.000' }]);
+    expect(view.kind === 'ready' && view.data.region.id).toBe('459');
+    expect(calls.lines).toHaveLength(1);
+  });
+
+  test('투찰이 없어 내 업체 지역이 없으면 지역을 지어내지 않고 고르게 한다', async () => {
+    const { value } = readers({ myRegion: async () => ({ kind: 'region', response: myRegionResponse(false) }) });
+    const view = await loadFloorView({ search: search(null), rememberedRegion: undefined, today }, value);
+    expect(view.kind === 'pick' && view.reason).toBe('none');
+  });
+
+  test('주소의 달은 창 안이고 지난 달일 때만 확대할 달이 된다', async () => {
+    const focus = async (month: string) => {
+      const view = await loadFloorView({ search: search('459', false, month), rememberedRegion: undefined, today }, readers().value);
+      return view.kind === 'ready' ? view.focusMonth : 'not-ready';
+    };
+    expect(await focus('2026-09')).toBe('2026-09');
+    expect(await focus('2026-10')).toBe('2026-10');
+    // 최근 1년 창 밖, 아직 안 온 달, 모양이 틀린 값은 확대하지 않는다.
+    expect(await focus('2024-03')).toBeNull();
+    expect(await focus('2026-11')).toBeNull();
+    expect(await focus('2026-9')).toBeNull();
   });
 });

@@ -7,7 +7,7 @@
 import type { CustomSeriesRenderItemAPI, CustomSeriesRenderItemReturn, EChartsCoreOption } from 'echarts';
 import { format, time } from 'echarts/core';
 
-import { assessmentRate, organizationLabel, per100MillionText, rateText } from '@/app/(workspace)/floor/_lib/floor-units';
+import { assessmentRate, organizationLabel, per100MillionText, rateText } from '@/entities/floor-line/floor-units';
 import type { FloorData } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 import { AXIS_HIGH, AXIS_LOW, type BandRect, type HistogramBin, type LayerDot, type MineDots } from '../model/points-layers';
 
@@ -106,9 +106,12 @@ export interface PointsOptionInput {
   readonly palette: PointsPalette;
   /** 그림 칸 폭이 640px 아래다. 오른쪽 막대 몫을 늘리고 마우스 올림 글을 끈다(손가락은 눌러서 카드를 연다). */
   readonly narrow: boolean;
+  /** 처음 그릴 때만 넣는 가로 확대 범위다. 다시 넣을 때 빼야 사용자가 확대해 둔 기간이 풀리지 않는다. */
+  readonly zoom?: readonly [number, number] | null;
 }
 
-export function floorPointsOption({ data, layers, histogram, range, palette, narrow }: PointsOptionInput): EChartsCoreOption {
+export function floorPointsOption({ data, layers, histogram, range, palette, narrow, zoom = null }: PointsOptionInput): EChartsCoreOption {
+  const xZoom = zoom === null ? {} : { startValue: zoom[0], endValue: zoom[1] };
   const axisText = { color: palette.text, fontSize: 11 };
   const zoomFill = 'rgba(120,140,170,0.18)';
   return {
@@ -153,12 +156,13 @@ export function floorPointsOption({ data, layers, histogram, range, palette, nar
       { type: 'value', gridIndex: 1, min: AXIS_LOW, max: AXIS_HIGH, show: false }
     ],
     dataZoom: [
-      { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
+      { type: 'inside', xAxisIndex: 0, filterMode: 'none', ...xZoom },
       { type: 'inside', yAxisIndex: [0, 1], filterMode: 'none', zoomOnMouseWheel: 'shift', moveOnMouseWheel: false },
       {
         type: 'slider',
         xAxisIndex: 0,
         filterMode: 'none',
+        ...xZoom,
         bottom: 12,
         height: 30,
         // 막대 안 미리보기 선은 첫 계열(달 띠·1~10등)을 그려 하한선과 다른 모양을 보인다. 끈다.

@@ -1,4 +1,4 @@
-import type { FloorLineRegionsV1Response, FloorLinesV1Response, MyFloorBidsV1Response } from '@/api/floor-lines';
+import type { FloorLineRegionsV1Response, FloorLinesV1Response, MyFloorBidsV1Response, MyFloorRegionV1Response } from '@/api/floor-lines';
 
 // 합성 표본이다. 기관·업체 이름과 하한선 값은 지어낸 것이고 실제 공고가 아니다. 지역 이름은 공개된 행정구역이다.
 
@@ -116,6 +116,19 @@ export function myBidsResponse(): MyFloorBidsV1Response {
       period: { from: '2025-10-01', to: '2026-10-15' },
       floorRate: { value: '90.000', unit: 'percentage-points' },
       linkedBusinessCount: 2,
+      unlinkedBusinessCount: 0
+    }
+  };
+}
+
+/** 내 업체가 가장 많이 넣은 공고지역 응답이다. null이면 투찰이 없는 워크스페이스다. */
+export function myRegionResponse(found: boolean = true): MyFloorRegionV1Response {
+  return {
+    region: found ? { sido: { codeValueId: '40', label: '경남' }, sigungu: { codeValueId: '459', label: '김해시' }, roundCount: 637 } : null,
+    meta: {
+      period: { from: '2025-10-01', to: '2026-10-15' },
+      floorRate: { value: '90.000', unit: 'percentage-points' },
+      linkedBusinessCount: found ? 2 : 0,
       unlinkedBusinessCount: 0
     }
   };

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { Temporal } from '@eatbid/domain';
 
 import { linesResponse, myBidsResponse, regionsResponse } from '@/app/(workspace)/floor/__fixtures__/floor-lines';
-import { floorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
+import { floorPeriod } from '@/entities/floor-line/floor-period';
 import { findRegion, presentFloorData, presentRegionGroups } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 import { bandRects, ladderDots, mineDots, windowSummary } from './points-layers';
 

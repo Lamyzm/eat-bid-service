@@ -46,7 +46,7 @@ export function FloorScreen({ view }: { readonly view: FloorScreenView }) {
   return (
     <FloorFrame bar={bar}>
       <FloorSummary view={presentSummary(view.data, view.period)} />
-      <FloorBoard data={view.data} period={view.period} />
+      <FloorBoard data={view.data} period={view.period} focusMonth={view.focusMonth} />
       <FloorEvidence data={view.data} periodLabel={view.period.label} />
     </FloorFrame>
   );

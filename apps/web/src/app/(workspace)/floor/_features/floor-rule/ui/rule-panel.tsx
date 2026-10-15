@@ -2,8 +2,8 @@
 'use client';
 import { useId, useState } from 'react';
 
-import type { FloorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
-import { assessmentRate, countText } from '@/app/(workspace)/floor/_lib/floor-units';
+import type { FloorPeriod } from '@/entities/floor-line/floor-period';
+import { assessmentRate, countText } from '@/entities/floor-line/floor-units';
 import type { FloorData } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 import { presentTry, tryValueBasePercent, type TryUnit } from '../model/present-try';
 import { RuleDots } from './rule-dots';

@@ -1,5 +1,5 @@
 /** @module 책임: 화면 숫자의 출처(추첨 규칙, 분포 판과 근거 공고 수, 자료 판, 전국 검정, 그리는 방식의 근거)를 접힌 칸에 적는다. */
-import { countText } from '../_lib/floor-units';
+import { countText } from '@/entities/floor-line/floor-units';
 import type { FloorData } from '../_features/floor-board/model/present-floor';
 
 export function FloorEvidence({ data, periodLabel }: { readonly data: FloorData; readonly periodLabel: string }) {

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 
 import { drawFloors, seededRandom } from '@/app/(workspace)/floor/_lib/floor-rule';
 import { hottestBand } from '@/app/(workspace)/floor/_lib/floor-stats';
-import { basePercentOf, rateText } from '@/app/(workspace)/floor/_lib/floor-units';
+import { basePercentOf, rateText } from '@/entities/floor-line/floor-units';
 import { useFigureWidth } from '@/app/(workspace)/floor/_features/floor-board/model/use-figure-width';
 import type { ChanceView } from '../model/present-chance';
 

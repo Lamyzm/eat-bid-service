@@ -7,7 +7,7 @@ import { controlPillClass, controlPillIconClass } from '@/shared/ui/control-pill
 import { Icons } from '@/shared/ui/icons';
 import { cn } from '@/shared/lib/cn';
 import { floorSearchParsers, type FloorPeriodKey } from '@/app/(workspace)/floor/_lib/floor-search';
-import { countText } from '@/app/(workspace)/floor/_lib/floor-units';
+import { countText } from '@/entities/floor-line/floor-units';
 import type { FloorRegionGroup } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 import { rememberRegion } from '../model/remember-region';
 

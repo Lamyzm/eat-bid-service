@@ -3,9 +3,10 @@
  *
  * 층은 모두 점 목록의 번호로 공고를 가리킨다. 그림에서 어느 점을 눌러도 같은 공고 카드가 열려야 해서다.
  */
-import type { FloorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
-import { MIN_MONTH_COUNT, monthBands, quantileOf } from '@/app/(workspace)/floor/_lib/floor-stats';
-import { countText, rateText } from '@/app/(workspace)/floor/_lib/floor-units';
+import type { FloorPeriod } from '@/entities/floor-line/floor-period';
+import { MIN_MONTH_COUNT, monthBands } from '@/app/(workspace)/floor/_lib/floor-stats';
+import { quantileOf } from '@/entities/floor-line/floor-range';
+import { countText, rateText } from '@/entities/floor-line/floor-units';
 import type { FloorData, FloorPoint } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 
 /** 그림 세로축의 양 끝(기초금액 대비 %)이다. 하한선은 기초금액 ±3.1% × 0.9 안에 든다. */

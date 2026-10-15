@@ -1,7 +1,7 @@
 /** @module 책임: 달마다 하한선이 떨어진 산 모양을 쌓아 그리고, 같은 자리에 추첨 분포 모양을 점선으로 겹친다. */
 'use client';
 import type { MonthBand } from '@/app/(workspace)/floor/_lib/floor-stats';
-import { basePercentOf, monthLabel } from '@/app/(workspace)/floor/_lib/floor-units';
+import { basePercentOf, monthLabel } from '@/entities/floor-line/floor-units';
 import type { FloorPoint } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 import { useFigureWidth } from '@/app/(workspace)/floor/_features/floor-board/model/use-figure-width';
 

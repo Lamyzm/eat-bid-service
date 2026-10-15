@@ -5,7 +5,7 @@
  * 늘 함께 둔다.
  */
 import { belowFloorProbability } from '@/app/(workspace)/floor/_lib/floor-rule';
-import { basePercentOf, countText, per100MillionText, rateText } from '@/app/(workspace)/floor/_lib/floor-units';
+import { basePercentOf, countText, per100MillionText, rateText } from '@/entities/floor-line/floor-units';
 import type { FloorPoint } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 
 export type TryUnit = 'rate' | 'base';

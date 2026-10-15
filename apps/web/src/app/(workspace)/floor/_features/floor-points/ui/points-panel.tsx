@@ -3,10 +3,10 @@
 import { useQueryStates } from 'nuqs';
 import { useMemo, useState, useTransition, type CSSProperties } from 'react';
 
-import type { FloorPeriod } from '@/app/(workspace)/floor/_lib/floor-period';
+import type { FloorPeriod } from '@/entities/floor-line/floor-period';
 import { floorSearchParsers } from '@/app/(workspace)/floor/_lib/floor-search';
 import type { BandWidth } from '@/app/(workspace)/floor/_lib/floor-stats';
-import { countText } from '@/app/(workspace)/floor/_lib/floor-units';
+import { countText } from '@/entities/floor-line/floor-units';
 import type { FloorData } from '@/app/(workspace)/floor/_features/floor-board/model/present-floor';
 import { bandRects, ladderDots, mineDots, windowSummary } from '../model/points-layers';
 import { usePointsPalette } from '../model/use-points-palette';
@@ -28,16 +28,27 @@ function Swatch({ style, className }: { readonly style?: CSSProperties; readonly
   return <i aria-hidden className={`inline-block shrink-0 ${className}`} style={style} />;
 }
 
+/** 고른 달의 첫날 0시부터 다음 달 첫날 직전까지다. 창 밖이면 확대하지 않는다. */
+function focusZoom(period: FloorPeriod, month: string | null): readonly [number, number] | null {
+  if (month === null) return null;
+  const start = period.monthStarts[month];
+  const next = Object.entries(period.monthStarts).find(([key]) => key > month)?.[1];
+  return start === undefined || next === undefined ? null : [start, Math.min(next, period.end) - 1];
+}
+
 export function PointsPanel({
   data,
   period,
   width,
-  onWidth
+  onWidth,
+  focusMonth
 }: {
   readonly data: FloorData;
   readonly period: FloorPeriod;
   readonly width: BandWidth;
   readonly onWidth: (width: BandWidth) => void;
+  /** 이 달로 확대해 연다. 복기 입구 줄과 그림 아래 "보이는 기간" 문장이 같은 숫자를 말하게 한다. */
+  readonly focusMonth: string | null;
 }) {
   const palette = usePointsPalette();
   const [pending, startTransition] = useTransition();
@@ -45,7 +56,8 @@ export function PointsPanel({
   const [band, setBand] = useState(true);
   const [mine, setMine] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
-  const [range, setRange] = useState<readonly [number, number]>([period.start, period.end]);
+  const initialZoom = useMemo(() => focusZoom(period, focusMonth), [period, focusMonth]);
+  const [range, setRange] = useState<readonly [number, number]>(initialZoom ?? [period.start, period.end]);
   const extent = useMemo(() => ({ start: period.start, end: period.end }), [period.start, period.end]);
   const layers = useMemo(
     () => ({
@@ -150,6 +162,7 @@ export function PointsPanel({
           layers={layers}
           histogram={summary.histogram}
           range={extent}
+          initialZoom={initialZoom}
           palette={palette}
           label={label}
           onRange={setRange}

@@ -2,6 +2,7 @@
  * @module 책임: 오늘 투찰의 화면 상태(목록·관심 지역 미확인·권한 없음·조회 실패)를 하나씩 그린다. 상태마다 사용자가 할 일이 다르므로
  * 같은 빈 화면으로 합치지 않는다.
  */
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 
 import { BidBoardList } from '../_features/bid-board/ui/bid-board-list';
@@ -30,7 +31,7 @@ function Notice({ title, body, action }: { readonly title: string; readonly body
   );
 }
 
-export function WorkScreen({ view }: { readonly view: WorkView }) {
+export function WorkScreen({ view, floorEntry = null }: { readonly view: WorkView; readonly floorEntry?: ReactNode }) {
   if (view.kind === 'forbidden') {
     return (
       <WorkFrame lede={null} stamp={null} filters={null}>
@@ -72,7 +73,7 @@ export function WorkScreen({ view }: { readonly view: WorkView }) {
   );
   return (
     <SchoolFilterProvider targets={targets}>
-      <WorkFrame lede={view.lede} stamp={view.stamp} filters={filters}>
+      <WorkFrame lede={view.lede} stamp={view.stamp} filters={filters} entry={floorEntry}>
         {view.truncatedNote === null ? null : (
           <p role='status' className='mt-4 rounded-lg border border-dashed border-border px-3 py-2 text-[13px] font-semibold'>
             {view.truncatedNote}
