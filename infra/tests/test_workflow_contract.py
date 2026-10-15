@@ -175,7 +175,8 @@ def test_product와_base_render가_kind_구성을_유지한다(
     # 과거 기록 mart 예약은 2026-09-29에 더했다 — 발행마다 만들던 mart가 정시 수집 한 회차를 36~46분으로 늘려
     # 사이 회차가 건너뛰어졌다(EAT-300, ADR 0060).
     # 개찰 결과 줄은 2026-10-11에 더했다 — 명단이 정시 수집 회차 크기에 묶여 성수기에 1~3시간 늦었다(EAT-335, ADR 0064).
-    assert manifests.kinds.count("CronWorkflow") == 10
+    # 자물쇠 풀기는 2026-10-16에 더했다 — 재시작이 죽인 단계가 mutex를 놓지 않아 수집이 35시간 멈췄다(EAT-361, ADR 0069).
+    assert manifests.kinds.count("CronWorkflow") == 11
     # migration(schema)과 db-provisioning(권한) 둘뿐이다. 여기를 늘리기 전에 새 Job이 왜 hook이어야
     # 하는지 먼저 답해야 한다.
     assert manifests.kinds.count("Job") == 2
@@ -419,6 +420,7 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
             "eatbid-mart-reap",
             "eatbid-history-marts",
             "eatbid-replay-advance",
+            "eatbid-lock-release",
         }
     ]
     assert {_metadata(cron)["name"] for cron in cron_workflows} == {

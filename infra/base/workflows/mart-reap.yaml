@@ -21,6 +21,8 @@ spec:
   workflowSpec:
     workflowTemplateRef:
       name: eatbid-dataplane
+    # 실행 시간 상한이다(ADR 0069). 보통 수십 초다. 대량 회수가 길어져도 두 회차 안에 놓는다.
+    activeDeadlineSeconds: 7200
     entrypoint: reap-marts
     # 수집·감시보다 낮다. 회수는 하루 늦어도 되는 일이다.
     priority: 10

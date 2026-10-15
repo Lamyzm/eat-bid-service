@@ -16,6 +16,8 @@ spec:
   workflowSpec:
     serviceAccountName: eatbid-dataplane
     entrypoint: check
+    # 실행 시간 상한이다(ADR 0069). 보통 2분 안에 끝난다. 걸리면 다음 15분 회차가 이어받는다.
+    activeDeadlineSeconds: 900
     podGC:
       strategy: OnPodSuccess
     ttlStrategy:

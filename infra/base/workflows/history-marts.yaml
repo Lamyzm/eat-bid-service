@@ -23,6 +23,8 @@ spec:
   workflowSpec:
     workflowTemplateRef:
       name: eatbid-dataplane
+    # 실행 시간 상한이다(ADR 0069). 자물쇠 대기도 이 시간에 든다. 하루 네 번 사이가 4시간 이상이라 다음 회차 전에 끝낸다.
+    activeDeadlineSeconds: 10800
     entrypoint: history-marts
     # 수집(100)보다 낮다. 같은 mart mutex를 기다릴 때 사용자가 보는 열린 공고 스냅샷이 먼저다.
     priority: 40

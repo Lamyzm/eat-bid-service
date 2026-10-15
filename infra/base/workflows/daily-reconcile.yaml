@@ -14,6 +14,9 @@ spec:
   workflowSpec:
     workflowTemplateRef:
       name: eatbid-dataplane
+    # 실행 시간 상한이다(ADR 0069). 자물쇠 대기도 이 시간에 든다. 2026-09 성수기 정상 회차가 최대 406분, 경합한 날 670분 걸렸다. 다음 날 07시 회차를 막지
+    # 않는 선이다.
+    activeDeadlineSeconds: 43200
     # 재대조 전용 진입점이다(2026-09-18, EAT-275). 비우면 WorkflowTemplate 기본값인 scheduled-pipeline이
     # 불려 poll-open과 같은 source semaphore key를 잡고, 재대조가 도는 몇 시간 동안 정시 수집이 자리를
     # 못 잡는다. reconcile-pipeline은 단계가 같고 discover·capture만 eatbid-source-reconcile을 쓴다.

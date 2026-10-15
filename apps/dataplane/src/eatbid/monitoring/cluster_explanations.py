@@ -25,6 +25,7 @@ CRON_IMPACTS: Mapping[str, str] = {
     "eatbid-history-marts": "분석·기관 이력 화면이 새 개찰 결과를 반영하지 못하고 앞 회차 기준에 머뭅니다",
     "eatbid-expectation-check": "이 감시 회차가 끝나지 못했습니다. 그 사이 문제는 알림이 늦게 옵니다",
     "eatbid-reference-refresh": "지역·기관 기준정보가 갱신되지 않았습니다",
+    "eatbid-lock-release": "끝난 단계가 쥔 자물쇠를 이번에 풀지 못했습니다. 그 자물쇠를 기다리는 수집이 계속 멈춰 있을 수 있습니다",
 }
 
 
@@ -35,6 +36,20 @@ def cron_explanation(cron: str, severity: str) -> Explanation:
             cron, "확인 못 함 — 이 예약 작업의 영향은 아직 적어 두지 않았습니다"
         ),
         severity=severity,
+    )
+
+
+def stuck_lock_explanation(owner: str, lock: str, *, releasable: bool) -> Explanation:
+    """죽은 보유 설명이다. 풀 수 있는 꼴은 자물쇠 풀기 예약이 곧 푼다고, 아니면 사람이 풀어야 한다고 말한다."""
+    return explain(
+        f"예약 작업 {owner}이(가) 이미 끝난 단계로 자물쇠 {lock}을(를) 쥐고 있습니다",
+        "같은 자물쇠를 기다리는 공고 수집·개찰 결과·아침 정리·백필이 멈춰 있을 수 있습니다. "
+        + (
+            "자물쇠 풀기 예약이 10분 안에 이 회차를 끝냅니다"
+            if releasable
+            else "이미 끝난 회차라 기계가 풀 수 없습니다. 사람이 회차를 지우고 컨트롤러를 다시 띄워야 합니다"
+        ),
+        severity="critical",
     )
 
 

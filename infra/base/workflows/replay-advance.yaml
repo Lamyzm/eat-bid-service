@@ -19,6 +19,8 @@ spec:
   workflowSpec:
     workflowTemplateRef:
       name: eatbid-dataplane
+    # 실행 시간 상한이다(ADR 0069). 자물쇠 대기도 이 시간에 든다. 다음 예약(4시간 뒤)을 한 번 거르더라도 한 release 전체 재처리가 끝날 시간을 준다.
+    activeDeadlineSeconds: 28800
     entrypoint: advancing-replay-pipeline
     # 전진(50)보다 낮다. 새 창을 채우는 것이 옛 창을 고치는 것보다 먼저다.
     priority: 20

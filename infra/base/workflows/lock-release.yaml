@@ -1,0 +1,96 @@
+# 끝난 단계가 쥔 Argo 자물쇠를 푸는 예약이다(EAT-361, ADR 0069).
+#
+# 2026-10-14 17:29 재시작이 replay 단계 파드를 죽였는데 Argo(v4.0.8)는 그 단계의 결과 보고를 미완료로 남겨
+# 회차를 Running인 채 `eatbid-core-publication` mutex를 놓지 않았다. 공고 수집·개찰 결과·아침 정리·백필이
+# 그 뒤에 줄을 섰고 cron이 모두 Forbid라 35시간 새 회차가 없었다. 실행 시간 상한은 이 꼴을 끊지 못한다 —
+# 단계는 이미 실패해 있어서 상한이 끊을 살아 있는 파드가 없다. 그래서 따로 푼다.
+#
+# 감시(expectation-check)와 나눈 이유: 감시 ServiceAccount는 쓰기 동사가 없다(monitoring-rbac.yaml). 고치는
+# 일은 회차 patch만 받는 이 ServiceAccount가 하고, 감시는 그래도 남은 죽은 보유를 critical로 알린다.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eatbid-lock-release
+  namespace: eatbid
+imagePullSecrets:
+  - name: ghcr-pull
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: eatbid-lock-release
+  namespace: eatbid
+rules:
+  # 회차 목록을 읽고, 보유 단계가 끝난 회차에 `spec.shutdown: Terminate`만 건다. delete는 주지 않는다 — 이미
+  # 끝난 회차가 자물쇠를 남긴 꼴은 사람이 보고 지운다(collection-runbook §4.4).
+  - apiGroups: [argoproj.io]
+    resources: [workflows]
+    verbs: [get, list, patch]
+  # 보유 단계의 결과 보고를 완료로 표시한다. create·patch는 이 파드의 wait 컨테이너가 자기 결과를 적을 때도
+  # 쓴다(Argo executor 권한과 같다).
+  - apiGroups: [argoproj.io]
+    resources: [workflowtaskresults]
+    verbs: [get, create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: eatbid-lock-release
+  namespace: eatbid
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: eatbid-lock-release
+subjects:
+  - kind: ServiceAccount
+    name: eatbid-lock-release
+    namespace: eatbid
+---
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: eatbid-lock-release
+  namespace: eatbid
+spec:
+  schedules:
+    # 10분마다. 죽은 보유 판정의 유예가 10분이라(stuck_locks.STUCK_GRACE) 생긴 지 20분 안에 풀린다. 정시 수집
+    # 한두 회차를 잃는 대신 35시간을 잃지 않는다. 과거 기록 mart(:40)와 같은 분을 비켜 1분 단위에 둔다.
+    - "1,11,21,31,41,51 * * * *"
+  timezone: Asia/Seoul
+  suspend: false
+  # 풀기 회차 자체가 걸리면 Forbid는 풀기를 멈춘다. Replace는 다음 회차가 앞 회차를 끊고 들어온다 — 회복 도구가
+  # 회복 대상과 같은 꼴로 멈추면 안 된다. 겹쳐 돌아도 같은 patch를 두 번 걸 뿐이다.
+  concurrencyPolicy: Replace
+  startingDeadlineSeconds: 300
+  workflowSpec:
+    serviceAccountName: eatbid-lock-release
+    entrypoint: release
+    # API 몇 번이면 끝난다. 이보다 오래 걸리면 API가 막힌 것이고, 다음 회차가 다시 한다.
+    activeDeadlineSeconds: 300
+    podGC:
+      strategy: OnPodSuccess
+    ttlStrategy:
+      secondsAfterSuccess: 3600
+      secondsAfterFailure: 86400
+    templates:
+      # 수집 WorkflowTemplate을 참조하지 않고 자물쇠도 잡지 않는다. 푸는 쪽이 같은 자물쇠를 기다리면 풀 수 없다.
+      # DB·R2 비밀도 받지 않는다 — Kubernetes API만 쓰고, DB가 막혀 있을 때도 돌아야 한다.
+      - name: release
+        # 성공한 파드는 OnPodSuccess로 곧바로 지워진다. 무엇을 끊고 깨웠는지는 이 출력값으로 회차(성공 1시간, 실패
+        # 24시간 보존)에 남는다. 오래 남는 기록은 감시의 stuck-lock 위반 열림·해소다.
+        outputs:
+          parameters:
+            - name: report
+              valueFrom:
+                path: /tmp/eatbid/release.json
+                default: "{}"
+        container:
+          image: eatbid-dataplane
+          imagePullPolicy: IfNotPresent
+          command: [python, -m, eatbid.recovery]
+          args: [--result-file, /tmp/eatbid/release.json]
+          resources:
+            requests:
+              memory: 64Mi
+            limits:
+              memory: 256Mi

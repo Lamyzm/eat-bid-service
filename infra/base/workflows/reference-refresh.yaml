@@ -18,6 +18,8 @@ spec:
   workflowSpec:
     workflowTemplateRef:
       name: eatbid-dataplane
+    # 실행 시간 상한이다(ADR 0069). 자물쇠 대기도 이 시간에 든다. 월 1회다. 수집 DAG와 같은 크기의 상한이다.
+    activeDeadlineSeconds: 10800
     entrypoint: reference-pipeline
     arguments:
       parameters:
