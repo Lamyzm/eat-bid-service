@@ -15,6 +15,7 @@ import { analysisConditionOptionsResponse } from './analysis-condition-options-f
 import { analysisDistributionResponse } from './analysis-distribution-fixture';
 import { analysisTimeSeriesResponse } from './analysis-time-series-fixture';
 import { auctionRosterResponse } from './auction-roster-fixture';
+import { floorLinesResponse } from './floor-lines-fixture';
 import { myBusinessesResponse } from './my-businesses-fixture';
 import { myBidReviewResponse } from './my-bid-review-fixture';
 import { openAuctionsResponse } from './open-auctions-fixture';
@@ -282,6 +283,10 @@ Bun.serve({
     // 복기 화면은 한 달 대조를 한 번 읽는다.
     const review = myBidReviewResponse(request);
     if (review) return review;
+
+    // 하한선 자리는 지역 목록·공고별 하한선·내 사업자 투찰 셋을 함께 읽는다.
+    const floorLines = floorLinesResponse(request);
+    if (floorLines) return floorLines;
 
     // 목록 경로는 `:auctionId` 경로보다 앞에서 본다. 경로가 다르므로 순서는 읽기 편의일 뿐이다.
     const openAuctions = openAuctionsResponse(request);

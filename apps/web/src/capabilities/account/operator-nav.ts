@@ -14,7 +14,9 @@ export function operatorNavGroup(read: CurrentSessionRead): NavGroup | null {
     label: '내 투찰',
     items: [
       { title: '오늘 투찰', url: '/work', icon: 'post', isActive: false, items: [] },
-      { title: '복기', url: '/review', icon: 'trendingUp', isActive: false, items: [] }
+      { title: '복기', url: '/review', icon: 'trendingUp', isActive: false, items: [] },
+      // 하한선 자리는 모든 로그인 사용자에게 열린 시장 화면이지만, 메뉴는 모두에게 여는 시점(EAT-331)까지 운영자에게만 둔다(PDR-0009).
+      { title: '하한선 자리', url: '/floor', icon: 'dashboard', isActive: false, items: [] }
     ]
   };
 }
