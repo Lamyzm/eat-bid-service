@@ -56,6 +56,10 @@ PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
 # `FOR KEY SHARE`를 건다. `FOR UPDATE`는 그것과 충돌해 뮤텍스 밖에서 도는 mart 빌드와 교착했다
 # (2026-09-19~28에 7번, daily-reconcile 발행 둘이 통째로 버려짐, EAT-286). 투영은 잠근 행을 지우거나
 # 키를 바꾸지 않으므로 `FOR NO KEY UPDATE`로 잃는 보호가 없다. 규칙은 `test_row_lock_mode.py`가 지킨다.
+#
+# 발행끼리 함께 쓰는 공유 행(코드값·기관·업체·업체 계정·공고)은 그보다 약한 `FOR KEY SHARE`다(ADR 0070). 발행은
+# 2026-10-16부터 mutex 없이 동시에 돌고, `FOR NO KEY UPDATE`끼리는 서로 막아 2만 건짜리 재처리 거래가 같은 학교·업체를
+# 쓰는 정시 수집을 한 시간 붙잡는다. `FOR NO KEY UPDATE`는 이 거래가 고치는 자기 발행·실행 상태 행에만 남는다.
 PROJECTION_DEADLOCK_ATTEMPTS = 3
 
 

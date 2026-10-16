@@ -84,6 +84,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0067](0067-morning-habit-pick-computed-on-request.md) | Accepted | 아침 갱신은 요청 때 그때까지 보인 사실로 서버가 계산하고 저장하지 않는다 — 단골은 고정 목록 대신 직전 180일 시장 공고의 30% 이상에 나온 업체로 정하며, 분석 엔진과 1,204건 같은 답을 내도록 fixture로 묶는다(서버 규칙 성적 +6.59) |
 | [0068](0068-bid-display-ledger.md) | Accepted | 서버가 화면에 내보낸 방법별 추천 금액(화면 숫자 그대로)을 `app.bid_display_record`에 남긴다 — 같은 값이면 한 줄, 쓰기 실패는 응답을 막지 않고 경고만 남기며, 장부 이전의 과거 달은 다시 계산한 값임을 밝혀 보인다 |
 | [0069](0069-collection-self-heals-stuck-locks.md) | Accepted | 모든 수집 예약에 실행 시간 상한을 두고, 재시작으로 죽은 단계가 쥔 Argo 자물쇠는 전용 계정의 10분 예약이 Terminate와 결과 보고 표시로 푼다 — 이미 끝난 회차가 남긴 자물쇠는 사람에게 남기고, 감시와 풀기는 같은 판정 함수를 쓴다 |
+| [0070](0070-concurrent-projection-with-reference-locks.md) | Accepted | 공고 투영과 재처리는 발행 mutex 없이 동시에 돈다 — 발행은 여전히 한 거래로 통째로 반영하고, 함께 쓰는 공유 행(코드값·기관·업체·공고)은 서로 막지 않는 참조 잠금으로만 잠그며, 새 행 경합은 on conflict와 기관 코드 advisory 잠금으로 푼다. 기준정보 투영만 자기들끼리 mutex로 줄을 선다 |
 
 ## 새 ADR 형식
 

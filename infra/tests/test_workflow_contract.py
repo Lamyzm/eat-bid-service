@@ -334,9 +334,10 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
             mapping.pop("synchronization", None)
         assert live_template == variant_template, (live_name, variant_name)
 
-    project_sync = _mapping(templates["project"]["synchronization"])
-    project_mutexes = [_mapping(item) for item in _sequence(project_sync["mutexes"])]
-    assert project_mutexes == [{"name": "eatbid-core-publication"}]
+    # 공고 투영과 재처리는 발행 mutex를 잡지 않는다(2026-10-16, EAT-366, ADR 0070). core 공유 행은 참조 잠금이라
+    # 발행끼리 막지 않는다. 다시 걸면 재처리 한 회차가 아침 개찰 결과 반영을 한 시간 막는다.
+    for name in ("project", "replay"):
+        assert "synchronization" not in templates[name], name
 
     # mart 빌드가 core 발행과 같은 mutex를 쓰면 다음 수집의 발행이 빌드를 기다려 소스 관측이 늦어진다.
     marts_sync = _mapping(templates["marts"]["synchronization"])
