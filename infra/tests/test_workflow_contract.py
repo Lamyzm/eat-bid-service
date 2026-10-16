@@ -443,9 +443,9 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
         "eatbid-reference-refresh": ["0 5 1 * *"],
         # 창 하나가 실측 15분이라 시간당 한 번이면 넉넉하다. Forbid가 겹침을 막으므로 도는 중의
         # 회차는 아무것도 하지 않는다(EAT-209). 평일 08~11시 정각은 개찰 결과가 들어오는 시간이라
-        # poll-open에 소스를 비켜 준다(runtime §2.6, EAT-329). 평일 05~19시는 발행 mutex를 공고 수집에 비켜 준다
-        # (EAT-362). 주말은 poll-open이 없어 매시다.
-        "eatbid-backfill-advance": ["0 0-4,20-23 * * 1-5", "0 * * * 0,6"],
+        # poll-open에 소스를 비켜 준다(runtime §2.6, EAT-329). 주말은 poll-open이 없어 매시다. 발행 mutex가 없어져
+        # (ADR 0070) 그 밖의 낮 시간은 비울 이유가 없다.
+        "eatbid-backfill-advance": ["0 0-7,12-23 * * 1-5", "0 * * * 0,6"],
     }
     expected_modes = {
         "eatbid-poll-open": "poll-open",
