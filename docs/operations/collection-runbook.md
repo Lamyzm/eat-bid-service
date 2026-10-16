@@ -71,7 +71,7 @@ PowerShell이면 `ConvertTo-Json -Compress`). **크기 상한은 파라미터 �
 그보다 훨씬 뒤에 있어 실제로는 닿지 않는다.
 한 release가 그보다 크면 관측 id 구간을 나눠 replay Workflow 여러 개로 내되(각 구간에 새 publication-id),
 각 replay는 자기 run·publication을 따로 갖고 같은 canonical revision을 재사용하므로 발행 사실은 중복되지
-않는다(ADR 0015). `eatbid-core-publication` mutex가 replay 단계를 직렬화하므로 동시에 내도 된다.
+않는다(ADR 0015). replay 단계는 2026-10-16부터 발행 mutex 없이 동시에 돌고 공유 행은 참조 잠금이라 동시에 내도 된다(ADR 0070).
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -110,7 +110,7 @@ kubectl get workflow -n eatbid --sort-by=.metadata.creationTimestamp
 
 `replay-pipeline` DAG는 `replay`에서 끝난다. 다시 앉힌 core는 다음 `history-marts` 예약(§4.11)이 과거 기록 mart에
 반영한다. 바로 반영해야 하면 §4.11의 손으로 부르는 방법을 쓴다(2026-09-29, ADR 0060).
-`replay` pod는 `eatbid-core-publication` mutex를 잡고, 관측을 하나씩 R2에서 읽어 순차로 재정규화한다.
+`replay` pod는 관측을 하나씩 R2에서 읽어 순차로 재정규화한다. 발행 mutex는 잡지 않아 정시 수집을 막지 않는다(ADR 0070).
 정규화 결과는 결정적이라 기존 `normalized_record`를 재사용하고, `project`는 batch 스트리밍이라 상주
 메모리는 구성원 수에 비례하지 않는다.
 
@@ -134,8 +134,8 @@ where p.publication_id = :'publication_id'::uuid;
 
 일시 장애(DB 연결 등)로 죽었고 이미지가 그대로일 때만 쓴다. WorkflowTemplate의 `project` template을
 entrypoint로 직접 부른다. template의 `inputs.parameters`는 Workflow `spec.arguments.parameters`에서 같은
-이름으로 채워지고, `mode`·`parser-version`·`calc-version`은 template 기본값을 받는다. mutex
-`eatbid-core-publication`은 그대로 적용된다.
+이름으로 채워지고, `mode`·`parser-version`·`calc-version`은 template 기본값을 받는다. 발행 mutex는
+없다(ADR 0070) — 정시 수집과 함께 돌아도 된다.
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1

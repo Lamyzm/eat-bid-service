@@ -163,28 +163,47 @@ class CanonicalProjectionWriter:
         return counts
 
     @staticmethod
-    def _resolve_organization(
-        cursor: psycopg.Cursor[Any],
-        *,
-        code_value_id: int,
-        observation_id: int,
-        allow_insert: bool,
-    ) -> tuple[int, int]:
+    def _find_organization(cursor: psycopg.Cursor[Any], code_value_id: int) -> int | None:
+        # 참조 잠금이다. 투영은 기관 행을 고치지 않으므로 지우기·키 바꾸기만 막으면 되고, 같은 잠금끼리
+        # 막지 않아 긴 재처리가 쥔 학교를 정시 수집이 기다리지 않는다(ADR 0070).
         cursor.execute(
             """
             select oi.organization_id
             from core.organization_identifier oi
             join core.organization o using (organization_id)
             where oi.code_value_id = %s
-            for no key update of oi, o
+            for key share of oi, o
             """,
             (code_value_id,),
         )
         existing = cursor.fetchone()
+        return None if existing is None else int(existing[0])
+
+    @classmethod
+    def _resolve_organization(
+        cls,
+        cursor: psycopg.Cursor[Any],
+        *,
+        code_value_id: int,
+        observation_id: int,
+        allow_insert: bool,
+    ) -> tuple[int, int]:
+        existing = cls._find_organization(cursor, code_value_id)
         if existing is not None:
-            return int(existing[0]), 0
+            return existing, 0
         if not allow_insert:
             raise ProjectionContractError("published organization identity is missing")
+        # 기관 행에는 자연 키가 없어 `on conflict`로 경합을 풀 수 없다. 발행이 동시에 돌면 두 투영이 같은 새
+        # 기관을 함께 만들어 한쪽이 식별자 unique에 부딪히거나 주인 없는 기관 행을 남긴다. 그래서 새 기관을
+        # 만들 때만 그 기관 코드 하나로 줄을 세우고, 앞 투영이 끝난 뒤 다시 찾는다(ADR 0070). 잠금은 거래가
+        # 끝나면 풀린다.
+        cursor.execute(
+            "select pg_advisory_xact_lock(hashtextextended('core.organization_identifier:' || %s::text, 0))",
+            (code_value_id,),
+        )
+        existing = cls._find_organization(cursor, code_value_id)
+        if existing is not None:
+            return existing, 0
         cursor.execute(
             """
             insert into core.organization (type, canonical_name)
@@ -228,7 +247,7 @@ class CanonicalProjectionWriter:
         cursor.execute(
             """
             select auction_attempt_id from core.auction_attempt
-            where source_system = %s and external_bid_id = %s for no key update
+            where source_system = %s and external_bid_id = %s for key share
             """,
             (projection.source_system, projection.external_bid_id),
         )

@@ -882,9 +882,9 @@ spec:
           - name: source-release-id
           - name: detail-run-id
           - name: publication-id
-      synchronization:
-        mutexes:
-          - name: eatbid-core-publication
+      # 발행 mutex를 잡지 않는다(2026-10-16, EAT-366, ADR 0070). 발행은 여전히 한 거래로 통째로 반영되고, 서로 다른
+      # 발행이 함께 쓰는 core 공유 행(코드값·기관·업체·공고)은 참조 잠금(`FOR KEY SHARE`)이라 서로 막지 않는다. 이
+      # mutex가 있던 동안 재처리 한 회차가 58분 동안 아침 개찰 결과 반영을 막았다.
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent
@@ -1094,8 +1094,8 @@ spec:
           - name: release-name
       synchronization:
         mutexes:
-          # core 발행과 같은 mutex다. 코드 한 벌을 앉히는 동안 공고 투영이 같은 code_value를 만들면
-          # 두 실행이 같은 행을 두고 다툰다.
+          # 기준정보 투영끼리만 줄을 세운다. 공고 투영은 2026-10-16부터 이 mutex를 잡지 않고(ADR 0070), 같은 code_value는
+          # `on conflict`와 참조 잠금으로 함께 쓴다.
           - name: eatbid-core-publication
       container:
         image: eatbid-dataplane
@@ -1220,8 +1220,8 @@ spec:
           - name: observation-id
       synchronization:
         mutexes:
-          # core 발행과 같은 mutex다. 이름 한 벌을 앉히는 동안 공고 투영이 같은 code_value를 만들면
-          # 두 실행이 같은 행을 두고 다툰다.
+          # 기준정보 투영끼리만 줄을 세운다. 공고 투영은 2026-10-16부터 이 mutex를 잡지 않고(ADR 0070), 같은 code_value는
+          # `on conflict`와 참조 잠금으로 함께 쓴다.
           - name: eatbid-core-publication
       container:
         image: eatbid-dataplane
@@ -1262,9 +1262,8 @@ spec:
           - name: normalized-at
           - name: validated-at
           - name: activated-at
-      synchronization:
-        mutexes:
-          - name: eatbid-core-publication
+      # project와 같은 이유로 발행 mutex를 잡지 않는다(ADR 0070). 2만 건을 한 거래로 20분 넘게 써도 정시 수집이 기다리지
+      # 않는다.
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent

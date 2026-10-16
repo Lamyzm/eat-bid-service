@@ -61,7 +61,7 @@ web 읽기 캐시 무효화는 **새 pod도 새 task도 아니다**. `project`�
 (ADR 0035). DAG는 `capture-reference`(공식 파일 GET → sha256 → R2 → `ingest.raw_observation` →
 `source_release` 봉인) → `project-reference`(`core.code_release`·`code_release_member`·`code_value`·
 `code_label_observation`·`code_mapping` 투영) 둘이며, `capture-reference`는 스케줄 수집과 같은
-`eatbid-source-live` semaphore를, `project-reference`는 core 발행 mutex를 eaT 수집과 공유한다(§3,
+`eatbid-source-live` semaphore를 eaT 수집과 공유하고, `project-reference`는 기준정보 투영끼리만 core 발행 mutex로 줄을 선다(§3,
 2026-09-11 EAT-164 — 월 1회·짧게 끝나는 실행이라 backfill 전용 key에 두면 backfill이 며칠 도는 동안
 밀린다). 별도 스케줄러·CronJob은 만들지 않는다(AGENTS 9). 같은 파일 sha256이면 release manifest
 unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
@@ -279,6 +279,8 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
 - 낮에도 무거운 줄을 돌리려면 그 줄의 발행을 짧은 조각으로 나눠 사이사이 정시 수집이 끼어들게 해야 한다. 이것은 "검증된 실행
   단위로 원자적으로 발행한다"는 규칙을 건드리므로 별도 ADR의 결정이다.
 - 07:00 아침 정리는 실시간 줄이라 그대로 둔다. 성수기에는 406분까지 걸려(2026-09-23) 업무 시간에 mutex를 쥘 수 있다.
+- 같은 날 EAT-366(ADR 0070)이 공고 투영·재처리의 발행 mutex를 없앴다. 운영에서 동시 발행이 문제없음을 확인한 뒤 이 밤 전용
+  예약을 되돌린다.
 - `infra/tests/test_heavy_lanes_off_hours.py`가 두 줄의 평일 시각이 05~19시에 들지 않음을 단언한다.
 
 ## 3. 실행 안전장치
@@ -296,7 +298,12 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
   부르기 전에 `SOURCE_THROTTLED`(75)로 끝나 `cron-workflow` 위반이 사람에게 든다. 프로세스 안 재시도와
   `retryStrategy`는 정시 실행의 경계를 넘지 못하므로 이 결정은 표에 있어야 한다. 사람이 부르는 백필·replay는
   보류를 보지 않는다.
-- canonical publication/projector에는 mutex를 둬 서로 다른 실행의 활성화가 엇갈리지 않게 한다.
+- **공고 투영과 재처리는 발행 mutex 없이 동시에 돈다**(2026-10-16, EAT-366, [ADR 0070](../adr/0070-concurrent-projection-with-reference-locks.md)).
+  발행은 여전히 한 거래로 통째로 반영된다. 발행끼리 함께 쓰는 core 공유 행(코드값·기관·업체·업체 계정·공고)은 고치지 않고
+  가리키기만 하므로 참조 잠금(`FOR KEY SHARE`)을 걸고, 이 잠금은 서로 막지 않는다. 자기 발행·실행 상태 행만 `FOR NO KEY
+  UPDATE`다. 새 행을 함께 만드는 경합은 unique와 `on conflict`로 풀고, 자연 키가 없는 기관 행만 그 기관 코드 하나로
+  advisory 거래 잠금을 걸어 줄을 세운다. "최신 개정본"은 관측 번호 순이라(ADR 0065) 거래가 끝나는 순서와 무관하다.
+  기준정보 투영(`project-reference`·`project-code-vocabulary`)만 자기들끼리 mutex로 줄을 선다.
 - **멈춘 회차는 사람 손 없이 풀린다**(2026-10-16, EAT-361, [ADR 0069](../adr/0069-collection-self-heals-stuck-locks.md)).
   예약이 모두 `concurrencyPolicy: Forbid`라 끝나지 않는 회차 하나가 그 예약의 다음 회차를 전부 지운다. 그래서 모든
   CronWorkflow는 `activeDeadlineSeconds`를 갖는다(자물쇠 대기 포함, 정상 실측 최대보다 길게). 재시작으로 죽은 단계가

@@ -151,7 +151,7 @@ class LineageProjectionWriter:
         cursor.execute(
             """
             select auction_attempt_id from core.auction_attempt
-            where source_system = %s and external_bid_id = %s for no key update
+            where source_system = %s and external_bid_id = %s for key share
             """,
             (source_system, external_bid_id),
         )

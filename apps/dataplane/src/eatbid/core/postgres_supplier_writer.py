@@ -77,11 +77,14 @@ class SupplierProjectionWriter:
         if not allow_insert:
             raise ProjectionContractError("published supplier account is missing")
 
+        # 발행이 동시에 돌면 다른 투영이 같은 짝을 먼저 넣을 수 있다. unique 짝으로 경합을 풀고, 진 쪽은 이긴
+        # 쪽이 넣은 행을 다시 찾아 같은 검증을 거친다(ADR 0070).
         cursor.execute(
             """
             insert into core.source_supplier_account (
                 supplier_party_id, source_system, account_code_value_id, observation_id
             ) values (%s, %s, %s, %s)
+            on conflict (account_code_value_id, supplier_party_id) do nothing
             returning source_supplier_account_id
             """,
             (
@@ -93,7 +96,13 @@ class SupplierProjectionWriter:
         )
         inserted_account = cursor.fetchone()
         if inserted_account is None:
-            raise ProjectionContractError("supplier account insertion returned no identity")
+            raced = self._locked_account(cursor, account_code_value_id, supplier_party_id)
+            if raced is None:
+                raise ProjectionContractError("supplier account insertion returned no identity")
+            return self._verify_existing(raced, supplier=supplier), AppliedProjectionCounts(
+                code_values=code_values,
+                supplier_parties=parties_inserted,
+            )
         return (
             ResolvedSupplier(
                 source_supplier_account_id=int(inserted_account[0]),
@@ -120,7 +129,7 @@ class SupplierProjectionWriter:
             select a.source_supplier_account_id, a.supplier_party_id, a.source_system
             from core.source_supplier_account a
             where a.account_code_value_id = %s and a.supplier_party_id = %s
-            for no key update of a
+            for key share of a
             """,
             (account_code_value_id, supplier_party_id),
         )
@@ -202,7 +211,7 @@ class SupplierProjectionWriter:
         cursor.execute(
             """
             select supplier_party_id from core.supplier_party
-            where business_number_code_value_id = %s for no key update
+            where business_number_code_value_id = %s for key share
             """,
             (business_number_code_value_id,),
         )
