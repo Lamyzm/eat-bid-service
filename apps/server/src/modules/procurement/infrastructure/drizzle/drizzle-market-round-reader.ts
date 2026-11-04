@@ -6,7 +6,7 @@
  * 검증 수치가 이 계산의 근거가 되지 못한다.
  */
 import { sql, type SQL } from "drizzle-orm";
-import { latestRevisionOrder } from "./latest-revision-order";
+import { latestRevisionOrder } from "../../../../platform/database/latest-revision-order";
 import { canonicalDecimal } from "@eatbid/domain";
 import type { MarketRoundQuery, MarketRoundReader } from "../../application/market-round-reader";
 import { FLOOR_RELATIVE_RATIO_SCALE, floorRelativeRatio, type MarketRound } from "../../domain/market-position-pick";
