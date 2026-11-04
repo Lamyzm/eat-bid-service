@@ -321,6 +321,27 @@ unique(workspace_id, supplier_party_id, auction_attempt_id)
   같은 이름으로 부르지 않는다.
 - 장부 이전 기간의 방법 값은 복기가 그 달 자료로 다시 계산해 보이며, 장부 값과 섞지 않고 "다시 계산한 값"으로 표시한다.
 
+#### 시장 자리와 공고 배정 (`app.market_seat`, `app.auction_amount_assignment`)
+
+추천 금액을 받을 권리는 시장 자리이고, 공고 하나의 금액은 워크스페이스 한 곳만 받는다([ADR 0071](../adr/0071-market-seat-and-auction-amount-assignment.md),
+[PDR-0010](../product/decisions/0010-market-seat-pilot-operation.md)).
+
+- **자리 한 줄은 (워크스페이스, eaT 참가제한지역 code value, 품목 code value, 기간)이다.** 기간은 `starts_at`·`ends_at`이고
+  겹침은 `tstzrange(starts_at, ends_at)`, 곧 반열림 `[시작, 끝)`으로 판정한다. 상태는 선점·활성·되찾기·제안 넷이며 네 상태 모두
+  같은 자리를 막는다. 선점의 끝은 선점 마감 시각이라 치우는 작업 없이 저절로 풀린다. 회수·취소는 행을 지우지 않고 끝을 자른다.
+- **우선권 시작일(`priority_started_at`)은 기간 시작과 따로 둔다.** 연장과 24시간 안의 되찾기로 바뀌지 않으며, 한 공고에 걸친
+  자리가 여럿이면 이 시각이 이른 자리가 맡는다.
+- **사업자번호 claim(`app.seat_business_claim`)은 같은 번호가 같은 기간에 다른 워크스페이스에 묶이지 못하게 한다.** 등록
+  (`registered_business`)만으로는 줄이 생기지 않고 자리를 잡을 때만 생기므로, 등록의 전역 선점을 막은 ADR 0032 §7과 부딪히지 않는다.
+- **겹침 금지 둘은 `btree_gist` exclusion constraint다**(`market_seat_no_overlap`, `seat_business_claim_one_workspace`). Drizzle이
+  선언하지 못해 custom 마이그레이션 SQL에 있고, 확장은 `app` 스키마에 둔다. 통합 테스트가 두 제약이 살아 있는지 지킨다.
+- **자리 변경 기록(`app.market_seat_event`)은 더하기만 한다.** 선점·활성화·연장·회수·해제·되찾기·제안·정정을 누가(비면 시스템)
+  어떤 사유로 했는지와 바뀌기 전후의 끝을 남긴다. 만료는 기간이 지나 저절로 일어나므로 기록하지 않는다.
+- **공고 배정은 "누가 받을 자격이 있었나"의 권위다.** 자리와 공고에서 다시 계산할 수 없어(자리가 잘리고 정정공고가 오면 같은
+  계산이 다른 답을 낸다) `app`에 둔다. 공고마다 `superseded_at`이 빈 줄은 하나(부분 unique)이고, 넘김·확정·정정은 이전 줄을 닫고
+  새 줄을 더한다. 판정에 쓴 개정본 관측 번호, 규칙 판, 후보 자리 번호 전부를 남긴다. 공고 번호에는 화면 장부와 같은 이유로 FK를
+  걸지 않는다.
+
 ### 3.6 Principal과 Workspace identity
 
 인증 제공자의 계정 식별자와 eatbid application identity를 분리한다.

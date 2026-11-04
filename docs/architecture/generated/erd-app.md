@@ -1,12 +1,26 @@
-<!-- 생성물이다. 직접 편집하지 않고 `pnpm architecture:erd:write`로 다시 만든다. 원천: packages/db/drizzle/20261013205240_bid_display_record/snapshot.json -->
+<!-- 생성물이다. 직접 편집하지 않고 `pnpm architecture:erd:write`로 다시 만든다. 원천: packages/db/drizzle/20261104162927_market_seat_exclusion/snapshot.json -->
 # `app` 스키마 ERD
 
-Drizzle 마이그레이션 `20261013205240_bid_display_record`의 snapshot에서 만든 표·컬럼·외래키 그림이다. 표 19개.
+Drizzle 마이그레이션 `20261104162927_market_seat_exclusion`의 snapshot에서 만든 표·컬럼·외래키 그림이다. 표 23개.
 다른 스키마의 표는 관계선에만 `schema__table`로 나타난다. 의미와 불변식은
 [domain-and-data.md](../domain-and-data.md)와 [수집 쓰기 지도](../ingestion-write-map.md)가 설명한다.
 
 ```mermaid
 erDiagram
+    auction_amount_assignment {
+        bigint auction_amount_assignment_id PK
+        bigint auction_attempt_id
+        bigint workspace_id FK
+        bigint market_seat_id FK
+        varchar_16 kind
+        bigint basis_observation_id
+        varchar_32 rule_version
+        bigint_array candidate_market_seat_ids
+        timestamptz recorded_at
+        timestamptz superseded_at
+        bigint actor_principal_id FK
+        text reason
+    }
     auth_account {
         text id PK
         text issuer
@@ -81,6 +95,28 @@ erDiagram
         text subject UK
         timestamptz created_at
     }
+    market_seat {
+        bigint market_seat_id PK
+        bigint workspace_id FK
+        bigint region_code_value_id FK
+        bigint item_code_value_id FK
+        varchar_16 state
+        timestamptz starts_at
+        timestamptz ends_at
+        timestamptz priority_started_at
+        timestamptz created_at
+    }
+    market_seat_event {
+        bigint market_seat_event_id PK
+        bigint market_seat_id FK
+        varchar_16 kind
+        timestamptz occurred_at
+        bigint actor_principal_id FK
+        varchar_32 reason_code
+        text memo
+        timestamptz previous_ends_at
+        timestamptz next_ends_at
+    }
     operator_grant {
         bigint operator_grant_id PK
         bigint principal_id FK
@@ -111,6 +147,14 @@ erDiagram
         text address_text
         timestamptz updated_at
         bigint updated_by_principal_id FK
+    }
+    seat_business_claim {
+        bigint seat_business_claim_id PK
+        bigint workspace_id FK
+        char_10 business_number
+        timestamptz starts_at
+        timestamptz ends_at
+        timestamptz created_at
     }
     workspace {
         bigint workspace_id PK
@@ -153,11 +197,17 @@ erDiagram
     }
     auth_user ||--o{ auth_account : "userId"
     auth_user ||--o{ auth_session : "userId"
+    core__code_value ||--o{ market_seat : "item_code_value_id"
+    core__code_value ||--o{ market_seat : "region_code_value_id"
     core__code_value ||--o{ workspace_filter_combination : "sido_code_value_id"
     core__code_value ||--o{ workspace_filter_combination_item : "item_code_value_id"
     core__code_value ||--o{ workspace_filter_combination_sigungu : "code_value_id"
     core__code_value ||--o{ workspace_region_preference_area : "code_value_id"
+    market_seat ||--o{ auction_amount_assignment : "market_seat_id"
+    market_seat ||--o{ market_seat_event : "market_seat_id"
+    principal ||--o{ auction_amount_assignment : "actor_principal_id"
     principal ||--o{ identity_subject : "principal_id"
+    principal ||--o{ market_seat_event : "actor_principal_id"
     principal ||--o{ operator_grant : "granted_by_principal_id"
     principal ||--o{ operator_grant : "principal_id"
     principal ||--o{ principal_default_workspace : "principal_id"
@@ -167,9 +217,12 @@ erDiagram
     principal ||--o{ workspace_membership : "principal_id"
     principal ||--o{ workspace_region_preference : "confirmed_by_principal_id"
     registered_business ||--o{ registered_business_location : "registered_business_id"
+    workspace ||--o{ auction_amount_assignment : "workspace_id"
     workspace ||--o{ bid_display_record : "workspace_id"
+    workspace ||--o{ market_seat : "workspace_id"
     workspace ||--o{ principal_default_workspace : "workspace_id"
     workspace ||--o{ registered_business : "workspace_id"
+    workspace ||--o{ seat_business_claim : "workspace_id"
     workspace ||--o{ workspace_filter_combination : "workspace_id"
     workspace ||--o{ workspace_membership : "workspace_id"
     workspace ||--o{ workspace_region_preference : "workspace_id"

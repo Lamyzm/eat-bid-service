@@ -249,6 +249,12 @@ describe("owner 범위 PostgreSQL 경계", () => {
         order by relation.relname
       `).toEqual([
         {
+          sequence_name: "auction_amount_assignment_auction_amount_assignment_id_seq",
+          has_usage: false,
+          has_select: false,
+          has_update: false,
+        },
+        {
           sequence_name: "bid_display_record_bid_display_record_id_seq",
           has_usage: false,
           has_select: false,
@@ -256,6 +262,18 @@ describe("owner 범위 PostgreSQL 경계", () => {
         },
         {
           sequence_name: "identity_subject_identity_subject_id_seq",
+          has_usage: false,
+          has_select: false,
+          has_update: false,
+        },
+        {
+          sequence_name: "market_seat_event_market_seat_event_id_seq",
+          has_usage: false,
+          has_select: false,
+          has_update: false,
+        },
+        {
+          sequence_name: "market_seat_market_seat_id_seq",
           has_usage: false,
           has_select: false,
           has_update: false,
@@ -274,6 +292,12 @@ describe("owner 범위 PostgreSQL 경계", () => {
         },
         {
           sequence_name: "registered_business_registered_business_id_seq",
+          has_usage: false,
+          has_select: false,
+          has_update: false,
+        },
+        {
+          sequence_name: "seat_business_claim_seat_business_claim_id_seq",
           has_usage: false,
           has_select: false,
           has_update: false,
