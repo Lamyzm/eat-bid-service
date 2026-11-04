@@ -46,7 +46,8 @@ NeaT 입력과 제출은 사용자의 행위다.
   옮겨 적을 때 틀린다. 재검증 중에도 분모를 착각해 금액이 약 10% 틀린 일이 있었다. (2026-10-11 [ADR 0066](0066-recommended-bid-shows-assessment-rate.md)이
   이 문장을 대체한다 — 사용자가 eaT에 소수를 넣으므로 사정률을 앞에 두고 분모를 이름으로 붙인다.)
 - 누구에게 보일지(운영자 전용, 전체 사용자)는 기능마다 정한다. 이 ADR은 대상을 정하지 않는다. 첫 기능은 운영자
-  전용이며 [ADR 0032](0032-authentication-and-authorization-boundary.md)가 정한 `app.operator_grant`를 그 변경에서 만든다.
+  전용이며 [ADR 0032](0032-authentication-and-authorization-boundary.md)가 정한 `app.operator_grant`를 그 변경에서 만든다. (2026-11-05 [ADR 0071](0071-market-seat-and-auction-amount-assignment.md)이
+  추천 금액의 대상을 대체한다 — 시장 자리를 가진 워크스페이스에, 공고마다 한 곳에만 낸다.)
 - 공고 상세 화면의 문구 검사(`banned-copy`)는 추천을 내는 첫 기능과 같은 변경에서 범위를 다시 정한다.
 - 추천에 쓰는 규칙은 시장이 바뀌면 낡는다. 규칙은 버전을 갖고 마지막 재검증 날짜를 남긴다(AGENTS.md 정언명령 7).
 
