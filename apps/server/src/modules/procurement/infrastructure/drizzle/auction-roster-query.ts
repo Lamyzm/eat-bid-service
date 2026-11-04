@@ -1,6 +1,6 @@
 /** @module 책임: 선택 revision의 명단과 같은 원본 관측의 업체명·판정 라벨·관측 시각을 한 SQL snapshot으로 읽는다. */
 import { sql, type SQL } from "drizzle-orm";
-import { latestRevisionOrder } from "./latest-revision-order";
+import { latestRevisionOrder } from "../../../../platform/database/latest-revision-order";
 import type { AuctionRosterQuery } from "../../application/auction-roster-reader";
 import { ROSTER_QUERY_ROW_LIMIT } from "../../domain/roster-limits";
 

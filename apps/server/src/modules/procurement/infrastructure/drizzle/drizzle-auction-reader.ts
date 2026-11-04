@@ -1,6 +1,6 @@
 /** @module 책임: 공고 한 건을 core 스키마에서 읽어 도메인 값으로 닫고 driver 시간 표현 경계를 소유한다. */
 import { sql, type SQL } from "drizzle-orm";
-import { latestRevisionOrder } from "./latest-revision-order";
+import { latestRevisionOrder } from "../../../../platform/database/latest-revision-order";
 import { Temporal } from "@eatbid/domain";
 import type {
   AuctionReader,

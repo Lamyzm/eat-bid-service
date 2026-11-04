@@ -30,7 +30,8 @@
    관측 시각 순과 같았다. 같은 관측을 다시 해석한 개정본이 여럿이면 나중 해석을 쓴다(ADR 0015의 재해석).
 2. **규칙은 언어마다 한곳에 둔다.** 서버는 `infrastructure/drizzle/latest-revision-order.ts`의 `latestRevisionOrder`, dataplane
    mart는 `mart/latest_revision.py`의 `latest_revision_order`다. 최신을 고르는 모든 조회가 이것을 쓰고, mart 단위 시험이 네
-   빌드 SQL에 번호만으로 고르는 정렬이 남지 않았는지 본다.
+   빌드 SQL에 번호만으로 고르는 정렬이 남지 않았는지 본다. (2026-11-05 EAT-369에서 서버 쪽 파일을 `apps/server/src/platform/database/latest-revision-order.ts`로
+   옮겼다 — 공고 배정 모듈도 같은 규칙을 써야 해서 procurement 내부가 아니라 서버 공용 자리에 둔다.)
 3. **mart 계산 판을 `mart-r12`로 올린다.** 9월 회차 요약이 바뀌므로 재현성 규칙(AGENTS 7)상 새 build다. 서버는 활성 build를
    판과 무관하게 읽고, 과거 기록 mart는 다음 예약(07:40·12:40·16:40·20:40)이 새 판으로 다시 만든다.
 4. **재처리는 고치지 않는다.** 실패한 발행을 다시 앉히는 일은 그대로 필요하다. 읽기가 관측 순서를 따르면 늦게 앉은 옛

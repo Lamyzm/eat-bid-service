@@ -6,7 +6,7 @@
  * 마감된 날들이다(ADR 0034).
  */
 import { sql, type SQL } from "drizzle-orm";
-import { latestRevisionOrder } from "./latest-revision-order";
+import { latestRevisionOrder } from "../../../../platform/database/latest-revision-order";
 import type { Temporal } from "@eatbid/domain";
 
 import { KST_TIME_ZONE } from "../../domain/kst-month";

@@ -17,7 +17,7 @@ import { bigintArrayLiteral } from "../../../../platform/database/sql-values";
 import { transactionDatabase, type TransactionHandle } from "../../../../platform/database/unit-of-work";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
 import { ownMarketRevisions } from "./drizzle-market-round-reader";
-import { latestRevisionOrder } from "./latest-revision-order";
+import { latestRevisionOrder } from "../../../../platform/database/latest-revision-order";
 
 type PostgresTimestamp = Parameters<typeof postgresInstant>[0];
 
