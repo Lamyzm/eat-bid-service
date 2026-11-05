@@ -1,6 +1,9 @@
 /** @module 책임: PostgreSQL 연결 수명주기를 감추고 목적별 조회·트랜잭션 port만 주입 가능하게 만든다. */
 import { DynamicModule, Global, Module, type Provider } from "@nestjs/common";
 import type { AccountRepository } from "../../modules/account/application/account-repository";
+import type { MarketSeatAdminStore } from "../../modules/entitlement/application/market-seat-admin-store";
+import { DrizzleMarketSeatAdminStore } from "../../modules/entitlement/infrastructure/drizzle/drizzle-market-seat-admin-store";
+import type { SeatAssignmentDatabase } from "../../modules/entitlement/infrastructure/drizzle/drizzle-seat-assignment-store";
 import { DrizzleAccountRepository } from "../../modules/account/infrastructure/drizzle/drizzle-account-repository";
 import { DrizzleOperatorGrantReader } from "../../modules/account/infrastructure/drizzle/drizzle-operator-grant-reader";
 import type { OperatorGrantReader } from "../auth/operator-grant-reader";
@@ -72,6 +75,7 @@ import {
   FLOOR_LINE_READER,
   MY_FLOOR_BID_READER,
   ANALYSIS_TIME_SERIES_READER,
+  MARKET_SEAT_ADMIN_STORE,
 } from "./database.tokens";
 import { createUnitOfWork, type UnitOfWork } from "./unit-of-work";
 
@@ -83,6 +87,7 @@ export interface DatabaseModuleOverrides {
   readonly operatorGrantReader?: OperatorGrantReader;
   readonly regionPreferenceRepository?: RegionPreferenceRepository;
   readonly filterCombinationRepository?: FilterCombinationRepository;
+  readonly marketSeatAdminStore?: MarketSeatAdminStore;
   readonly openAuctionFilterCountsReader?: OpenAuctionFilterCountsReader;
   readonly eligibilityAreaReader?: EligibilityAreaReader;
   readonly auctionReader?: AuctionReader;
@@ -267,6 +272,13 @@ export class DatabaseModule {
           overrides.filterCombinationRepository ?? new DrizzleFilterCombinationRepository(connection.database),
       },
       {
+        provide: MARKET_SEAT_ADMIN_STORE,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): MarketSeatAdminStore =>
+          overrides.marketSeatAdminStore
+            ?? new DrizzleMarketSeatAdminStore(connection.database as unknown as SeatAssignmentDatabase),
+      },
+      {
         provide: OPEN_AUCTION_FILTER_COUNTS_READER,
         inject: [DATABASE_CONNECTION],
         useFactory: (connection: ManagedDatabase): OpenAuctionFilterCountsReader =>
@@ -282,6 +294,7 @@ export class DatabaseModule {
         OPERATOR_GRANT_READER,
         REGION_PREFERENCE_REPOSITORY,
         FILTER_COMBINATION_REPOSITORY,
+        MARKET_SEAT_ADMIN_STORE,
         OPEN_AUCTION_FILTER_COUNTS_READER,
         ELIGIBILITY_AREA_READER,
         DATABASE_READINESS,

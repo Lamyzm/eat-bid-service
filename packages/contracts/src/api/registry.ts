@@ -12,6 +12,7 @@ import { meV1OperationRegistry } from "./v1/me/operations";
 import { myRegionPreferenceV1OperationRegistry } from "./v1/me/region-preference.operations";
 import { analysisV1OperationRegistry } from "./v1/analysis/operations";
 import { floorLineV1OperationRegistry } from "./v1/analysis/floor-lines.operations";
+import { operatorMarketSeatV1OperationRegistry } from "./v1/operator/market-seat.operations";
 import { sessionV1OperationRegistry } from "./v1/session/operations";
 import { createOperationRegistry } from "./operation";
 
@@ -40,5 +41,7 @@ export const publicHttpOperationRegistry = createOperationRegistry([
   ...myBidReviewV1OperationRegistry,
   // 하한선 자리에 겹칠 내 사업자 투찰이다(PDR-0009). 등록 사업자로 범위가 정해지는 개인 응답이라 `me`에 산다.
   ...myFloorBidV1OperationRegistry,
+  // 운영자 전용이다. 자리 목록·명령은 사장님 응답과 섞이지 않게 resource를 따로 둔다(ADR 0071 결정 9).
+  ...operatorMarketSeatV1OperationRegistry,
   ...healthOperationRegistry,
 ] as const);

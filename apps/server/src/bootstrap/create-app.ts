@@ -19,6 +19,7 @@ import type { DatabaseReadiness } from "../platform/health/health.module";
 import type { AccountRepository } from "../modules/account/application/account-repository";
 import type { OperatorGrantReader } from "../platform/auth/operator-grant-reader";
 import type { RegionPreferenceRepository } from "../modules/account/application/region-preference-repository";
+import type { MarketSeatAdminStore } from "../modules/entitlement/application/market-seat-admin-store";
 import { createAuthInstance, type AuthInstance } from "../platform/auth/auth-instance";
 import { createAuthTransportMount } from "../platform/auth/auth-transport";
 import { createBetterAuthSessionAuthenticator } from "../platform/auth/better-auth-session-authenticator";
@@ -66,6 +67,7 @@ export interface CreateAppOptions {
   readonly accountRepository?: AccountRepository;
   readonly operatorGrantReader?: OperatorGrantReader;
   readonly regionPreferenceRepository?: RegionPreferenceRepository;
+  readonly marketSeatAdminStore?: MarketSeatAdminStore;
   /**
    * 실제 provider 대신 주체만 주입하는 자리다. 테스트가 Google 네트워크를 부르지 않게 하되, production
    * 코드에는 환경변수나 헤더로 인증을 건너뛰는 분기를 두지 않는다(ADR 0032 §9).
@@ -192,6 +194,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
         accountRepository: options.accountRepository,
         operatorGrantReader: options.operatorGrantReader,
         regionPreferenceRepository: options.regionPreferenceRepository,
+        marketSeatAdminStore: options.marketSeatAdminStore,
         connection,
         sessionAuthenticator,
         testOnlyImports: options.testOnlyImports,

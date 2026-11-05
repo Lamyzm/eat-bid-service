@@ -47,6 +47,11 @@
       "import": "./src/api/v1/eligibility-areas/index.ts",
       "default": "./src/api/v1/eligibility-areas/index.ts"
     },
+    "./api/v1/operator": {
+      "types": "./src/api/v1/operator/index.ts",
+      "import": "./src/api/v1/operator/index.ts",
+      "default": "./src/api/v1/operator/index.ts"
+    },
     "./api/v1/me": {
       "types": "./src/api/v1/me/index.ts",
       "import": "./src/api/v1/me/index.ts",
