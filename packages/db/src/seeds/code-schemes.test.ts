@@ -20,6 +20,8 @@ const approvedNamespaces = [
   "eat:organization-type",
   "eat:solo-bid-method",
   "eat:announcement-change-kind",
+  "eat:main-item-restriction",
+  "eat:certification-kind",
   "eatbid:auction-item",
 ];
 
@@ -34,6 +36,8 @@ const eatDetailParserNamespaces = [
   "eat:award-method",
   "eat:solo-bid-method",
   "eat:announcement-change-kind",
+  "eat:main-item-restriction",
+  "eat:certification-kind",
   "eat:reserve-price-selection-flag",
   "eat:attempt-status",
 ];
@@ -142,6 +146,18 @@ const approvedCodeSchemes = [
     validTimePolicy: "effective-dated",
   },
   {
+    namespace: "eat:main-item-restriction",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
+  {
+    namespace: "eat:certification-kind",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
+  {
     namespace: "eatbid:auction-item",
     owner: "eatbid",
     versionPolicy: "product-managed",
@@ -181,8 +197,8 @@ describe("내장 code scheme seed", () => {
 
     expect([...rows.values()]).toEqual(approvedCodeSchemes);
     // 기관유형(EAT-187)과 품목 원자(EAT-230)가 각각 하나씩 더해 열여섯이었고, 단독입찰 처리 방법(EAT-249)과
-    // 게시 종류(EAT-262)가 하나씩 더해 열여덟이다.
-    expect(rows).toHaveLength(18);
+    // 게시 종류(EAT-262)가 하나씩 더해 열여덟이었고, 품목 제한·인증 종류(EAT-370)가 더해 스물이다.
+    expect(rows).toHaveLength(20);
     expect(conflictTargets).toEqual([codeScheme.namespace, codeScheme.namespace]);
   });
 

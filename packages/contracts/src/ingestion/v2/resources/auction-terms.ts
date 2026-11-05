@@ -1,4 +1,4 @@
-/** @module 책임: 하한율·예정가격 방식·낙찰자 결정 방법을 관측 코드 그대로 담는 계약을 소유한다. */
+/** @module 책임: 하한율·예정가격 방식·낙찰자 결정 방법과 품목 제한·인증 종류 같은 참가 조건을 관측 코드 그대로 담는 계약을 소유한다. */
 import { z } from "zod";
 
 import { bidRateWireSchema } from "../../../values/rate";
@@ -17,9 +17,21 @@ export const normalizedAuctionTermsSchema = z.strictObject({
    * 없고, 그 payload를 읽는 쪽이 없는 키를 실패로 보면 replay 전의 관측이 전부 막힌다(ADR 0038).
    */
   soloBidMethod: sourceCodedValueSchema.nullable().optional(),
+  /**
+   * 주요 취급 품목으로 참가를 제한하는가(`ds_info.MN_TRMT_LMT_YN`, Y/N)다. `N`이면 원천이 주요 품목 칸을 비우므로
+   * 품목 원자가 없는 이유가 "못 읽음"이 아니라 "학교가 제한하지 않음"임을 이 코드가 말한다(183,777건 예외 0,
+   * `docs/AUDIT-SOURCE.md` §4). 시장 자리는 `N`을 "품목 제한 없음" 품목 칸으로 받는다(ADR 0072).
+   * optional인 이유는 `soloBidMethod`와 같다 — eat-v6 전에 봉인된 payload에는 키가 없다(ADR 0038).
+   */
+  mainItemRestriction: sourceCodedValueSchema.nullable().optional(),
+  /**
+   * 인증 종류(`ds_info.CERT_KND_CD`)다. 이름 칸이 없어 뜻을 확정하지 못했고 자리 판정에 쓰지 않는다(ADR 0072 결정 4).
+   * 품목과 비슷하게 갈리지만 같은 학교가 달마다 다른 값을 쓰므로 품목으로 매핑하지 마라.
+   */
+  certificationKind: sourceCodedValueSchema.nullable().optional(),
 }).meta({
   id: "NormalizedAuctionTerms",
-  description: "Observed award terms: floor rate, reserve-price method and award method as source codes.",
+  description: "Observed award and participation terms as source codes: floor rate, reserve-price method, award method, solo-bid handling, main-item restriction and certification kind.",
 });
 
 export type NormalizedAuctionTerms = z.infer<typeof normalizedAuctionTermsSchema>;

@@ -43,8 +43,10 @@ spec:
       # 두고 replay로 revision을 더한다.
       # eat-v5는 게시 종류(`PBANC_CHG_GB_CD`)를 `lineage.changeKind`로 싣는다(EAT-262). 재입찰의 진짜 신호가 이 코드이며
       # `RBID_YN`이 아니다. eat-v4는 이미 배포돼 정시 수집이 그 이름으로 payload를 봉인했으므로 고치지 않고 이름을 더한다.
+      # eat-v6은 주요 취급 품목 참가 제한(`MN_TRMT_LMT_YN`)과 인증 종류(`CERT_KND_CD`)를 `terms`에 싣는다(EAT-370, ADR 0072).
+      # 품목 칸이 빈 공고가 "못 읽음"이 아니라 "제한하지 않음"임을 코드로 남겨 시장 자리가 받게 한다.
       - name: parser-version
-        value: eat-v5
+        value: eat-v6
       # mart 계산 규칙의 version이다. parser-version과 같은 자리에 두는 이유는 둘 다 "이 실행이 어떤
       # 해석 규칙으로 만든 결과인가"를 기록하는 값이고, 규칙을 바꾼 배포가 옛 build를 조용히 덮어쓰지
       # 않으려면 새 값으로 새 build를 만들어야 하기 때문이다(ADR 0034).

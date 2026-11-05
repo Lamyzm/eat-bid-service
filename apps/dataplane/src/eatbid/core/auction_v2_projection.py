@@ -249,6 +249,9 @@ def _terms_code_refs(record: EatbidIngestionAuctionV2) -> tuple[ExternalCodeRef,
             (record.terms.award_method, "award_method"),
             # eat-v4부터 읽는 단독입찰 처리 방법이다. 옛 payload에는 키가 없어 None이고 그것은 미관측이다.
             (record.terms.solo_bid_method, "solo_bid_method"),
+            # 품목 제한·인증 종류는 eat-v6부터 관측된다. 옛 payload에는 키가 없어 연결도 없고 그것은 미관측이다(ADR 0072).
+            (record.terms.main_item_restriction, "main_item_restriction"),
+            (record.terms.certification_kind, "certification_kind"),
         )
         if value is not None
     )
