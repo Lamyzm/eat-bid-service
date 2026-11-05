@@ -153,4 +153,58 @@ describe("공고 금액 배정 기록", () => {
       expect(await assign(9200000000000999n)).toEqual({ kind: "unassigned", reason: "not-found" });
     });
   }, 120_000);
+
+  test("품목 제한이 없는 공고는 품목 제한 없음 자리가 맡고, 품목 칸을 모르는 공고는 아무도 맡지 않는다", async () => {
+    await withAccountDatabase(async ({ owner, api }) => {
+      await owner.unsafe(seed);
+      // "품목 제한 없음"은 eaT `MN_TRMT_LMT_YN`의 `N`이다. 저장소가 실제 이름공간으로 찾으므로 그 이름 그대로 둔다(ADR 0072).
+      // 이 fixture는 시드를 돌리지 않을 수 있어 체계가 없으면 만든다.
+      await owner.unsafe(`
+        insert into core.code_scheme (namespace, owner, version_policy, valid_time_policy)
+        values ('eat:main-item-restriction', 'aT', 'source-managed', 'effective-dated')
+        on conflict (namespace) do nothing
+      `);
+      const [restriction] = await owner.unsafe(`
+        insert into core.code_value (code_scheme_id, code)
+        select code_scheme_id, code from core.code_scheme, (values ('N'), ('Y')) as codes(code)
+         where namespace = 'eat:main-item-restriction'
+        returning code, code_value_id::text as id
+      `).then((rows) => [Object.fromEntries(rows.map((row) => [String(row.code), BigInt(String(row.id))]))]);
+      const unrestricted = restriction!.N!;
+      const restricted = restriction!.Y!;
+      const OPEN = 9200000000000103n;
+      const FLAGGED_ONLY = 9200000000000104n;
+      await owner.unsafe(`
+        insert into core.auction_attempt (auction_attempt_id, source_system, external_bid_id)
+        overriding system value values (${OPEN}, 'eat', 'external-open'), (${FLAGGED_ONLY}, 'eat', 'external-flagged');
+        ${revision(9204n, OPEN, 1n, 9304n, "2026-11-10T02:00:00Z")}
+        insert into core.auction_revision_code_value (auction_revision_id, code_value_id, role)
+        values (9204, ${GIMHAE}, 'eligibility_area'), (9204, ${unrestricted}, 'main_item_restriction');
+        ${revision(9205n, FLAGGED_ONLY, 1n, 9305n, "2026-11-10T02:00:00Z")}
+        insert into core.auction_revision_code_value (auction_revision_id, code_value_id, role)
+        values (9205, ${GIMHAE}, 'eligibility_area'), (9205, ${restricted}, 'main_item_restriction');
+      `);
+      const odd = await workspace(api, "오뚜기축산");
+      const dongwon = await workspace(api, "동원축산");
+      // 우선권이 더 이른 축산 자리가 있어도 품목 제한 없음 공고에는 걸치지 않는다.
+      await seat(api, dongwon, MEAT, "2026-11-01T15:00:00Z");
+      const openSeat = await seat(api, odd, unrestricted, "2026-11-02T15:00:00Z");
+      // `Y` 코드로 자리를 만들어도 품목 칸이 되지 않는다 — `Y`인 공고는 품목 원자 자리가 받는다.
+      await seat(api, dongwon, restricted, "2026-11-01T15:00:00Z");
+
+      const clock = new MovableClock(Temporal.Instant.from("2026-11-05T01:00:00Z"));
+      const store = new DrizzleSeatAssignmentStore(drizzle({ client: api }) as unknown as SeatAssignmentDatabase);
+      const assign = (auctionAttemptId: bigint) => Effect.runPromise(new AssignAuctionAmount(store, clock).execute({ auctionAttemptId }));
+
+      expect(await assign(OPEN)).toEqual({ kind: "assigned", workspaceId: odd, marketSeatId: openSeat });
+      expect(await api.unsafe(`
+        select rule_version, candidate_market_seat_ids::text as candidates from app.auction_amount_assignment
+         where auction_attempt_id = ${OPEN} and superseded_at is null
+      `)).toEqual([{ rule_version: "seat-r2", candidates: `{${openSeat}}` }]);
+      // 품목 원자도 `N`도 없으면 품목 칸을 모른다. 지역만으로 넓히지 않는다(ADR 0071 기각안).
+      expect(await assign(FLAGGED_ONLY)).toEqual({ kind: "unassigned", reason: "no-item" });
+      // 기존 품목 공고는 그대로 품목 원자로 걸친다.
+      expect(await assign(CORRECTED)).toEqual({ kind: "assigned", workspaceId: dongwon, marketSeatId: expect.any(BigInt) });
+    });
+  }, 120_000);
 });

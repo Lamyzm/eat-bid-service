@@ -1,17 +1,20 @@
 /**
- * @module 책임: 공고 하나의 추천 금액을 어느 시장 자리가 맡을지 정하는 규칙(ADR 0071 결정 2)과 그 규칙의 판 이름을 소유한다.
+ * @module 책임: 공고 하나의 추천 금액을 어느 시장 자리가 맡을지 정하는 규칙(ADR 0071 결정 2, ADR 0072)과 그 규칙의 판 이름을 소유한다.
  *
  * DB와 시계를 모르는 순수 함수다. 같은 재료에 같은 답을 내야 동시 요청이 다시 읽어 같은 결론에 닿고, 매일 확정 작업과 운영자
  * 진단 화면이 금액 요청과 같은 판정을 쓴다.
  */
 import { Temporal } from "@eatbid/domain";
 
-/** 배정 이력에 남기는 규칙 판이다. 아래 판정 순서를 바꾸면 판을 올린다. */
-export const SEAT_ASSIGNMENT_RULE_VERSION = "seat-r1";
+/**
+ * 배정 이력에 남기는 규칙 판이다. 판정 순서나 걸침의 뜻을 바꾸면 판을 올린다. seat-r2는 품목 칸에 "품목 제한 없음"
+ * (eaT `MN_TRMT_LMT_YN`의 `N`)을 더했다(ADR 0072). 판정 순서는 seat-r1과 같다.
+ */
+export const SEAT_ASSIGNMENT_RULE_VERSION = "seat-r2";
 
 export type MarketSeatState = "held" | "active" | "reclaim" | "offer";
 
-/** 공고의 (참가제한지역, 품목) 짝 가운데 하나라도 같은 자리다. 기간과 상태는 아직 거르지 않은 그대로다. */
+/** 공고의 (참가제한지역, 품목 칸) 짝 가운데 하나라도 같은 자리다. 기간과 상태는 아직 거르지 않은 그대로다. */
 export interface CoveringSeat {
   readonly marketSeatId: bigint;
   readonly workspaceId: bigint;
@@ -32,7 +35,10 @@ export interface CurrentAssignment {
 
 export interface AssignmentSituation {
   readonly at: Temporal.Instant;
-  /** 최신 개정본에 품목 코드가 하나라도 있는가. 없으면 지역만으로 배정하지 않는다(ADR 0071 결정 2). */
+  /**
+   * 최신 개정본의 품목 칸을 아는가 — 품목 원자가 하나라도 있거나 품목 제한이 `N`이다(ADR 0072). 둘 다 없으면 eat-v6 전
+   * 해석이라 품목 칸을 모르는 것이고, 지역만으로 배정하지 않는다(ADR 0071 기각안).
+   */
   readonly hasItem: boolean;
   readonly deadlineAt: Temporal.Instant | null;
   readonly coveringSeats: readonly CoveringSeat[];
