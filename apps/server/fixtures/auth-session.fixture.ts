@@ -78,7 +78,6 @@ export async function signInThroughAdapter(
   await context.adapter.create({
     model: "account",
     data: {
-      issuer: "https://accounts.google.com",
       accountId: `google-${user.id}`,
       providerId: "google",
       userId: user.id,
