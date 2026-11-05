@@ -2,7 +2,7 @@
 id: STACK-DELIVERY-AND-OPERATIONS
 status: active
 canonical_for: delivery-pipeline-and-operations-stack-selection
-last_reviewed: 2026-09-16
+last_reviewed: 2026-11-05
 review_trigger: ci-release-lane-or-gitops-source-change
 ---
 
@@ -88,7 +88,8 @@ HIGH/CRITICAL 게이트에서 거부됐다. `esbuild 0.25.12`의 Go 바이너리
 `release/v0.1.25` 태그로 재발행했다. 교훈: 프로덕션 의존성을 추가하면 그 optional peer가 런타임
 이미지에 build 도구(및 취약한 네이티브 바이너리)를 끌고 올 수 있다. 릴리즈 전
 `pnpm --filter @eatbid/server list <pkg> --prod --depth Infinity`로 실제 프로덕션 그래프를 확인하고,
-필요하면 override로 패치 버전을 고정한다. `.trivyignore`로 스캔을 우회하지 않는다.
+필요하면 override로 패치 버전을 고정한다. `.trivyignore`로 스캔을 우회하지 않는다. 예외는 아래
+2026-11-05 기록의 세 조건을 모두 만족할 때만 루트 `.trivyignore.yaml`에 둔다.
 
 ### 2026-10-07 — 아흐레 사이 공개된 취약점이 네 이미지를 모두 막았다 (EAT-302)
 
@@ -99,3 +100,15 @@ server·web·migration의 distroless debian13 `libssl3t64`, dataplane `urllib3`.
 쓰면 같은 사슬의 빌드 도구(terser·acorn 등)까지 함께 올라가 긴급 수정의 범위가 넓어지므로 override 하한으로 좁혔다.
 교훈: 릴리스가 뜸하면 그 사이 공개분이 한꺼번에 쌓여 급한 수정의 발목을 잡는다. 이번에는 매시간 Postgres가 쫓겨나는
 장애(EAT-301)의 수정이 이것 때문에 운영에 닿지 못했다.
+
+### 2026-11-05 — 고칠 판이 없는 기반 이미지 zlib가 세 이미지를 막았다 (EAT-374)
+
+`release/v0.1.89`가 server·web·migration 모두 Trivy 게이트에서 거부됐다. 원인은 distroless nodejs24-debian13의
+시스템 `zlib1g` 1:1.3.dfsg+really1.3.1-1+b1에 걸린 CVE-2026-76844(HIGH, `gz_write` 실패 뒤 힙 넘침)다. Debian은
+sid만 고쳤고 trixie에는 고친 판이 없으며 최신 distroless digest도 같은 판이라 이전처럼 digest를 올려 풀 수 없었다.
+Node 바이너리는 `libz.so`를 링크하지 않고(readelf NEEDED 확인) 내장 zlib 1.3.2.1을 쓴다.
+
+그래서 처음으로 예외를 하나 두었다. 예외 조건은 셋이다. (1) 고친 판이 upstream 배포판·기반 이미지 어디에도 없다.
+(2) 런타임이 그 코드를 싣거나 부르지 않음을 실제로 확인했다. (3) 항목마다 이유와 31일 안의 만료일을 단다.
+`infra/tests/test_build_contract.py`가 (3)을 강제하고 만료가 지나면 Trivy가 다시 막는다. `ignore-unfixed`처럼
+한 부류를 통째로 끄는 설정은 쓰지 않는다. 만료(2026-11-19) 전에 trixie 수정판이 나오면 digest를 올리고 항목을 지운다.
