@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import re
 import subprocess
 from pathlib import Path
@@ -291,6 +292,7 @@ def test_build가_digest_출력_전에_scan_attest_sign_verify를_완료한다()
     assert str(scan["with"]["exit-code"]) == "1"
     assert scan["with"]["severity"] == "HIGH,CRITICAL"
     assert scan["with"].get("ignore-unfixed") in (None, False)
+    assert scan["with"]["trivyignores"] == ".trivyignore.yaml"
 
     sbom = by_id["sbom"]
     assert sbom["uses"] == scan["uses"]
@@ -590,3 +592,23 @@ def test_web_Sentry_값_셋은_두_레인_모두_빌드_인자로_들어가고_D
         assert f"{name}=${{{{ vars.{name} }}}}" in dev, name
     # 비밀이 아니라 공개 식별자다. secrets로 넘기면 로그에서 가려져 "왜 안 켜졌나"를 볼 수 없다.
     assert "secrets.NEXT_PUBLIC_SENTRY" not in release + dev
+
+
+def test_Trivy_예외는_항목마다_이유와_31일_안의_만료일을_갖는다() -> None:
+    # 예외는 고칠 판이 없는 취약점을 잠시 비켜 가는 장치일 뿐이다. 이유 없는 항목이나 먼 만료일은
+    # 게이트를 영구히 끄는 것과 같으므로 계약으로 막는다. 이미 만료된 항목은 Trivy가 다시 막으니 허용한다.
+    ignore = yaml.safe_load((ROOT / ".trivyignore.yaml").read_text(encoding="utf-8"))
+    assert isinstance(ignore, dict)
+    assert set(ignore) <= {"vulnerabilities"}
+    entries = ignore["vulnerabilities"]
+    assert isinstance(entries, list)
+    limit = datetime.datetime.now(tz=datetime.UTC).date() + datetime.timedelta(days=31)
+    for entry in entries:
+        assert set(entry) == {"id", "statement", "expired_at"}, entry
+        assert re.fullmatch(r"CVE-\d{4}-\d+|GHSA(-[0-9a-z]{4}){3}", entry["id"])
+        assert len(str(entry["statement"]).strip()) >= 40
+        expired_at = entry["expired_at"]
+        if isinstance(expired_at, str):
+            expired_at = datetime.date.fromisoformat(expired_at)
+        assert isinstance(expired_at, datetime.date)
+        assert expired_at <= limit, f"{entry['id']} 만료일이 31일을 넘는다"
