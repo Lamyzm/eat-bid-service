@@ -54,7 +54,8 @@ export const authAccount = appSchema.table(
   authTableNames.account,
   {
     id: providerId,
-    issuer: text("issuer").notNull(),
+    // Better Auth 1.7.0~1.7.2가 요구하던 `issuer` 열은 1.7.3에서 없어졌다. 1.7.7은 그 열에 쓰지 않으므로 NOT NULL로 두면
+    // 가입·계정 연결 insert가 전부 실패한다. 계정은 다시 (providerId, accountId)로 찾는다(EAT-373, 1.7 업그레이드 안내).
     // 외부 provider의 subject는 이 열에만 남는다. `auth_user.id`는 provider가 아니라 Better Auth가
     // 새로 만든 내부 값이므로 Google sub와 같다고 보면 안 된다.
     accountId: text("accountId").notNull(),
@@ -71,7 +72,6 @@ export const authAccount = appSchema.table(
     updatedAt: providerTimestamp("updatedAt").notNull(),
   },
   (table) => [
-    uniqueIndex("auth_account_issuer_accountId_uidx").on(table.issuer, table.accountId),
     index("auth_account_userId_idx").on(table.userId),
   ],
 );

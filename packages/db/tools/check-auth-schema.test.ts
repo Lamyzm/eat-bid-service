@@ -148,7 +148,7 @@ describe("provider table의 저장소 경계", () => {
     const account = getTableConfig(authAccount).columns.map((column) => column.name);
 
     expect(account).toContain("accountId");
-    expect(account).toContain("issuer");
+    expect(account).toContain("providerId");
     expect(getTableConfig(authUser).columns.map((column) => column.name)).not.toContain("accountId");
   });
 

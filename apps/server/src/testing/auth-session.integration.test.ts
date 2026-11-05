@@ -35,12 +35,12 @@ describe("실제 Better Auth adapter와 세션 수명", () => {
         `select id, "emailVerified" from app.auth_user where id = '${sqlLiteral(session.userId)}'`,
       );
       const [storedAccount] = await owner.unsafe(
-        `select "accountId", issuer from app.auth_account where "userId" = '${sqlLiteral(session.userId)}'`,
+        `select "accountId", "providerId" from app.auth_account where "userId" = '${sqlLiteral(session.userId)}'`,
       );
       expect(storedUser?.emailVerified).toBe(true);
       // provider가 준 외부 subject는 account 행에만 남는다. auth user id는 provider 값이 아니다.
       expect(storedAccount?.accountId).toBe(`google-${session.userId}`);
-      expect(storedAccount?.issuer).toBe("https://accounts.google.com");
+      expect(storedAccount?.providerId).toBe("google");
 
       const subject = await createBetterAuthSessionAuthenticator(auth).authenticate(session.headers);
       expect(subject?.subject).toBe(session.userId);

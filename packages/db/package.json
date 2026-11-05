@@ -32,8 +32,8 @@
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
-    "auth": "1.7.2",
-    "better-auth": "1.7.2",
+    "auth": "1.7.7",
+    "better-auth": "1.7.7",
     "drizzle-kit": "catalog:",
     "typescript": "^5.7.0"
   }
