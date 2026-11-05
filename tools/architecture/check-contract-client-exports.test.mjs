@@ -62,6 +62,11 @@ const packageJson = JSON.stringify({
       import: "./src/api/v1/me/index.ts",
       default: "./src/api/v1/me/index.ts",
     },
+    "./api/v1/operator": {
+      types: "./src/api/v1/operator/index.ts",
+      import: "./src/api/v1/operator/index.ts",
+      default: "./src/api/v1/operator/index.ts",
+    },
     "./api/v1/organizations": {
       types: "./src/api/v1/organizations/index.ts",
       import: "./src/api/v1/organizations/index.ts",
@@ -154,6 +159,11 @@ test("범용 api subpath의 dist와 server-only 전이 의존도 거부한다", 
           import: "./src/api/v1/me/index.ts",
           default: "./src/api/v1/me/index.ts",
         },
+        "./api/v1/operator": {
+          types: "./src/api/v1/operator/index.ts",
+          import: "./src/api/v1/operator/index.ts",
+          default: "./src/api/v1/operator/index.ts",
+        },
         "./api/v1/organizations": {
           types: "./src/api/v1/organizations/index.ts",
           import: "./src/api/v1/organizations/index.ts",
@@ -225,6 +235,11 @@ test("client subpath의 dist·domain·ingestion·server-only 전이 의존을 �
           types: "./src/api/v1/me/index.ts",
           import: "./src/api/v1/me/index.ts",
           default: "./src/api/v1/me/index.ts",
+        },
+        "./api/v1/operator": {
+          types: "./src/api/v1/operator/index.ts",
+          import: "./src/api/v1/operator/index.ts",
+          default: "./src/api/v1/operator/index.ts",
         },
         "./api/v1/organizations": {
           types: "./src/api/v1/organizations/index.ts",
