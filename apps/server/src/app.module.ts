@@ -23,6 +23,8 @@ import type { AccountRepository } from "./modules/account/application/account-re
 import type { OperatorGrantReader } from "./platform/auth/operator-grant-reader";
 import type { RegionPreferenceRepository } from "./modules/account/application/region-preference-repository";
 import { AccountModule } from "./modules/account/account.module";
+import { EntitlementModule } from "./modules/entitlement/entitlement.module";
+import type { MarketSeatAdminStore } from "./modules/entitlement/application/market-seat-admin-store";
 import { ProcurementModule } from "./modules/procurement/procurement.module";
 import { ReferenceModule } from "./modules/reference/reference.module";
 
@@ -54,10 +56,12 @@ export class AppModule {
           accountRepository: runtime.accountRepository,
           operatorGrantReader: runtime.operatorGrantReader,
           regionPreferenceRepository: runtime.regionPreferenceRepository,
+          marketSeatAdminStore: runtime.marketSeatAdminStore,
         }),
         AuthModule.forRuntime({ sessionAuthenticator: runtime.sessionAuthenticator ?? null }),
         HealthModule.forState(runtime.readiness),
         AccountModule,
+        EntitlementModule,
         ProcurementModule,
         ReferenceModule,
         ...(runtime.testOnlyImports ?? []),
@@ -82,6 +86,7 @@ export interface AppModuleRuntime {
   readonly accountRepository?: AccountRepository;
   readonly operatorGrantReader?: OperatorGrantReader;
   readonly regionPreferenceRepository?: RegionPreferenceRepository;
+  readonly marketSeatAdminStore?: MarketSeatAdminStore;
   readonly connection?: ManagedDatabase;
   readonly sessionAuthenticator?: SessionAuthenticator | null;
   readonly testOnlyImports?: readonly Type[];

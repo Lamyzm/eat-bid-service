@@ -52,6 +52,7 @@ export {
 } from "./api/v1/code-schemes";
 export * from "./api/v1/eligibility-areas";
 export * from "./api/v1/me";
+export * from "./api/v1/operator";
 export * from "./api/v1/session";
 export * from "./ingestion/v1/normalized-code-release";
 export * from "./ingestion/v1/normalized-code-vocabulary";

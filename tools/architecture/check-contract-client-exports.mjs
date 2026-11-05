@@ -22,6 +22,7 @@ const clientExports = Object.freeze([
   ["./api/v1/eligibility-areas", "./src/api/v1/eligibility-areas/index.ts"],
   // 계정 계약은 로그인·설정 화면이 소비한다. subpath가 없으면 web이 응답 형태를 다시 선언하게 된다.
   ["./api/v1/me", "./src/api/v1/me/index.ts"],
+  ["./api/v1/operator", "./src/api/v1/operator/index.ts"],
   ["./api/v1/session", "./src/api/v1/session/index.ts"],
 ]);
 const forbiddenGraphPath = /\/(?:codecs|ingestion|operations)\/|\/portable-registry\.ts$|\/generate-json-schema\.ts$/;

@@ -16,7 +16,9 @@ export function operatorNavGroup(read: CurrentSessionRead): NavGroup | null {
       { title: '오늘 투찰', url: '/work', icon: 'post', isActive: false, items: [] },
       { title: '복기', url: '/review', icon: 'trendingUp', isActive: false, items: [] },
       // 하한선 자리는 모든 로그인 사용자에게 열린 시장 화면이지만, 메뉴는 모두에게 여는 시점(EAT-331)까지 운영자에게만 둔다(PDR-0009).
-      { title: '하한선 자리', url: '/floor', icon: 'dashboard', isActive: false, items: [] }
+      { title: '하한선 자리', url: '/floor', icon: 'dashboard', isActive: false, items: [] },
+      // 시장 자리 운영 화면이다. 금액 잠금이 자리 확인으로 바뀐 뒤에도 운영자 전용으로 남는다(ADR 0071 결정 9).
+      { title: '시장 자리', url: '/seats', icon: 'post', isActive: false, items: [] }
     ]
   };
 }
