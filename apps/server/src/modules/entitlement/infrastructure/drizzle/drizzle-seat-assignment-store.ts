@@ -1,5 +1,5 @@
 /**
- * @module 책임: 공고 배정 port를 PostgreSQL로 구현한다 — 최신 개정본의 (참가제한지역, 품목) 짝에 걸친 자리를 읽고, 배정 이력을
+ * @module 책임: 공고 배정 port를 PostgreSQL로 구현한다 — 최신 개정본의 (참가제한지역, 품목 칸) 짝에 걸친 자리를 읽고, 배정 이력을
  * 부분 unique에 기대어 한 곳만 쓰게 한다.
  */
 import { sql, type SQL } from "drizzle-orm";
@@ -14,6 +14,14 @@ export interface SeatAssignmentDatabase {
   execute(query: SQL): Promise<unknown>;
   transaction<A>(work: (transaction: SeatAssignmentDatabase) => Promise<A>): Promise<A>;
 }
+
+/**
+ * 품목 제한이 없는 공고의 품목 칸이다. eaT `MN_TRMT_LMT_YN`의 `N`이며, 자리는 이 code value를 "품목 제한 없음"
+ * 품목으로 가리킨다(ADR 0072). 코드는 원천 값 그대로이고 우리가 붙인 이름이 아니다. `Y`는 자리가 되지 않는다 —
+ * `Y`인 공고는 품목 원자가 있고 그 원자 자리가 받는다.
+ */
+const MAIN_ITEM_RESTRICTION_SCHEME = "eat:main-item-restriction";
+const NO_MAIN_ITEM_RESTRICTION_CODE = "N";
 
 // 시각은 UTC canonical 텍스트로 좁혀 받는다. driver 시간 표현을 이름으로 부를 수 있는 파일은 정해져 있다(AGENTS 17).
 const UTC_INSTANT_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"';
@@ -100,7 +108,9 @@ export class DrizzleSeatAssignmentStore implements SeatAssignmentStore {
 
   async readBasis(input: { readonly auctionAttemptId: bigint; readonly at: Temporal.Instant }): Promise<AssignmentBasis | null> {
     const at = input.at.toString();
-    // 걸침은 공고의 (지역, 품목) 모든 짝 가운데 하나라도 자리와 같은 것이다. 지역은 코드가 정확히 같아야 하고 넓히지 않는다.
+    // 걸침은 공고의 (지역, 품목 칸) 모든 짝 가운데 하나라도 자리와 같은 것이다. 지역은 코드가 정확히 같아야 하고 넓히지 않는다.
+    // 품목 칸은 품목 원자들과, 품목 제한이 `N`이면 그 code value 하나다(ADR 0072). 둘 다 없으면 eat-v6 전 해석이라 품목 칸을
+    // 모르는 것이고, 지역만으로 넓히지 않는다(ADR 0071 기각안).
     // 기간이 `at`을 포함하는 자리만 싣지만 상태는 거르지 않는다 — 상태 판정은 도메인 규칙 하나가 한다.
     const result = await this.database.execute(sql`
       with latest as (
@@ -110,21 +120,32 @@ export class DrizzleSeatAssignmentStore implements SeatAssignmentStore {
          order by ${latestRevisionOrder("revision")}
          limit 1
       ),
+      market_items as (
+        select item.code_value_id
+          from latest
+          join core.auction_revision_code_value item
+            on item.auction_revision_id = latest.auction_revision_id and item.role = 'item'
+        union
+        select restriction.code_value_id
+          from latest
+          join core.auction_revision_code_value restriction
+            on restriction.auction_revision_id = latest.auction_revision_id and restriction.role = 'main_item_restriction'
+          join core.code_value value
+            on value.code_value_id = restriction.code_value_id and value.code = ${NO_MAIN_ITEM_RESTRICTION_CODE}
+          join core.code_scheme scheme
+            on scheme.code_scheme_id = value.code_scheme_id and scheme.namespace = ${MAIN_ITEM_RESTRICTION_SCHEME}
+      ),
       pairs as (
-        select area.code_value_id as region_code_value_id, item.code_value_id as item_code_value_id
+        select area.code_value_id as region_code_value_id, market_items.code_value_id as item_code_value_id
           from latest
           join core.auction_revision_code_value area
             on area.auction_revision_id = latest.auction_revision_id and area.role = 'eligibility_area'
-          join core.auction_revision_code_value item
-            on item.auction_revision_id = latest.auction_revision_id and item.role = 'item'
+          cross join market_items
       )
       select
         latest.observation_id::text as basis_observation_id,
         ${utc(sql`latest.deadline_at`)} as deadline_at,
-        exists (
-          select 1 from core.auction_revision_code_value link
-           where link.auction_revision_id = latest.auction_revision_id and link.role = 'item'
-        ) as has_item,
+        exists (select 1 from market_items) as has_item,
         coalesce((
           select json_agg(json_build_object(
                    'market_seat_id', seat.market_seat_id::text,
