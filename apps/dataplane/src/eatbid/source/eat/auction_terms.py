@@ -1,5 +1,5 @@
-"""모듈 책임: eaT 상세 `ds_info`가 표시한 낙찰 조건(하한율·예정가격 방식·낙찰자 결정 방법)을 관측
-그대로 eat-v2 정규화 모델로 옮긴다."""
+"""모듈 책임: eaT 상세 `ds_info`가 표시한 낙찰 조건(하한율·예정가격 방식·낙찰자 결정 방법)과 참가 조건(품목
+제한·인증 종류)을 관측 그대로 eat-v2 정규화 모델로 옮긴다."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from collections.abc import Mapping
 from eatbid.generated.ingestion_v2 import NormalizedAuctionTerms
 from eatbid.source.eat.code_schemes import (
     AWARD_METHOD,
+    CERTIFICATION_KIND,
+    MAIN_ITEM_RESTRICTION,
     PLANNED_PRICE_TYPE,
     SOLO_BID_METHOD,
     optional_scheme_value,
@@ -16,7 +18,10 @@ from eatbid.source.eat.wire_values_v2 import optional_bid_rate
 
 
 def parse_auction_terms(
-    info: Mapping[str, str], *, observe_solo_bid_method: bool = False
+    info: Mapping[str, str],
+    *,
+    observe_solo_bid_method: bool = False,
+    observe_participation_codes: bool = False,
 ) -> NormalizedAuctionTerms:
     """조건은 `ds_info`가 표시한 것만 읽는다.
 
@@ -41,9 +46,20 @@ def parse_auction_terms(
         if observe_solo_bid_method
         else {}
     )
+    # 품목 제한·인증 종류는 eat-v6부터 읽는다. 같은 이유로 옛 version에는 키를 만들지 않는다 — 없는 키는
+    # "품목 제한 없음"이 아니라 미관측이다(ADR 0072).
+    participation = (
+        {
+            "main_item_restriction": optional_scheme_value(info, MAIN_ITEM_RESTRICTION),
+            "certification_kind": optional_scheme_value(info, CERTIFICATION_KIND),
+        }
+        if observe_participation_codes
+        else {}
+    )
     return NormalizedAuctionTerms(
         floor_rate=optional_bid_rate(info, "PLNPRCE_SUCBD_STD"),
         planned_price_method=optional_scheme_value(info, PLANNED_PRICE_TYPE),
         award_method=optional_scheme_value(info, AWARD_METHOD),
         **solo_bid,
+        **participation,
     )

@@ -394,3 +394,51 @@ def test_eat_v5는_게시_종류를_계보에_싣고_v4는_키를_만들지_않�
     assert isinstance(absent, EatbidIngestionAuctionV2)
     assert absent.lineage.change_kind is None
     assert b'"changeKind":null' in canonical_payload(absent)
+
+
+def test_eat_v6은_품목_제한과_인증_종류를_조건에_싣고_v5는_키를_만들지_않는다() -> None:
+    """`MN_TRMT_LMT_YN`·`CERT_KND_CD`는 아카이브 fixture에 없는 열이라 ds_info 행에 끼워 넣어 읽는다(EAT-370).
+
+    `N`은 "품목을 못 읽음"이 아니라 "학교가 품목으로 제한하지 않음"이라는 원천 사실이고 시장 자리가 그것을 받는다
+    (ADR 0072). 옛 version이 키를 만들면 미관측이 "제한 없음"으로 바뀌어 남의 공고가 자리에 걸친다.
+    """
+    columns = (
+        b'<Col id="PLNPRCE_SUCBD_STD">90</Col>'
+        b'<Col id="MN_TRMT_LMT_YN">N</Col>'
+        b'<Col id="CERT_KND_CD">041</Col>'
+    )
+    payload = (
+        _payload("bid-detail-roster.xml")
+        .replace(
+            b'<Column id="PLNPRCE_SUCBD_STD" type="bigdecimal" size="16" />',
+            b'<Column id="PLNPRCE_SUCBD_STD" type="bigdecimal" size="16" />'
+            b'<Column id="MN_TRMT_LMT_YN" type="string" size="256" />'
+            b'<Column id="CERT_KND_CD" type="string" size="256" />',
+            1,
+        )
+        .replace(b'<Col id="PLNPRCE_SUCBD_STD">90</Col>', columns, 1)
+    )
+    v5 = normalize_bid_detail(payload, external_bid_id="5669410", parser_version="eat-v5")
+    v6 = normalize_bid_detail(payload, external_bid_id="5669410", parser_version="eat-v6")
+
+    assert isinstance(v5, EatbidIngestionAuctionV2)
+    assert isinstance(v6, EatbidIngestionAuctionV2)
+    assert v6.contract_version == v5.contract_version
+    # v5는 이 열을 보지 않으므로 키 자체가 없다 — 봉인된 v5 payload의 바이트가 그대로다(ADR 0038).
+    assert b"mainItemRestriction" not in canonical_payload(v5)
+    assert b"certificationKind" not in canonical_payload(v5)
+    restriction = v6.terms.main_item_restriction
+    certification = v6.terms.certification_kind
+    assert restriction is not None and certification is not None
+    assert (restriction.code, restriction.code_scheme, restriction.label) == ("N", "eat:main-item-restriction", None)
+    assert (certification.code, certification.code_scheme) == ("041", "eat:certification-kind")
+    # v6도 앞 version의 관측을 계속 싣는다. 떨어뜨리면 replay가 사실을 잃는다.
+    assert v6.lineage.change_kind is None
+    assert b"changeKind" in canonical_payload(v6)
+    assert b"soloBidMethod" in canonical_payload(v6)
+    # 열이 없는 응답을 v6으로 읽으면 "봤는데 없었다"의 null이다 — "안 봤다"(키 없음)와 다른 사실이다(AGENTS 3).
+    absent = normalize_bid_detail(
+        _payload("bid-detail-roster.xml"), external_bid_id="5669410", parser_version="eat-v6"
+    )
+    assert isinstance(absent, EatbidIngestionAuctionV2)
+    assert b'"mainItemRestriction":null' in canonical_payload(absent)

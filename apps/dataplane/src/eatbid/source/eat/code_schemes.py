@@ -66,6 +66,14 @@ SOLO_BID_METHOD = EatCodeScheme(
 ANNOUNCEMENT_CHANGE_KIND = EatCodeScheme(
     "eat:announcement-change-kind", "PBANC_CHG_GB_CD", "CHG_TP_NM"
 )
+# 주요 취급 품목으로 참가를 제한하는가(Y/N)다. `N`이면 원천이 `MAIN_ITEMS`를 비운다(183,777건 예외 0,
+# AUDIT-SOURCE §4) — 품목 원자가 없는 이유가 "못 읽음"이 아니라 "학교가 제한하지 않음"임을 이 코드가 말한다.
+# 이름 칸이 없다. 이름이 비슷한 단독입찰(`SGNS_BID_PRCS_MTHD_CD`)과 헷갈리지 마라(SOURCE-FIELDS T11·T13, ADR 0072).
+MAIN_ITEM_RESTRICTION = EatCodeScheme("eat:main-item-restriction", "MN_TRMT_LMT_YN")
+# 인증 종류다. 이름 칸이 없고 뜻을 확정하지 못했다. 품목 있는 공고에서는 041 육류·043 수산·045 김치·046 가금과
+# 거의 1:1이지만 같은 학교가 달마다 041/999를 바꿔 써 품목이 아니라 인증 조건으로 보인다 — 품목으로 매핑하지
+# 말고 관측으로만 남긴다(2026-11-05 표본 550건, ADR 0072 결정 4).
+CERTIFICATION_KIND = EatCodeScheme("eat:certification-kind", "CERT_KND_CD")
 
 # 복수예정가격 후보 15개 중 그 회차 추첨에 뽑혔는지(Y/N)다. "선택 여부"라는 의미는 실측으로 확인했다:
 # 전수 2,715,210행에 Y/N 두 값만 있고(`docs/audit-source/census-detail.txt`), 회차마다 정확히 4행이
@@ -139,6 +147,8 @@ EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
     AWARD_METHOD,
     SOLO_BID_METHOD,
     ANNOUNCEMENT_CHANGE_KIND,
+    MAIN_ITEM_RESTRICTION,
+    CERTIFICATION_KIND,
     RESERVE_PRICE_SELECTION_FLAG,
     ATTEMPT_STATUS,
 )

@@ -114,6 +114,21 @@ export const builtinCodeSchemes = [
     versionPolicy: "source-managed",
     validTimePolicy: "effective-dated",
   },
+  // 주요 취급 품목 참가 제한(`ds_info.MN_TRMT_LMT_YN`, Y/N)이다. `N`이면 원천이 주요 품목을 비우며, 시장 자리는
+  // 이 `N`을 "품목 제한 없음" 품목 칸으로 받는다. 인증 종류(`CERT_KND_CD`)는 뜻을 확정하지 못해 저장만 한다.
+  // 둘 다 eat-v6 상세 파서가 읽는다(EAT-370, ADR 0072).
+  {
+    namespace: "eat:main-item-restriction",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
+  {
+    namespace: "eat:certification-kind",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
   // 위 전부와 달리 이 체계만 owner가 우리다. eaT는 품목을 `MAIN_ITEMS` 라벨 문자열로만 주고 코드를
   // 주지 않으므로, 코드를 발급하고 폐기하는 주체가 우리다. 접두사를 `eat:`로 두면 aT가 코드를 준 것처럼
   // 보이므로 다른 체계와 같은 규칙(접두사 = 소유자)을 지켜 `eatbid:`로 부른다. 용어 자체는 eaT가

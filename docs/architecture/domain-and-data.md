@@ -224,6 +224,11 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
   `terms` 블록이 없어 v1 발행은 `floor_rate`가 null이고 두 role 관계를 만들지 않는다. 품목은 role `item`으로
   `eatbid:auction-item` 원자 code value를 가리키며, 라벨 한 문자열이 원자 여러 행으로 투영되므로 한 revision에
   같은 role 행이 여럿 선다(EAT-230, 마이그레이션 `20260916114829_auction_revision_code_value_item_role`).
+  품목 원자가 없는 이유는 role `main_item_restriction`이 말한다. `ds_info.MN_TRMT_LMT_YN`(주요 취급 품목으로 참가를
+  제한하는가, Y/N)을 `eat:main-item-restriction` code value로 가리키며, `N`이면 원천이 주요 품목을 비운다(183,777건 예외 0).
+  시장 자리는 이 `N`을 "품목 제한 없음" 품목 칸으로 받는다([ADR 0072](../adr/0072-main-item-restriction-as-seat-item.md)).
+  인증 종류(`CERT_KND_CD`)는 role `certification_kind`로 `eat:certification-kind`를 가리키되 뜻을 확정하지 못해 아무
+  판정에도 쓰지 않는다. 둘 다 eat-v6부터 관측되고, 그 전 해석의 revision에 연결이 없는 것은 미관측이지 `N`이 아니다.
   `packages/db/src/schema/core/procurement.ts`가 DDL의 권위다.
 - **revision은 정규화 기록의 jsonb 사본을 들지 않는다(EAT-308).** 예전 `source_payload` 열은 `normalized_record_id`가 이미 가리키는
   `ingest.normalized_record.normalized_payload`와 같은 사본이었다(운영 표본 200/200 일치, 표마다 약 7GB). 읽는 곳이
@@ -329,6 +334,8 @@ unique(workspace_id, supplier_party_id, auction_attempt_id)
 - **자리 한 줄은 (워크스페이스, eaT 참가제한지역 code value, 품목 code value, 기간)이다.** 기간은 `starts_at`·`ends_at`이고
   겹침은 `tstzrange(starts_at, ends_at)`, 곧 반열림 `[시작, 끝)`으로 판정한다. 상태는 선점·활성·되찾기·제안 넷이며 네 상태 모두
   같은 자리를 막는다. 선점의 끝은 선점 마감 시각이라 치우는 작업 없이 저절로 풀린다. 회수·취소는 행을 지우지 않고 끝을 자른다.
+  품목 칸(`item_code_value_id`)은 `eatbid:auction-item` 원자 하나이거나 `eat:main-item-restriction`의 `N`("품목 제한 없음") 하나다.
+  FK는 `code_value`까지만 막으므로 체계 검사는 자리를 만드는 운영자 경로가 진다([ADR 0072](../adr/0072-main-item-restriction-as-seat-item.md)).
 - **우선권 시작일(`priority_started_at`)은 기간 시작과 따로 둔다.** 연장과 24시간 안의 되찾기로 바뀌지 않으며, 한 공고에 걸친
   자리가 여럿이면 이 시각이 이른 자리가 맡는다.
 - **사업자번호 claim(`app.seat_business_claim`)은 같은 번호가 같은 기간에 다른 워크스페이스에 묶이지 못하게 한다.** 등록

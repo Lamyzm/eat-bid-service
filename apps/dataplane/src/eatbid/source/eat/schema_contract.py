@@ -297,6 +297,25 @@ _EAT_V5_BID_DETAIL = replace(
 )
 _EAT_V5_BID_LIST_PAGE = replace(_EAT_V1_BID_LIST, parser_version="eat-v5")
 
+# eat-v6는 eat-v5와 같은 응답을 읽되 `ds_info.MN_TRMT_LMT_YN`(주요 취급 품목 참가 제한)과 `CERT_KND_CD`(인증 종류)를
+# `auction.v2` 계약의 가산 optional 필드 `terms.mainItemRestriction`·`terms.certificationKind`에 싣는다(EAT-370, ADR 0072).
+# eat-v5는 이미 배포돼 정시 수집이 그 이름으로 payload를 봉인하고 있으므로 고치지 않고 이름을 더한다. `required`는 그대로다.
+_EAT_V6_BID_DETAIL = replace(
+    _EAT_V5_BID_DETAIL,
+    parser_version="eat-v6",
+    datasets=MappingProxyType(
+        {
+            **_EAT_V5_BID_DETAIL.datasets,
+            "ds_info": (
+                *_EAT_V5_BID_DETAIL.datasets["ds_info"],
+                "MN_TRMT_LMT_YN",
+                "CERT_KND_CD",
+            ),
+        }
+    ),
+)
+_EAT_V6_BID_LIST_PAGE = replace(_EAT_V1_BID_LIST, parser_version="eat-v6")
+
 # 공통 코드목록 응답 `ds_out`의 알려진 전체 column 22개다. 근거는 2026-09-16 실측
 # (`SC066,SC067,EP049,BC016` 282행, `tests/fixtures/eat/code-list.xml`; `EP051`·`EP111`도 같은 22열, 2026-09-17)이다. `ITM_VL1`~`ITM_VL9`는
 # 그룹마다 뜻이 다르고 채움률도 다르지만 전체 모양에는 둔다 — 소스가 column을 더하거나 빼는 변화를
@@ -356,6 +375,7 @@ _EAT_V2_CODE_LIST = replace(_EAT_V1_CODE_LIST, parser_version="eat-v2")
 _EAT_V3_CODE_LIST = replace(_EAT_V1_CODE_LIST, parser_version="eat-v3")
 _EAT_V4_CODE_LIST = replace(_EAT_V1_CODE_LIST, parser_version="eat-v4")
 _EAT_V5_CODE_LIST = replace(_EAT_V1_CODE_LIST, parser_version="eat-v5")
+_EAT_V6_CODE_LIST = replace(_EAT_V1_CODE_LIST, parser_version="eat-v6")
 
 REVIEWED_EAT_SCHEMA_CONTRACTS = MappingProxyType(
     {
@@ -371,11 +391,14 @@ REVIEWED_EAT_SCHEMA_CONTRACTS = MappingProxyType(
             _EAT_V4_BID_DETAIL,
             _EAT_V5_BID_LIST_PAGE,
             _EAT_V5_BID_DETAIL,
+            _EAT_V6_BID_LIST_PAGE,
+            _EAT_V6_BID_DETAIL,
             _EAT_V1_CODE_LIST,
             _EAT_V2_CODE_LIST,
             _EAT_V3_CODE_LIST,
             _EAT_V4_CODE_LIST,
             _EAT_V5_CODE_LIST,
+            _EAT_V6_CODE_LIST,
         )
     }
 )

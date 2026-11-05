@@ -263,6 +263,9 @@ describe("canonical identity 불변식", () => {
       "solo_bid_method",
       // 게시 종류(EAT-262). 재입찰의 진짜 신호이며 `RBID_YN`이 아니다.
       "announcement_change_kind",
+      // 주요 취급 품목 참가 제한과 인증 종류(EAT-370). 앞의 것이 "품목 제한 없음" 자리를 만든다(ADR 0072).
+      "main_item_restriction",
+      "certification_kind",
       // 품목 원자 투영(EAT-230)이 쓰는 role이다. check에서 빠지면 투영이 CheckViolation으로 죽는다.
       "item",
     ]) {

@@ -32,7 +32,9 @@ from eatbid.source.eat.code_schemes import (
     AWARD_METHOD,
     BID_STATUS,
     BUSINESS_NUMBER,
+    CERTIFICATION_KIND,
     ELIGIBILITY_AREA,
+    MAIN_ITEM_RESTRICTION,
     PLANNED_PRICE_TYPE,
     SOLO_BID_METHOD,
     SUPPLIER_ACCOUNT,
@@ -49,6 +51,8 @@ REVIEWED_CODE_ROLES = {
     AWARD_METHOD.namespace: "award_method",
     PLANNED_PRICE_TYPE.namespace: "planned_price_method",
     SOLO_BID_METHOD.namespace: "solo_bid_method",
+    MAIN_ITEM_RESTRICTION.namespace: "main_item_restriction",
+    CERTIFICATION_KIND.namespace: "certification_kind",
     ANNOUNCEMENT_CHANGE_KIND.namespace: "announcement_change_kind",
     # 유일하게 우리가 코드를 발급하는 체계다. 한 공고가 원자 여럿을 가지므로 같은 role이 한 revision에
     # 여러 행으로 앉으며, 그 중복은 관계 표의 제약이 막는다.

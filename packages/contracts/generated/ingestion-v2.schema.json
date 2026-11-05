@@ -370,9 +370,19 @@
     },
     "NormalizedAuctionTerms": {
       "additionalProperties": false,
-      "description": "Observed award terms: floor rate, reserve-price method and award method as source codes.",
+      "description": "Observed award and participation terms as source codes: floor rate, reserve-price method, award method, solo-bid handling, main-item restriction and certification kind.",
       "properties": {
         "awardMethod": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCodedValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "certificationKind": {
           "anyOf": [
             {
               "$ref": "#/$defs/SourceCodedValue"
@@ -386,6 +396,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/BidRate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mainItemRestriction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCodedValue"
             },
             {
               "type": "null"

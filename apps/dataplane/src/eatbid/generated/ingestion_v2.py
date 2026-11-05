@@ -240,14 +240,20 @@ class NormalizedAuctionLineage(BaseModel):
 
 
 class NormalizedAuctionTerms(BaseModel):
-    """Observed award terms: floor rate, reserve-price method and award method as source codes."""
+    """Observed award and participation terms as source codes: floor rate, reserve-price method, award method, solo-bid handling, main-item restriction and certification kind."""
 
     model_config = ConfigDict(
         extra='forbid',
         populate_by_name=True,
     )
     award_method: Annotated[SourceCodedValue | None, Field(alias='awardMethod')]
+    certification_kind: Annotated[
+        SourceCodedValue | None, Field(alias='certificationKind')
+    ] = None
     floor_rate: Annotated[BidRate | None, Field(alias='floorRate')]
+    main_item_restriction: Annotated[
+        SourceCodedValue | None, Field(alias='mainItemRestriction')
+    ] = None
     planned_price_method: Annotated[
         SourceCodedValue | None, Field(alias='plannedPriceMethod')
     ]

@@ -63,11 +63,15 @@ def source_awarded_rate(body: bytes) -> Decimal:
 
 
 def publish_v2_observation(
-    services: PipelineServices, body: bytes, *, external_bid_id: str | None = None
+    services: PipelineServices,
+    body: bytes,
+    *,
+    external_bid_id: str | None = None,
+    parser_version: str = PARSER_VERSION,
 ) -> tuple[UUID, str]:
-    """eat-v2 계약으로 관측 하나를 잡아 정규화하고 발행 manifest까지 봉인한다."""
+    """`auction.v2` 계약으로 관측 하나를 잡아 정규화하고 발행 manifest까지 봉인한다."""
     external_bid_id = external_bid_id or uuid4().hex
-    run_id = start_run(services, parser_version=PARSER_VERSION)
+    run_id = start_run(services, parser_version=parser_version)
     observation_id = capture_detail(
         services,
         run_id=run_id,
@@ -75,7 +79,7 @@ def publish_v2_observation(
         body=body,
     )
     normalized = normalize_one(
-        services, observation_id, parser_version=PARSER_VERSION
+        services, observation_id, parser_version=parser_version
     )
     assert normalized.record_type == "auction.v2"
     publication_id = uuid4()
@@ -217,6 +221,65 @@ def test_eat_v2_발행은_공고_조건을_열과_코드_관계로_남긴다(
     assert terms == [
         ("award_method", "eat:award-method", SOURCE_AWARD_METHOD),
         ("planned_price_method", "eat:planned-price-type", SOURCE_PLANNED_PRICE_TYPE),
+    ]
+
+
+def test_eat_v6_발행은_품목_제한과_인증_종류를_코드_관계로_남긴다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """`N`이 core에 코드로 앉아야 시장 자리가 "품목 제한 없음" 공고를 받는다(ADR 0072).
+
+    아카이브 fixture에는 두 열이 없어 ds_info 행에 끼워 넣는다. role 허용 목록이나 시드가 빠지면 이 발행이
+    CheckViolation·미등록 체계로 죽는다.
+    """
+    body = (
+        ROSTER_FIXTURE.read_bytes()
+        .replace(
+            b'<Column id="PLNPRCE_SUCBD_STD" type="bigdecimal" size="16" />',
+            b'<Column id="PLNPRCE_SUCBD_STD" type="bigdecimal" size="16" />'
+            b'<Column id="MN_TRMT_LMT_YN" type="string" size="256" />'
+            b'<Column id="CERT_KND_CD" type="string" size="256" />',
+            1,
+        )
+        .replace(
+            b'<Col id="PLNPRCE_SUCBD_STD">90</Col>',
+            b'<Col id="PLNPRCE_SUCBD_STD">90</Col>'
+            b'<Col id="MN_TRMT_LMT_YN">N</Col>'
+            b'<Col id="CERT_KND_CD">041</Col>',
+            1,
+        )
+    )
+    publication_id, external_bid_id = publish_v2_observation(
+        pipeline_services, body, parser_version="eat-v6"
+    )
+
+    project_publication(
+        publication_id=publication_id,
+        projector_version=BUILD_SHA,
+        activated_at=ACTIVATED_AT,
+        repository=pipeline_services.projection_repository,
+    )
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select rcv.role, cs.namespace, cv.code
+            from core.auction_revision_code_value rcv
+            join core.auction_revision ar using (auction_revision_id)
+            join core.auction_attempt aa using (auction_attempt_id)
+            join core.code_value cv on cv.code_value_id = rcv.code_value_id
+            join core.code_scheme cs using (code_scheme_id)
+            where aa.external_bid_id = %s
+              and rcv.role in ('main_item_restriction', 'certification_kind')
+            order by rcv.role
+            """,
+            (external_bid_id,),
+        )
+        codes = cursor.fetchall()
+
+    assert codes == [
+        ("certification_kind", "eat:certification-kind", "041"),
+        ("main_item_restriction", "eat:main-item-restriction", "N"),
     ]
 
 
