@@ -4,6 +4,7 @@ import 'server-only';
 import type { FloorLineRegionsV1Response } from '@eatbid/contracts/api/v1/analysis';
 
 import { privateServerRequest } from '../_transport/private-server-request.server';
+import { privateServerHeavyRequest } from '../_transport/private-server-request.server';
 import {
   findFloorLineRegionsWith,
   findFloorLinesWith,
@@ -17,7 +18,7 @@ import {
 } from './floor-lines';
 
 /**
- * 셋 다 로그인 게이트를 지나는 제품 데이터 읽기라 쿠키를 실어 나르는 `privateServerRequest`를 쓴다(ADR 0032 §12). `use cache`
+ * 모두 로그인 게이트를 지나는 제품 데이터 읽기라 쿠키를 실어 나르는 개인 adapter를 쓴다(ADR 0032 §12). `use cache`
  * 경계에서는 요청 쿠키를 읽을 수 없어 게이트 앞에서 익명으로 401을 받는다.
  *
  * 장애를 값으로 돌려주는 이유는 분석 조회와 같다 — 그림 하나를 못 그린 일이 화면 전체가 사라지는 일이 되면 안 된다.
@@ -46,13 +47,17 @@ export async function findFloorLinesFromServer(
   }
 }
 
+/**
+ * 내 업체 투찰마다 그 공고의 하한선을 다시 맞춰 운영에서 3초 경계에 붙어 있다(2026-11-14 2,990ms). 넘으면 내 업체 값만
+ * 조용히 빠지므로 다른 하한선 조회와 달리 무거운 조회 예산을 쓴다(EAT-378).
+ */
 export async function findMyFloorBidsFromServer(
   input: FloorLineWindowInput
 ): Promise<MyFloorBidsRead | { readonly kind: 'read-failed' }> {
   try {
-    return await findMyFloorBidsWith(privateServerRequest, input);
+    return await findMyFloorBidsWith(privateServerHeavyRequest, input);
   } catch (error) {
-    if (privateServerRequest.isUpstreamUnavailable(error)) return { kind: 'read-failed' };
+    if (privateServerHeavyRequest.isUpstreamUnavailable(error)) return { kind: 'read-failed' };
     throw error;
   }
 }

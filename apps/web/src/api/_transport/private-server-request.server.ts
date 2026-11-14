@@ -47,5 +47,5 @@ const privateRequestWith = (resilience: TransportResilience) =>
  */
 export const privateServerRequest = privateRequestWith(transportResilience.privateServerRead);
 
-/** 복기처럼 지난 결정을 다시 돌리는 무거운 개인 조회 전용이다. 예산만 다르고 쿠키·캐시 금지 규칙은 같다. */
-export const privateServerReviewRequest = privateRequestWith(transportResilience.privateServerReviewRead);
+/** 복기·오늘 투찰처럼 공고마다 계산을 다시 돌리는 무거운 개인 조회 전용이다. 예산만 다르고 쿠키·캐시 금지 규칙은 같다. */
+export const privateServerHeavyRequest = privateRequestWith(transportResilience.privateServerHeavyRead);

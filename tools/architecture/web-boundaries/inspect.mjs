@@ -163,7 +163,7 @@ function exactContractRequestTypeImport(node) {
   return exactNamedImport(node, "ContractRequest") && (node.importClause.isTypeOnly || node.importClause.namedBindings.elements[0].isTypeOnly);
 }
 
-const PRIVATE_SERVER_ADAPTERS = ["privateServerRequest", "privateServerReviewRequest"];
+const PRIVATE_SERVER_ADAPTERS = ["privateServerRequest", "privateServerHeavyRequest"];
 
 function exactRuntimeNamedImport(node, name) {
   return exactNamedImport(node, name) && !node.importClause.isTypeOnly && !node.importClause.namedBindings.elements[0].isTypeOnly;

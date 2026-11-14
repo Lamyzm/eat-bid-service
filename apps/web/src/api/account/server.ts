@@ -14,7 +14,7 @@ import type { CurrentSessionV1Response } from '@eatbid/contracts/api/v1/session'
 import { cache } from 'react';
 
 import { privateServerRequest } from '../_transport/private-server-request.server';
-import { privateServerReviewRequest } from '../_transport/private-server-request.server';
+import { privateServerHeavyRequest } from '../_transport/private-server-request.server';
 import { getCurrentSessionWith } from './get-current-session';
 import { getMyBidBoardWith, type MyBidBoardInput, type MyBidBoardRead } from './get-my-bid-board';
 import { getMyBidReviewWith, type MyBidReviewInput, type MyBidReviewRead } from './get-my-bid-review';
@@ -125,16 +125,19 @@ export async function countFilterCombinationsFromServer(
 /**
  * 오늘 투찰 한 장이다. 운영자 권한과 관심 지역이 사람마다 달라 `use cache`를 쓰지 않는다. 권한 없음은 결과 값
  * `forbidden`이고, 그 밖의 실패는 그대로 던져 화면의 실패 갈래가 다룬다(추천 투찰가 조회와 같은 이유).
+ *
+ * 공고마다 추천 금액을 다시 계산해 첫 진입이 3초를 넘는다(2026-11-14 운영 3,284ms). 3초 예산이면 정상 응답을 잘라
+ * 화면 전체가 실패가 되므로 복기와 같은 무거운 조회 예산을 쓴다(EAT-378).
  */
 export async function getMyBidBoardFromServer(input: Omit<MyBidBoardInput, 'signal'>): Promise<MyBidBoardRead> {
-  return await getMyBidBoardWith(privateServerRequest, input);
+  return await getMyBidBoardWith(privateServerHeavyRequest, input);
 }
 
 export type { MyBidBoardRead };
 
 /** 복기 한 달이다. 운영자가 아니면 `forbidden`이고, 그 밖의 실패는 그대로 던져 화면의 실패 갈래가 다룬다. */
 export async function getMyBidReviewFromServer(input: Omit<MyBidReviewInput, 'signal'>): Promise<MyBidReviewRead> {
-  return await getMyBidReviewWith(privateServerReviewRequest, input);
+  return await getMyBidReviewWith(privateServerHeavyRequest, input);
 }
 
 export type { MyBidReviewRead };
