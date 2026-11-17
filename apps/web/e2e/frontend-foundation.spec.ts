@@ -17,7 +17,6 @@ test('공고 화면은 공통 셸과 화면 전용 skeleton 뒤 계약 응답을
   await expect(page.getByRole('status', { name: '공고 정보를 불러오는 중' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '창원 남산초등학교', level: 1 })).toBeVisible();
   await expect(page.getByText('1,234,567,890.5원')).toBeVisible();
-  await expect(page.getByLabel('색상 테마')).toBeVisible();
   await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
   await expect(page.locator('main')).toHaveCount(1);
 });
@@ -43,7 +42,7 @@ test('유효하지 않거나 존재하지 않는 공고 ID는 같은 셸 안에�
     await expect(
       page.getByRole('heading', { name: '공고 정보를 불러오지 못했습니다' })
     ).toHaveCount(0);
-    await expect(page.getByLabel('색상 테마')).toBeVisible();
+    await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
   }
 });
 
