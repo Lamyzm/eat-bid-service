@@ -289,7 +289,7 @@ Bun.serve({
     const floorLines = floorLinesResponse(request);
     if (floorLines) return floorLines;
 
-    // 오늘 투찰은 한 장을 읽고, 머리에 하한선 자리 입구 줄을 따로 읽는다.
+    // 넣을 공고는 공고 한 장과 등록 사업장 목록을 읽는다.
     const bidBoard = myBidBoardResponse(request);
     if (bidBoard) return bidBoard;
 

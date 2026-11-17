@@ -3,7 +3,7 @@
 - Status: Active
 - Date: 2026-10-10
 - Supersedes: 없음
-- Superseded-by: 없음
+- Superseded-by: [PDR-0011](0011-work-screen-pass-values-per-business.md) (결정 3만)
 - Linear: EAT-324, EAT-325, EAT-327, EAT-328, EAT-329, EAT-330, EAT-331, EAT-333
 
 ## 결정
