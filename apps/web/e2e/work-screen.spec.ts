@@ -19,7 +19,7 @@ for (const width of WIDTHS) {
     await expect(values).toContainText('89.028%');
     await expect(page.getByRole('heading', { name: /오늘 9\.22\(화\) 마감/ })).toBeVisible();
     await expect(page.getByRole('table', { name: /하한 88%/ })).toBeVisible();
-    await expect(page.getByRole('region', { name: '하한 90%' }).first()).toBeVisible();
+    await expect(page.getByRole('table', { name: /하한 90%/ }).first()).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(0);
   });
