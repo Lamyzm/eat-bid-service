@@ -16,7 +16,7 @@ const NONE = (label: string) => (
 
 function Time({ row }: { readonly row: NoticeRow }) {
   return (
-    <span className={`font-mono text-[18px] tabular-nums ${row.unusualTime ? 'font-bold text-chart-3' : ''}`}>{row.time ?? '—'}</span>
+    <span className={`font-mono text-[18px] tabular-nums ${row.unusualTime ? 'font-extrabold text-primary' : ''}`}>{row.time ?? '—'}</span>
   );
 }
 
@@ -76,7 +76,8 @@ function Block({
   // 칸 안의 sr-only 글자는 절대 위치라, 기준을 이 상자에 두지 않으면 표 폭만큼 문서를 옆으로 민다.
   return (
     <div className={`relative min-w-0 overflow-x-auto rounded-xl bg-card ${withValues ? 'ring-2 ring-chart-3' : 'ring-1 ring-border'}`}>
-      <table className='w-full min-w-[640px] table-fixed border-collapse text-left'>
+      {/* 고정 폭 칸이 사업장 수만큼 늘어나므로 최소 폭도 함께 늘려 공고 열이 찌그러지지 않게 한다. 넘치면 이 상자 안에서만 민다. */}
+      <table className='w-full table-fixed border-collapse text-left' style={{ minWidth: 88 + 220 + 250 + 130 * businessNames.length }}>
         <Head title={title} count={rows.length} tone={tone} />
         <Columns businesses={businessNames.length} />
         <thead>
@@ -85,7 +86,7 @@ function Block({
             <th scope='col' className='px-2 py-2 font-semibold'>공고</th>
             <th scope='col' className='px-2 py-2 font-semibold'>공고번호</th>
             {businessNames.map((name, index) => (
-              <th key={`${index}-${name}`} scope='col' className='truncate px-2 py-2 font-bold text-foreground' title={name}>
+              <th key={`${index}-${name}`} scope='col' className='px-2 py-2 font-bold break-all text-foreground'>
                 {withValues ? name : <span className='sr-only'>{name}</span>}
               </th>
             ))}
@@ -103,8 +104,9 @@ function Block({
                 return (
                   <td key={index} className='px-2'>
                     {value === null ? NONE(`${name} 값`) : (
-                      <CopyValue value={value} label={`${row.organization} ${name} 값`} className='rounded font-mono text-[19px] font-bold text-chart-3 tabular-nums hover:underline'>
+                      <CopyValue value={value} label={`${row.organization} ${name} 값`} className='inline-flex items-center gap-1.5 rounded font-mono text-[19px] font-bold text-chart-3 tabular-nums hover:underline'>
                         {value}%
+                        <Icons.copy aria-hidden className='size-5 text-muted-foreground' />
                       </CopyValue>
                     )}
                   </td>
