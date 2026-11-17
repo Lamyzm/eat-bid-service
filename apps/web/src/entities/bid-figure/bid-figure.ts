@@ -6,6 +6,8 @@
  * 그래서 숫자마다 분모를 이름으로 붙인다. 계산은 문자열 정수로 하고 Number로 바꾸지 않는다(AGENTS 15).
  */
 
+import { formatWon } from '@/shared/lib/number-format';
+
 export type BidFigure = {
   /** 사정률(기초금액×하한율에 곱하는 배수의 %). 소수 셋째 자리. 나누어떨어지지 않거나 하한율을 모르면 null이다. */
   readonly assessmentRate: string | null;
@@ -23,7 +25,6 @@ type Position = {
 };
 
 const DISPLAY_SCALE = 3;
-const GROUPING = /\B(?=(\d{3})+(?!\d))/g;
 
 const ZERO = BigInt(0);
 const TEN = BigInt(10);
@@ -72,9 +73,10 @@ function displayDecimal(text: string): string {
 export function bidFigure(position: Position, floorRate: string | null): BidFigure {
   const whole = position.amount.amount.split('.')[0]!;
   return {
-    assessmentRate: floorRate === null ? null : assessmentRateText(position.baseRelativeRate.value, floorRate),
+    assessmentRate:
+      floorRate === null ? null : assessmentRateText(position.baseRelativeRate.value, floorRate),
     baseRelative: displayDecimal(position.baseRelativeRate.value),
-    amount: `${whole.replace(GROUPING, ',')}원`,
+    amount: formatWon(whole),
     amountCopy: whole
   };
 }

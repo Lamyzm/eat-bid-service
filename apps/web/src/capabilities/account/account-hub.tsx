@@ -1,16 +1,13 @@
 /** @module 책임: 사이드바 계정 슬롯에서 세션 상태를 그대로 보여 주고 로그인·설정·로그아웃 진입만 제공한다. */
 'use client';
 
+import { notifyFailure } from '@/shared/ui/notify';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import { toast } from 'sonner';
 
-import {
-  isAccountDependencyUnavailableError,
-  type CurrentSessionV1Response
-} from '@/api/account';
+import { isAccountDependencyUnavailableError, type CurrentSessionV1Response } from '@/api/account';
 import { Button } from '@/shared/ui/button';
 import {
   DropdownMenu,
@@ -89,7 +86,7 @@ function AccountMenu({
     try {
       await signInWithGoogle(returnPath);
     } catch {
-      toast.error('Google 로그인을 시작하지 못했습니다.');
+      notifyFailure('Google 로그인을 시작하지 못했습니다.');
       setPending(false);
     }
   }
@@ -103,7 +100,7 @@ function AccountMenu({
     } catch (error) {
       // provider 호출이 실패했을 때만 로그아웃 자체가 안 됐다고 말한다. 그 뒤 단계의 실패는 로그아웃
       // 여부를 말해 주지 않으므로 확인하지 못했다고만 한다. 네트워크 실패도 세션 생존을 보장하지 않는다.
-      toast.error(
+      notifyFailure(
         isProviderAuthError(error)
           ? '로그아웃하지 못했습니다. 다시 시도해 주세요.'
           : '로그아웃을 확인하지 못했습니다. 화면을 새로 고쳐 주세요.'
@@ -119,9 +116,17 @@ function AccountMenu({
         render={<Button variant='ghost' className='h-12 w-full justify-start px-2' />}
         aria-label='계정 메뉴'
       >
-        <AccountSlotFace title={accountTitle(view)} detail={accountDetail(view)} alert={unavailable} />
+        <AccountSlotFace
+          title={accountTitle(view)}
+          detail={accountDetail(view)}
+          alert={unavailable}
+        />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className='w-(--anchor-width) min-w-56 rounded-lg' side='top' align='start'>
+      <DropdownMenuContent
+        className='w-(--anchor-width) min-w-56 rounded-lg'
+        side='top'
+        align='start'
+      >
         <DropdownMenuGroup>
           <DropdownMenuLabel>{accountTitle(view)}</DropdownMenuLabel>
         </DropdownMenuGroup>

@@ -1,19 +1,12 @@
-/** @module 책임: 전역 provider·font·toast·navigation progress를 static root HTML에 조립하고 theme cookie는 첫 paint 전 inline script로만 적용한다. */
+/** @module 책임: 전역 provider·글꼴·toast·navigation progress를 static root HTML에 조립하고 sidebar·명암 상태는 첫 paint 전 inline script로만 적용한다. */
 import { Toaster } from '@/shared/ui/sonner';
 import { AppProviders } from '@/shell/providers/app-providers';
-import { fontVariables } from '@/shell/theme/font.config';
 import { SIDEBAR_COOKIE_NAME, SIDEBAR_STATE_ATTRIBUTE } from '@/shell/layout/sidebar-state';
-import { ACTIVE_THEME_COOKIE_NAME, DEFAULT_THEME, THEMES } from '@/shell/theme/theme.config';
+import { META_THEME_COLORS } from '@/shell/theme/meta-theme-color';
 import { ThemeProvider } from '@/shell/theme/theme-provider';
-import { cn } from '@/shared/lib/cn';
 import type { Metadata, Viewport } from 'next';
 import NextTopLoader from 'nextjs-toploader';
 import '../styles/globals.css';
-
-const META_THEME_COLORS = {
-  light: '#ffffff',
-  dark: '#09090b'
-};
 
 // `</script>`나 HTML comment 열기로 script를 조기 종료시키지 못하게 직렬화 결과를 escape한다.
 function inlineJson(value: unknown): string {
@@ -21,9 +14,8 @@ function inlineJson(value: unknown): string {
 }
 
 // root layout이 cookies()를 읽으면 감쌀 자식이 없어 모든 route의 shell이 request-bound가 된다(ADR 0028).
-// 대신 server는 기본 theme과 펼친 sidebar로 static 렌더하고, 이 script가 HTML parsing 중 cookie를 검증해
-// 첫 paint 전에 두 상태를 적용한다. theme 허용 목록은 theme.config의 THEMES와 같은 원천에서 직렬화한다.
-const THEME_COOKIE_SCRIPT = `(function(){try{var m=document.cookie.match(/(?:^|; )${ACTIVE_THEME_COOKIE_NAME}=([^;]*)/);if(!m)return;var t=decodeURIComponent(m[1]);if(${inlineJson(THEMES.map((theme) => theme.value))}.indexOf(t)>=0)document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`;
+// 대신 server는 펼친 sidebar로 static 렌더하고, 이 script가 HTML parsing 중 cookie를 읽어 첫 paint 전에 적용한다.
+// 색 테마는 하나뿐이라 고르는 cookie가 없다(#240). 옛 `active_theme` cookie가 남아 있어도 읽는 곳이 없어 같은 색이다.
 
 const SIDEBAR_COOKIE_SCRIPT = `(function(){try{var m=document.cookie.match(/(?:^|; )${SIDEBAR_COOKIE_NAME}=([^;]*)/);if(m&&m[1]!=="true")document.documentElement.setAttribute(${inlineJson(SIDEBAR_STATE_ATTRIBUTE)},"collapsed")}catch(e){}})()`;
 
@@ -58,9 +50,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang='ko' suppressHydrationWarning data-theme={DEFAULT_THEME}>
+    <html lang='ko' suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_COOKIE_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: SIDEBAR_COOKIE_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: META_THEME_COLOR_SCRIPT }} />
         <link
@@ -70,12 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href='https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css'
         />
       </head>
-      <body
-        className={cn(
-          'bg-background overflow-x-hidden overscroll-none font-sans antialiased',
-          fontVariables
-        )}
-      >
+      <body className='bg-background text-foreground overflow-x-hidden overscroll-none font-sans antialiased'>
         <NextTopLoader color='var(--primary)' showSpinner={false} />
         <ThemeProvider
           attribute='class'

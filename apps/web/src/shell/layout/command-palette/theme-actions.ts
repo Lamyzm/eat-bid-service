@@ -1,40 +1,16 @@
-/** @module 책임: theme mode와 색상 theme 변경을 실행 가능한 command action으로 변환한다. */
+/** @module 책임: 밝게·어둡게 전환을 실행 가능한 명령 action으로 바꾼다. 색 테마는 하나뿐이라 고르는 명령이 없다(#240). */
 import type { CommandPaletteAction } from './context';
-
-interface ThemeOption {
-  name: string;
-  value: string;
-}
 
 interface CreateThemeActionsInput {
   theme: string | undefined;
-  activeTheme: string;
-  themes: readonly ThemeOption[];
   setTheme: (theme: string) => void;
-  setActiveTheme: (theme: string) => void;
 }
 
 export function createThemeActions({
   theme,
-  activeTheme,
-  themes,
-  setTheme,
-  setActiveTheme
+  setTheme
 }: CreateThemeActionsInput): CommandPaletteAction[] {
-  const currentIndex = themes.findIndex((candidate) => candidate.value === activeTheme);
-  const nextTheme = themes[(currentIndex + 1 + themes.length) % themes.length];
-
   return [
-    {
-      id: 'cycle-theme',
-      label: '색상 테마 전환',
-      description: '다음 색상 테마를 적용합니다',
-      group: '테마',
-      shortcut: ['t', 't'],
-      onSelect: () => {
-        if (nextTheme) setActiveTheme(nextTheme.value);
-      }
-    },
     {
       id: 'toggle-theme-mode',
       label: '명암 모드 전환',

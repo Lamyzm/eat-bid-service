@@ -5,8 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
 import { useTheme } from 'next-themes';
-import { useThemeConfig } from '@/shell/theme/active-theme';
-import { THEMES } from '@/shell/theme/theme.config';
 import {
   Command,
   CommandDialog,
@@ -164,13 +162,12 @@ export function CommandPaletteRoot({
 export default function CommandPalette({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const { activeTheme, setActiveTheme } = useThemeConfig();
   const actions = useMemo(
     () => [
       ...createNavigationActions(navGroups, (url) => router.push(url)),
-      ...createThemeActions({ theme, activeTheme, themes: THEMES, setTheme, setActiveTheme })
+      ...createThemeActions({ theme, setTheme })
     ],
-    [activeTheme, router, setActiveTheme, setTheme, theme]
+    [router, setTheme, theme]
   );
 
   return <CommandPaletteRoot actions={actions}>{children}</CommandPaletteRoot>;

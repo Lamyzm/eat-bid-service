@@ -2,7 +2,7 @@
 id: PRODUCT-SCREEN-SYSTEM
 status: active
 canonical_for: product-information-architecture-and-screen-contracts
-last_reviewed: 2026-11-17
+last_reviewed: 2026-11-18
 review_trigger: product-navigation-core-work-surface-or-visual-language-change
 ---
 
@@ -543,7 +543,8 @@ state로 표현하지 않는다.
 
 ### 9.1 계층과 밀도
 
-- 배경은 차분한 cool gray, 주요 작업 surface는 white를 사용한다.
+- 페이지 바탕은 지면 회색, 카드·목록은 그 위의 흰 판이다. 판은 테두리 없이 바탕 차이로 구분하고 그림자는 떠 있는
+  판(메뉴·시트·토스트)에만 둔다(#240).
 - 카드 테두리를 반복하지 않고 section divider와 여백으로 그룹을 만든다.
 - page-level 숫자 hero는 최대 1개이며 첫 분석 화면에는 두지 않는다.
 - pill badge는 긴급 상태와 filter에만 사용하고 모든 셀을 badge로 채우지 않는다.
@@ -562,9 +563,10 @@ state로 표현하지 않는다.
 | 주의·stale·부분 수집 | amber |
 | 관측 결손(미상·미관측) | neutral — 색이 아니라 문구(`미상`·`?`)와 굵기 |
 | 확정 규칙 위반·열린 불일치 | red |
-| source 대조 일치·완결 | green |
+| source 대조 일치·완결·낙찰 | blue(브랜드) |
 
-낙찰과 패찰을 전체 chart의 green/red로 칠하지 않는다. 과거 분포 안쪽을 green, 바깥을 red로 표시하면
+브랜드 색은 토스식 파랑 하나이고 초록은 쓰지 않는다(2026-11-18 결정, #240). 의미색은 주의(amber)와 위험(red) 둘뿐이다.
+낙찰과 패찰을 전체 chart의 blue/red로 칠하지 않는다. 과거 분포 안쪽을 green, 바깥을 red로 표시하면
 추천 구간처럼 읽히므로 금지한다.
 
 `unknown`은 두 종류다. 품목 미상·게시일 미관측·참가제한지역 미관측처럼 **정상 운영에서 흔한 관측 결손**과, 자료가
@@ -573,12 +575,36 @@ state로 표현하지 않는다.
 
 ### 9.3 typography와 숫자
 
-- 한국어 UI는 Pretendard 계열 system fallback을 사용하고 숫자는 tabular numeral을 켠다.
+- 한국어 UI는 Pretendard 하나와 system fallback을 사용하고 숫자는 tabular numeral을 켠다.
+- 글자 크기는 네 단이다 — 라벨 14px(`text-label`), 본문 17px(`text-body`), 제목 24px(`text-title`), 값 32px(`text-value`).
+  12px 이하는 쓰지 않고 두께는 800까지다.
 - 비율의 소수 자릿수는 source precision과 measure contract가 정하며 화면마다 임의 반올림하지 않는다.
 - 금액은 원 단위와 천 단위 구분을 기본으로 하고 복사값의 정밀도를 별도 보존한다.
 - label보다 값만 크게 키우지 않고 단위·기준·시점을 같은 reading group에 둔다.
 
-### 9.4 chart interaction
+### 9.4 화면 토대 — 토큰·부품·검사(#240)
+
+값의 원천은 `apps/web/src/styles/themes/eatbid.css` 하나다. 시안도 이 파일의 표(토큰 정본)에서만 베낀다. 화면은 토큰 이름과
+아래 공용 부품을 쓰고 손으로 값을 고르지 않는다.
+
+| 토대 | 쓰는 것 | 지키는 검사 |
+|---|---|---|
+| 색·면 | `bg-primary`·`text-brand-strong`·`bg-brand-weak`, 글자 `text-ink-1/2/3`, 판 `bg-card`, 의미색 `text-caution`·`text-danger` | 초록 클래스 금지, 토큰 파일 밖 색 글자값 금지, 테마 파일 하나 |
+| 반경 | `rounded-chip`(8)·`rounded-control`(12)·`rounded-panel`(16) | — |
+| 글자 | `text-label`·`text-body`·`text-title`·`text-value` | `text-[Npx]` 금지 |
+| 단추·입력 | `Button`(기본 48px·17px·bold, `sm` 40px·14px), `Input`(48px·17px) | — |
+| 누름 | `pressable` — 0.96배·70ms, 움직임 줄이기에서는 크기를 바꾸지 않음 | 화면의 손수 press 변형 금지 |
+| 화면 틀 | `PageFrame`·`PageHeader` — 이름 붙은 폭 `max-w-page`, 왼쪽 붙임. 뼈대(loading)도 같은 틀 | `mx-auto`+`max-w-` 틀 금지, 임의 폭 금지 |
+| 이동 대기 | `NavPending` — 누른 메뉴 링크 안, 150ms 뒤에만 보임 | — |
+| 알림 | 누른 자리의 결과는 그 자리가 말하고, 사라지는 결과만 `notifyFailure`(토스트) | `sonner` import는 `shared/ui/notify.ts`·`sonner.tsx`뿐 |
+| 빈 상태·읽기 실패 | `EmptyState`·`ReadFailure` — 구역·화면 두 크기, "다시 시도" 뒤 초점 | — |
+| 숫자 표기 | `shared/lib/number-format.ts`의 `groupDigits`·`formatCount`·`formatWon`·`formatPercent` | `toLocaleString`·`Intl.NumberFormat` 직접 호출 금지 |
+| 화면 글 | `docs/product/ui-words.md` | `pnpm copy:lint` — 금지 말 사전, 질문형 문구 금지 |
+
+옛 화면의 위반은 ADR 0075처럼 줄어들기만 하는 목록(`tools/architecture/web-boundaries/folder-baseline.json`,
+`tools/architecture/web-copy/baseline.json`)에 있고 그 화면을 지울 때 함께 사라진다.
+
+### 9.5 chart interaction
 
 - 모든 chart에 keyboard focus, tooltip과 표 대체가 있다.
 - hover만으로 필수 정보를 제공하지 않는다.

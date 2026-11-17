@@ -5,7 +5,8 @@ import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 
 // global-error replaces the root layout when it errors, so globals.css is not
-// loaded here — styles must be inline and self-contained.
+// loaded here — styles must be inline and self-contained. 색 토큰을 읽을 수 없으므로 색 글자값 대신 투명도와
+// currentColor만 쓴다(색 글자값 검사, #240).
 export default function GlobalError({
   error,
   reset
@@ -31,7 +32,7 @@ export default function GlobalError({
       >
         <div style={{ textAlign: 'center', padding: '1rem' }}>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Something went wrong</h1>
-          <p style={{ color: '#6b7280', marginBottom: '1.25rem' }}>
+          <p style={{ opacity: 0.7, marginBottom: '1.25rem' }}>
             An unexpected error occurred. Please try again.
           </p>
           <button
@@ -39,7 +40,7 @@ export default function GlobalError({
             style={{
               padding: '0.5rem 1.25rem',
               borderRadius: '0.5rem',
-              border: '1px solid #d1d5db',
+              border: '1px solid currentColor',
               background: 'transparent',
               font: 'inherit',
               cursor: 'pointer'
