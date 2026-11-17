@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { CopyValue } from '@/shared/ui/copy-value';
 import { Icons } from '@/shared/ui/icons';
 
-import type { ClosingDay, Notice88Row, NoticeRow } from '../model/work-board';
+import type { ClosingDay, Notice88Row, NoticeRow } from '../utils/work-board';
 
 const NONE = (label: string) => (
   <span className='text-[17px] text-muted-foreground'>—<span className='sr-only'>{label} 없음</span></span>

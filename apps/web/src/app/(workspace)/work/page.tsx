@@ -2,9 +2,9 @@
 import { Suspense } from 'react';
 
 import { getMyBidBoardFromServer, listMyBusinessesFromServer } from '@/api/account/server';
-import { loadWorkPage } from './_lib/load-work-page';
-import { WorkScreen } from './_widgets/work-screen';
-import { WorkScreenSkeleton } from './_widgets/work-screen-skeleton';
+import { loadWorkPage } from './load-work-page';
+import { WorkScreen } from './_components/work-screen';
+import { WorkScreenSkeleton } from './_components/work-screen-skeleton';
 
 async function WorkLoader() {
   const view = await loadWorkPage({ readBoard: () => getMyBidBoardFromServer({}), readBusinesses: listMyBusinessesFromServer });
