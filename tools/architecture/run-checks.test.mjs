@@ -60,6 +60,7 @@ test("변경 경로는 scope가 닿는 검사만 고르고 검사 도구가 바�
     "region-vocabulary",
     "semantic-values",
     "web-boundaries",
+    "web-copy",
   ]);
   // 상대 경로 import 깊이 검사는 별칭 해석기가 있는 패키지에만 붙는다(ADR 0047).
   assert.deepEqual(ids(selectChecks({ changedPaths: ["packages/db/src/schema/app/account.ts"] })), [

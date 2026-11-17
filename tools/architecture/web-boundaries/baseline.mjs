@@ -1,13 +1,13 @@
 /**
- * @module 책임: 폴더 꼴·import 그래프 규칙의 옛 위반을 규칙별 열쇠로 기억하는 기준 목록을 읽고 쓰며, 새 위반·사라진 열쇠·기준 commit 대비 늘어난
- * 열쇠를 가려 목록이 줄어들기만 하게 한다(ADR 0075).
+ * @module 책임: 폴더 꼴·import 그래프(ADR 0075)와 화면 토대(#240) 규칙의 옛 위반을 규칙별 열쇠로 기억하는 기준 목록을 읽고 쓰며, 새 위반·사라진
+ * 열쇠·기준 commit 대비 늘어난 열쇠를 가려 목록이 줄어들기만 하게 한다.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 export const BASELINE_PATH = "tools/architecture/web-boundaries/folder-baseline.json";
-const COMMENT = "Web 폴더 꼴·import 그래프의 옛 위반(ADR 0075). 줄어들기만 한다 — 손으로 늘리지 않는다. 고쳐서 위반이 사라지면 `pnpm lint:web-boundaries -- --prune-baseline`으로 지운다.";
+const COMMENT = "Web 폴더 꼴·import 그래프(ADR 0075)와 화면 토대(#240)의 옛 위반. 줄어들기만 한다 — 손으로 늘리지 않는다. 고쳐서 위반이 사라지면 `pnpm lint:web-boundaries -- --prune-baseline`으로 지운다.";
 
 /** JSON 글을 규칙 → 열쇠 집합으로 읽는다. `$`로 시작하는 칸은 설명이다. 글이 없으면 빈 목록이다. */
 export function parseBaseline(text) {
@@ -21,12 +21,15 @@ export function readBaseline(repoRoot) {
   return existsSync(file) ? parseBaseline(readFileSync(file, "utf8")) : new Map();
 }
 
-/** 규칙 이름 차례, 열쇠 code point 차례로 적는다. 다시 써도 diff가 흔들리지 않는다. */
+/**
+ * 규칙 이름 차례, 열쇠 code point 차례로 적는다. 다시 써도 diff가 흔들리지 않는다. 열쇠가 다 빠진 규칙도 빈 목록으로 남긴다 —
+ * 규칙 이름이 사라지면 다음 변경에서 그 규칙이 "처음 싣는 목록"으로 보여 손으로 늘릴 길이 열린다.
+ */
 export function formatBaseline(baseline) {
   const body = { $comment: COMMENT };
   for (const rule of [...baseline.keys()].sort()) {
     const keys = [...baseline.get(rule)].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
-    if (keys.length) body[rule] = keys;
+    body[rule] = keys;
   }
   return `${JSON.stringify(body, null, 2)}\n`;
 }
@@ -64,11 +67,17 @@ export function compareBaseline(findings, baseline, baselinedRules) {
   return { kept, fresh, stale, foreign };
 }
 
-/** 기준 commit의 목록에 없던 열쇠(손으로 늘린 것). 기준 commit에 목록이 없으면 첫 목록이라 늘어난 것으로 보지 않는다. */
+/**
+ * 기준 commit의 목록에 없던 열쇠(손으로 늘린 것). 기준 commit에 목록이 없으면 첫 목록이라 늘어난 것으로 보지 않는다. 기준 commit의
+ * 목록에 이름조차 없던 규칙은 이 변경이 새로 들인 규칙이라 그 규칙의 첫 목록으로 본다 — 새 규칙은 코드 변경으로만 생긴다.
+ */
 export function grownKeys(baseline, before) {
   if (!before) return [];
   const grown = [];
-  for (const [rule, keys] of baseline) for (const key of keys) if (!before.get(rule)?.has(key)) grown.push({ rule, key });
+  for (const [rule, keys] of baseline) {
+    if (!before.has(rule)) continue;
+    for (const key of keys) if (!before.get(rule).has(key)) grown.push({ rule, key });
+  }
   return grown;
 }
 

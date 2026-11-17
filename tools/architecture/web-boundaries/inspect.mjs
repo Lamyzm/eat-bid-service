@@ -5,6 +5,7 @@ import path from "node:path";
 import ts from "typescript";
 import { compareBaseline, readBaseline } from "./baseline.mjs";
 import { clientValueExportCrossings } from "./client-value-exports.mjs";
+import { DESIGN_BASELINED_RULES, designTokenFindings } from "./design-tokens.mjs";
 import { exportedManualDtos } from "./dto-provenance.mjs";
 import { kindFolderFindings, kindFolderMismatches } from "./folder-layout.mjs";
 import { isDomLibrarySymbol, isGlobalFetchCall } from "./global-fetch-analysis.mjs";
@@ -43,6 +44,8 @@ import { applyWaivers } from "./waivers.mjs";
 
 // 이 모듈은 Web source 전체를 한 TypeScript program으로 검사해 deterministic boundary finding을 만든다.
 // 세부 의미 분석은 전용 모듈에 위임하고, 여기서는 path 소유권·변경 범위·waiver 경계만 조립한다.
+// 폴더 꼴·import 그래프(ADR 0075)와 화면 토대(#240)의 옛 위반은 같은 기준 목록에서 줄어들기만 한다.
+const ALL_BASELINED_RULES = new Set([...BASELINED_RULES, ...DESIGN_BASELINED_RULES]);
 const responseBodyMethods = new Set(["json", "text", "arrayBuffer", "blob", "formData", "bytes"]);
 const sha256 = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 const display = (root, file) => normalizedPath(root, file).replaceAll("\\", "/");
@@ -499,8 +502,9 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, changedPaths,
     add(findings, root, WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP, path.join(root, members[0]), "SourceFileGroup", undefined, "동일한 큰 source group은 shared extraction 또는 의도적인 분리를 검토해야 합니다.", members);
   }
   findings.push(...folderFindings(root, source, edges));
+  findings.push(...designTokenFindings(root, source));
   findings.sort((left, right) => codePointCompare(`${left.rule}\0${left.path}\0${left.kind}\0${left.reason}`, `${right.rule}\0${right.path}\0${right.kind}\0${right.reason}`));
-  const waiverResult = applyWaivers({ findings: findings.filter((item) => !BASELINED_RULES.has(item.rule)), sources });
+  const waiverResult = applyWaivers({ findings: findings.filter((item) => !ALL_BASELINED_RULES.has(item.rule)), sources });
   const skipped = [];
   const reported = [];
   for (const item of waiverResult.findings) {
@@ -509,7 +513,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, changedPaths,
   }
   // 폴더 꼴·import 그래프 규칙은 변경 범위가 아니라 기준 목록으로 판정한다(ADR 0075). 목록에 없는 위반은 보고하고, 사라진 열쇠와
   // 목록에 올릴 수 없는 규칙의 열쇠는 실패로 드러내 목록이 지금 트리의 옛 꼴을 정확히 담게 한다.
-  const comparison = compareBaseline(findings.filter((item) => BASELINED_RULES.has(item.rule)), baseline ?? readBaseline(root), BASELINED_RULES);
+  const comparison = compareBaseline(findings.filter((item) => ALL_BASELINED_RULES.has(item.rule)), baseline ?? readBaseline(root), ALL_BASELINED_RULES);
   reported.push(...comparison.fresh);
   reported.sort((left, right) => codePointCompare(`${left.rule}\0${left.path}\0${left.kind}\0${left.reason}`, `${right.rule}\0${right.path}\0${right.kind}\0${right.reason}`));
   const failures = [
