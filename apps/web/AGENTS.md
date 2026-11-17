@@ -114,7 +114,8 @@
 - formatting은 single quote, JSX single quote, no trailing comma, 2-space indent를 따른다.
 - source가 300줄을 넘으면 책임 분리를 검토한다. 유지할 경우 reason, owner와 다음 split trigger가 있는
   명시적 waiver가 필요하다. waiver는 파일 머리 주석의
-  `@boundary-waiver source-file-size owner=EAT-N reason="…" splitTrigger="…"` 한 줄이며 `lint:web-boundaries`가
+  `@boundary-waiver source-file-size owner=#N reason="…" splitTrigger="…"` 한 줄이며(owner는 GitHub issue
+  번호이고, Linear 시절 waiver의 `EAT-N`은 지울 때까지 읽는다) `lint:web-boundaries`가
   읽는다. reason·splitTrigger는 한국어 문장이고, 파일이 300줄 이하로 돌아오면 waiver를 지운다(stale waiver는
   실패). 다른 규칙은 waiver로 면제할 수 없다.
 - 신규·변경 테스트 이름은 한국어로 작성한다.

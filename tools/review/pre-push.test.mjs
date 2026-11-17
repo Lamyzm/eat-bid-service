@@ -67,23 +67,6 @@ test("EATBID_AI_REVIEW를 켠 issue branch push만 advisory를 돌린다", async
   assert.deepEqual(calls, ["review:HEAD~1"]);
 });
 
-test("branch와 claim이 어긋난 push는 테스트를 돌리기 전에 막는다", async () => {
-  const calls = [];
-  const code = await runPrePush({
-    stdin: update("refs/heads/feature"),
-    env: {},
-    checkClaims: async (stdin, environment) => {
-      calls.push(["claims", stdin.trim(), environment]);
-      return 1;
-    },
-    runAdvisory: async () => ({ category: "success" }),
-    warn: () => undefined,
-  });
-
-  assert.equal(code, 1);
-  assert.deepEqual(calls, [["claims", update("refs/heads/feature").trim(), {}]]);
-});
-
 test("advisory를 쓸 수 없어도 push를 막지 않는다", async () => {
   assert.equal(
     await runPrePush({
@@ -159,7 +142,7 @@ test("advisory success는 summary와 finding을 출력해 push하는 사람이 �
   assert.match(logs.join("\n"), /a\.ts:3 \[low\] 제목/);
 });
 
-test("claim 검사와 AI advisory는 같은 격리 환경을 전달받는다", async () => {
+test("AI advisory는 저장소 git 변수를 뺀 격리 환경을 전달받는다", async () => {
   const environments = [];
   const dirtyEnvironment = {
     Git_Index_File: "오염.index",
@@ -170,10 +153,6 @@ test("claim 검사와 AI advisory는 같은 격리 환경을 전달받는다", a
   const code = await runPrePush({
     stdin: update("refs/heads/feature"),
     env: dirtyEnvironment,
-    checkClaims: async (_stdin, environment) => {
-      environments.push(environment ?? {});
-      return 0;
-    },
     runAdvisory: async (_baseRef, environment) => {
       environments.push(environment ?? {});
       return { category: "success" };
@@ -182,7 +161,7 @@ test("claim 검사와 AI advisory는 같은 격리 환경을 전달받는다", a
   });
 
   assert.equal(code, 0);
-  assert.equal(environments.length, 2);
+  assert.equal(environments.length, 1);
   for (const environment of environments) {
     assert.equal(
       Object.keys(environment).some((name) => name.toUpperCase() === "GIT_INDEX_FILE"),
