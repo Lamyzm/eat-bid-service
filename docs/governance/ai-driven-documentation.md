@@ -2,7 +2,7 @@
 id: DOC-GOVERNANCE
 status: active
 canonical_for: cross-agent-knowledge-and-delivery-workflow
-last_reviewed: 2026-09-02
+last_reviewed: 2026-11-17
 review_trigger: workflow-tool-or-document-authority-change
 ---
 
@@ -15,7 +15,7 @@ eatbid는 특정 AI 도구의 대화나 task list가 아니라 **공유 작업 �
 
 ```text
 제품 outcome
-  → Linear issue/project
+  → GitHub issue
   → 필요할 때만 OpenSpec delta / ADR
   → 한 writing agent의 격리 구현
   → 다른 agent의 독립 review
@@ -31,9 +31,9 @@ eatbid는 특정 AI 도구의 대화나 task list가 아니라 **공유 작업 �
 |---|---|---|
 | 현재 제품 경계와 비목표는 무엇인가? | `docs/architecture/product-and-quality.md` + Accepted ADR | roadmap 확장 가설, agent 대화 |
 | 어떤 capability 가설과 outcome 순서로 성장하는가? | `docs/product/roadmap.md` | Project의 임시 메모 |
-| work item의 문제·scope·acceptance는 무엇인가? | Linear issue | agent 대화, Markdown roadmap 상태, GitHub Issue |
-| 여러 work item의 우선순위·담당·진행 상태는 무엇인가? | Linear project의 issue view | GitHub Project, 별도 Markdown task board |
-| 기능 행동이 이번 변경에서 어떻게 달라지는가? | Linear issue acceptance, 필요 시 OpenSpec delta | 구현자가 대화에서 만든 암묵적 가정 |
+| work item의 문제·scope·acceptance는 무엇인가? | GitHub issue | agent 대화, Markdown roadmap 상태, Linear(읽기 전용 기록) |
+| 여러 work item의 우선순위·담당·진행 상태는 무엇인가? | GitHub issue의 열림·닫힘·assignee·label | 별도 Markdown task board |
+| 기능 행동이 이번 변경에서 어떻게 달라지는가? | GitHub issue acceptance, 필요 시 OpenSpec delta | 구현자가 대화에서 만든 암묵적 가정 |
 | 시스템 경계를 왜 선택했는가? | Accepted ADR | plan, PR 코멘트만으로 남긴 결정 |
 | 제품 판단(무엇을 왜 하지 않기로 했는가)은 무엇인가? | `docs/product/decisions/`(PDR) | agent 대화, PLANNING-LOG 서술 |
 | 목표 데이터·런타임 구조는 무엇인가? | `docs/architecture/` | 현재 코드에서 우연히 추론한 구조 |
@@ -51,8 +51,7 @@ eatbid는 특정 AI 도구의 대화나 task list가 아니라 **공유 작업 �
 
 - `AGENTS.md`: 모든 사람·Codex·Claude가 지키는 불변식과 필수 읽기 지도
 - `ARCHITECTURE.md`, architecture docs, ADR: 목표 구조와 결정
-- Linear issue: 작업 문제, scope, acceptance, owner, 결정과 handoff
-- Linear project: issue를 복사하지 않고 우선순위, status, blocker를 투영하는 portfolio view
+- GitHub issue: 작업 문제, scope, acceptance, owner, 우선순위·상태, 결정과 handoff(ADR 0073)
 - OpenSpec change: 중대형 행동 변경의 delta 계약
 - repository script와 CI: deterministic verification
 - PR: 구현 diff, review, 실행 evidence
@@ -65,32 +64,28 @@ eatbid는 특정 AI 도구의 대화나 task list가 아니라 **공유 작업 �
   Claude 지침으로 자동 로드하지 않는다.
 - Claude auto memory와 session task는 개인 실행 보조물이다. 다른 machine·agent와 공유되는 결정
   기록으로 인용하지 않는다.
-- hook은 공용 script를 자동 호출할 수 있지만 hook 자체에 유일한 품질 규칙을 구현하지 않는다.
+- 저장소는 Claude session hook을 두지 않는다(ADR 0073). hook을 다시 두더라도 공용 script를 부르기만 하고 hook
+  자체에 유일한 품질 규칙을 구현하지 않는다.
 - `.claude/skills`는 `.agents/skills`의 생성 projection이다. `pnpm agent:skills:write`로만 갱신하고
   `pnpm architecture:check`가 drift를 실패시킨다.
-- Claude Code project hook은 worktree 세션 잠금만 강제하고 명령 본문을 해석하지 않으므로 Claude 세션도
-  스스로 claim하고 커밋한다(ADR 0043).
+- Claude 세션은 issue 가지에서 스스로 커밋하고 `pnpm workflow:pr`로 PR을 연다. claim이나 세션 잠금은 없다.
 
 ### 3.3 Codex adapter
 
 - Codex는 `AGENTS.md`와 현재 저장소의 skill 지시를 따른다.
-- Codex task/thread의 plan과 goal은 실행 보조 상태다. Linear issue나 PR의 공유 상태를 대신하지 않는다.
-- 장기 자동화는 준비된 Linear issue, 격리 workspace, CI 판정이 갖춰진 뒤에만 도입한다.
+- Codex task/thread의 plan과 goal은 실행 보조 상태다. GitHub issue나 PR의 공유 상태를 대신하지 않는다.
+- 장기 자동화는 준비된 GitHub issue, 격리 workspace, CI 판정이 갖춰진 뒤에만 도입한다.
 - 공용 advisory 리뷰는 도구별 prompt가 아니라 `pnpm review:ai -- --provider auto`를 사용한다. Codex와 Claude Code는
   같은 계약을 실행하는 교체 가능한 provider이며 실제 실행·격리·폴백·실패 정책은
   [`ai-code-review.md`](../operations/ai-code-review.md)와 ADR 0026이 소유한다.
 
-### 3.4 Linear adapter와 공통 hook
+### 3.4 GitHub issue와 git hook
 
-- Codex와 Claude Code는 공식 `https://mcp.linear.app/mcp`를 각 client의 OAuth로 연결한다.
-- 두 client의 project hook은 `tools/agent-workflow/hook.mjs`만 호출한다. 도구별 hook 파일에
-  서로 다른 업무 규칙을 복사하지 않는다.
-- 읽기·조사와 편집은 issue 없이 허용하고, issue branch의 commit·push는 온라인 검증된 Linear claim과
-  branch 식별자의 일치를 요구한다. 한 worktree는 살아 있는 세션 하나만 쓴다.
-- deterministic claim/sync용 API key는 전용 process 환경변수로만 주입한다. 실패 event는 `.git` 아래
-  outbox에 보존하며 GitHub Issue나 Markdown board를 fallback으로 만들지 않는다.
-- 실제 연결, 진단, 장애 복구 절차는
-  [`linear-agent-workflow.md`](../operations/linear-agent-workflow.md)를 따른다.
+- Codex와 Claude Code는 같은 `gh` 로그인으로 issue를 읽고 쓴다. 별도 MCP 연결이나 API key는 없다.
+- 가지는 `<type>/<N>-<slug>`이고 `pnpm workflow:pr`이 본문에 `Closes #N`을 넣어 병합 때 issue를 닫는다.
+- 저장소 hook은 `.githooks/pre-commit`(변경 범위 architecture 검사)과 `pre-push`(main 직접 push 거절, 선택적
+  AI advisory)뿐이다. 한 worktree를 한 세션이 쓰는 규칙은 잠금이 아니라 세션을 나누는 사람이 지킨다.
+- 인계 절차는 [`agent-resume.md`](../operations/agent-resume.md)를 따른다. 결정 근거는 ADR 0073이다.
 
 ## 4. 작업 계약
 
@@ -104,22 +99,22 @@ eatbid는 특정 AI 도구의 대화나 task list가 아니라 **공유 작업 �
 6. 데이터 권위, 제품 경계, 운영 경계를 바꾸는가?
 7. 무엇을 실행해 검증하고 무엇을 검증하지 못했는가?
 
-이 질문의 기본 소유자는 Linear issue다. 자세한 명세가 필요해도 issue에는 목적·scope·acceptance와
+이 질문의 기본 소유자는 GitHub issue다. 자세한 명세가 필요해도 issue에는 목적·scope·acceptance와
 OpenSpec/ADR/PR 링크가 남는다.
 
 도구 사이의 필드 소유권은 다음처럼 나눈다.
 
 | 필드 | 유일한 owner |
 |---|---|
-| problem, outcome, scope, non-goals, high-level acceptance, risk, work type | Linear issue |
-| writing owner | Linear issue assignee |
-| priority, status, blocker | Linear project와 issue |
+| problem, outcome, scope, non-goals, high-level acceptance, risk, work type | GitHub issue |
+| writing owner | GitHub issue assignee와 가지·worktree |
+| priority, status, blocker | GitHub issue(열림·닫힘, label, 댓글) |
 | 상세 `ADDED | MODIFIED | REMOVED` behavior | 선택된 OpenSpec change |
 | 아키텍처 결정과 supersession | ADR |
 | acceptance별 실행 evidence와 확인하지 못한 범위 | PR |
 
-OpenSpec이 존재해도 Linear issue의 승인 scope와 outcome을 넓힐 수 없다. 충돌하면
-`Accepted ADR·AGENTS > 승인된 Linear issue scope > OpenSpec 상세 behavior > 구현 plan` 순서로 멈춰
+OpenSpec이 존재해도 GitHub issue의 승인 scope와 outcome을 넓힐 수 없다. 충돌하면
+`Accepted ADR·AGENTS > 승인된 GitHub issue scope > OpenSpec 상세 behavior > 구현 plan` 순서로 멈춰
 사람이 계약을 갱신한다. 상위 문장을 하위 문서에 복사해 해결하지 않는다.
 
 ## 5. 변경 규모별 workflow
@@ -141,7 +136,7 @@ OpenSpec은 전면 설치 대상이 아니라 **brownfield delta-spec 파일럿 
 - 현재 바꾸는 작은 capability만 `ADDED | MODIFIED | REMOVED`로 기록한다.
 - 첫 파일럿은 아키텍처 전환 전체가 아니라 경계가 분명한 실제 변경 하나로 한다.
 - change가 끝나면 살아 있는 spec에 합치고 change artifact를 archive한다.
-- Linear status, 담당자, 일정, PR evidence를 OpenSpec에 복사하지 않는다.
+- issue 상태, 담당자, 일정, PR evidence를 OpenSpec에 복사하지 않는다.
 - 한 파일럿을 끝낸 뒤 이해 시간, 중복, 누락, archive 동작을 검토하고 표준화 여부를 결정한다.
 
 첫 후보는 `오늘의 투찰함에서 변경·재입찰 상태를 구분해 보여주는 한 흐름`처럼 UI·API·데이터
@@ -162,16 +157,14 @@ Codex가 제출 diff와 증거를 검토하고 하나의 dev에 통합한다. �
 
 ### 7.1 한 work item, 한 writing agent
 
-- 파일을 쓰기 전에 Linear issue를 자신에게 assign하고 `branch/worktree | owned paths`를 마지막
-  handoff에 남긴다. Linear assignee가 writing owner의 유일한 원천이며 project는 이를 view로만
-  표시한다.
-- 이미 다른 writing owner가 있거나 claim 상태를 확인할 수 없으면 파일을 쓰지 않고 read-only
+- 파일을 쓰기 전에 GitHub issue를 만들거나 고르고, `가지/worktree | owned paths`를 issue 댓글에 남긴다.
+- 이미 다른 writing owner가 있거나 그 세션이 살아 있는지 확인할 수 없으면 파일을 쓰지 않고 read-only
   조사·review만 한다.
-- 한 issue는 살아 있는 세션이 잡은 worktree 하나에서만 claim하고, 한 worktree는 세션 잠금을 가진
-  provider/session 하나만 파일을 쓴다.
+- 한 issue는 가지·worktree 하나에서만 쓰고, 한 worktree는 세션 하나만 파일을 쓴다. 이를 막는 잠금은 없으므로
+  세션을 나누는 사람이 지킨다(ADR 0073).
 - 다른 agent는 같은 파일을 병렬 수정하지 않고 research, 공격적 review, 검증을 맡는다.
 - 병렬 구현이 필요하면 파일 소유권을 분리하고 별도 worktree를 사용한다.
-- handoff는 “대화 요약”이 아니라 Linear issue, OpenSpec/ADR, 실제 diff, 검증 결과로 한다.
+- handoff는 “대화 요약”이 아니라 GitHub issue, OpenSpec/ADR, 실제 diff, 검증 결과로 한다.
 
 ### 7.2 독립 review
 
@@ -188,7 +181,7 @@ M/L 변경은 구현하지 않은 다른 agent가 다음 순서로 검토한다.
 
 - 여러 가설이 독립적인 조사, 공격자/수비자 토론, 서로 다른 영역의 review에 사용한다.
 - 순차 작업, 같은 파일 편집, 강하게 의존하는 작은 작업에는 단일 agent를 사용한다.
-- agent team의 공유 task list는 Linear project를 대체하지 않는다.
+- agent team의 공유 task list는 GitHub issue를 대체하지 않는다.
 
 ### 7.4 PR evidence와 CI
 
@@ -204,7 +197,7 @@ M/L 변경은 구현하지 않은 다른 agent가 다음 순서로 검토한다.
 
 ### 7.5 작업 묶음과 통합 판정
 
-위임할 때 다음을 고정한다. Linear issue는 이 묶음의 범위·상태를 소유하고 Git 문서 원문을 복제하지 않는다.
+위임할 때 다음을 고정한다. GitHub issue는 이 묶음의 범위·상태를 소유하고 Git 문서 원문을 복제하지 않는다.
 
 | 항목 | 필요한 내용 |
 |---|---|
@@ -241,27 +234,18 @@ Claude CLI에는 관련 원문과 작은 작업 묶음만 전달한다. 관련 �
 않는다. 첫 세 작업에서 제공되는 사용량·소요 시간·재작업 횟수를 기록하되 구독 사용량과 API 청구액을
 혼동하지 않는다. Codex 구현 중복 감소가 목표이며 총 토큰 절감을 미리 보장하지 않는다.
 
-## 8. Linear 운영안
+## 8. GitHub issue 운영안
 
-Linear의 하나의 project가 portfolio 상태를 소유한다. issue description이 작업 계약을 소유하며
-project view는 이를 복사하지 않고 우선순위와 상태를 투영한다. agent가 Linear를 읽을 권한이 없거나
-일시적으로 연결할 수 없으면 Git common dir의 `eatbid-agent-workflow/state.json` outbox에 동기화
-event만 보존한다. Markdown이나 GitHub Issue를 fallback status board로 만들지 않는다.
+이 저장소의 GitHub issue가 작업 계약과 상태를 소유한다(ADR 0073). 2026-11-17 전의 Linear issue는 읽기
+전용 기록이며 옮기지 않는다. 다시 할 일이 생기면 GitHub issue를 새로 만들고 본문에 옛 `EAT-N`을 적는다.
 
-Linear workflow가 소유할 최소 field:
+- 상태: 열림은 할 일·진행 중, 닫힘은 병합(`Closes #N`) 또는 취소다. 막힌 일은 본문 첫 줄과 댓글에 막힌
+  조건을 적는다.
+- 우선순위와 분류는 label로만 표시하고, 실제 약속이 없는 target date와 진척률 숫자는 만들지 않는다.
+- Outcome, work type, risk, spec 링크는 issue 본문이, 검증 evidence는 PR이 소유한다.
 
-- `Status`: Backlog | Ready | In Progress | In Review | Blocked | Done
-- `Priority`: portfolio 순서
-- `Blocker`: 막힌 외부 조건이나 선행 issue
-
-Writing owner는 Linear issue assignee가 소유한다. Outcome, work type, risk, spec 링크는 issue가,
-검증 evidence는 PR이 소유하므로 project custom field에 복사하지 않는다.
-
-권장 view는 `Now`, `Discovery`, `Delivery`, `Blocked`, `Roadmap` 다섯 개다. 실제 약속이 없는
-target date와 진척률 숫자는 만들지 않는다.
-
-작업을 다른 session에 넘길 때 Linear issue의 마지막 handoff에는 `현재 상태 | 다음 행동 | blocker |
-마지막 evidence`만 갱신한다. 과거 대화 전체를 복사하지 않는다.
+작업을 다른 session에 넘길 때 issue 댓글에 `현재 상태 | 다음 행동 | blocker | 마지막 evidence`만 남긴다.
+과거 대화 전체를 복사하지 않는다.
 
 ## 9. 문서 수명과 hygiene
 
@@ -284,7 +268,7 @@ target date와 진척률 숫자는 만들지 않는다.
 
 1. `AGENTS.md`와 얇은 Claude adapter를 공통 진입점으로 사용한다.
 2. 기존 roadmap은 capability와 outcome gate만 소유하게 한다.
-3. 새 delivery work는 Linear issue template의 공통 intake 형식으로 시작한다.
+3. 새 delivery work는 GitHub issue의 공통 intake 형식(문제·범위·범위 밖·인수 기준)으로 시작한다.
 4. 공통 delivery 절차로 시안 복원 한 묶음을 Claude에 위임하고 dev 인수까지 확인한다.
 5. 다음으로 Argo 복구 한 묶음과 작은 실제 데이터 연결을 검증한다. OpenSpec 설치는 이 파일럿의 선행조건이 아니다.
 6. Issue 품질, worktree 격리, CI 판정이 안정된 뒤에만 장기 agent orchestration을 검토한다.
@@ -294,14 +278,12 @@ target date와 진척률 숫자는 만들지 않는다.
 - [The Kanban Guide — 흐름과 진행 중 작업량](https://kanbanguides.org/the-kanban-guide/)
 - [Claude Code — 프로그램에서 실행](https://code.claude.com/docs/en/headless)
 - [Claude Code — 비용과 context 관리](https://code.claude.com/docs/en/costs)
-- [Linear — project milestones](https://linear.app/docs/project-milestones)
 - [OpenAI — Harness engineering](https://openai.com/index/harness-engineering/)
 - [Claude Code — project memory와 AGENTS.md import](https://code.claude.com/docs/en/memory)
 - [Claude Code — Agent Skills](https://code.claude.com/docs/en/slash-commands)
 - [Claude Code — parallel agents와 worktrees](https://code.claude.com/docs/en/agents)
 - [Claude Code — hooks](https://code.claude.com/docs/en/hooks-guide)
-- [Linear — MCP server](https://linear.app/docs/mcp)
-- [Linear — GraphQL API](https://linear.app/developers/graphql)
+- [GitHub — 키워드로 issue 연결](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue)
 - [OpenSpec](https://github.com/Fission-AI/OpenSpec)
 - [OpenSpec — existing projects](https://github.com/Fission-AI/OpenSpec/blob/main/docs/existing-projects.md)
 - [GitHub Spec Kit](https://github.github.com/spec-kit/)

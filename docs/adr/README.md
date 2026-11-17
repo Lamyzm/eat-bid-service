@@ -56,7 +56,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0040](0040-observed-rates-in-organization-history.md) | Accepted | 기관 이력의 낙찰·차순위 사정률은 ObservedBidRate로 보존하며 하한율의 100 상한은 유지(0033 §2 일부 대체) |
 | [0041](0041-attempt-roster-read-and-observed-amount.md) | Accepted | 회차 명단의 동일 revision 조회와 EFT_ALL_AMT 관측 제출금액 표시, 계산용 원천 금액 분리 |
 | [0042](0042-legacy-ledger-retirement-and-changed-scope-checks.md) | Accepted | 삭제 전용 legacy ledger 넷 철거, merge-base 변경 범위 검사와 파일 머리 `@boundary-waiver`, 병렬 단일 드라이버 `architecture:check`와 `--changed` pre-commit (0020·0023·0035의 ledger 조항 대체) |
-| [0043](0043-session-lock-and-commit-boundary-guard.md) | Accepted | agent workflow 가드를 명령 가로채기 lease에서 worktree 세션 잠금(holder)과 pre-commit·pre-push의 branch↔claim 검사로 바꾸고, 명령 분류기·lease 만료·writer 결박을 삭제 (2026-08-30 workflow 설계 §4.1·§6과 0026 결정 3의 허용 목록 운영 대체) |
+| [0043](0043-session-lock-and-commit-boundary-guard.md) | Superseded | agent workflow 가드를 명령 가로채기 lease에서 worktree 세션 잠금(holder)과 pre-commit·pre-push의 branch↔claim 검사로 바꾸고, 명령 분류기·lease 만료·writer 결박을 삭제 (2026-08-30 workflow 설계 §4.1·§6과 0026 결정 3의 허용 목록 운영 대체) |
 | [0044](0044-route-segment-slice-structure.md) | Accepted | route segment 내부를 `_features/<name>/{ui,model,lib}`와 `_widgets/`로 나누고 `lib`의 React·`model`의 JSX·`ui`의 비렌더 모듈을 검사하며, 두 화면 이상이 쓰는 도메인 표시 조각을 위한 `entities/` 층을 둔다 ([0023](0023-nextjs-web-modular-boundaries.md)의 segment private 조항과 층 목록을 보완) |
 | [0045](0045-server-module-presentation-seam.md) | Accepted | 서버 모듈 안에서 wire 직렬화는 `presentation/http/*.presenter.ts`, 모듈 공통 wire 도우미는 `platform/http/wire.ts`, 캐시·재시도 장식자는 `infrastructure/<concern>/`, 모듈 공통 실패는 모듈 이름, 경계 숫자는 domain 상수가 소유한다 |
 | [0046](0046-telemetry-wire-correlation-and-alert-origin.md) | Accepted | 계측은 OpenTelemetry 규격, 상관 식별자는 W3C trace context, 파이프라인 진실은 PostgreSQL이고 지표는 파생물이라 업무 알림은 DB에서 내며, 멈춤은 기대 문장으로 잡고 생존 확인만 클러스터 밖에 둔다 (저장·대시보드·프론트 오류 도구는 교체 가능한 자리) |
@@ -87,6 +87,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0070](0070-concurrent-projection-with-reference-locks.md) | Accepted | 공고 투영과 재처리는 발행 mutex 없이 동시에 돈다 — 발행은 여전히 한 거래로 통째로 반영하고, 함께 쓰는 공유 행(코드값·기관·업체·공고)은 서로 막지 않는 참조 잠금으로만 잠그며, 새 행 경합은 on conflict와 기관 코드 advisory 잠금으로 푼다. 기준정보 투영만 자기들끼리 mutex로 줄을 선다 |
 | [0071](0071-market-seat-and-auction-amount-assignment.md) | Accepted | 추천 금액을 받을 권리는 시장 자리(eaT 참가제한지역 코드 × 품목 코드, 정확 일치)이고 공고 하나는 워크스페이스 한 곳만 받는다 — 우선권 시작일이 이른 자리가 맡아 자리가 살아 있는 한 마감까지 유지하고, 배정을 금액보다 먼저 기록해 실패하면 금액 없이 응답하며, 마감 뒤 확정·정정 줄로 남긴다. 사업자번호와 자리 기간 겹침은 `btree_gist` 제약이 막고, 운영자 잠금은 배정 확인으로 바뀐다 (0062의 "누구에게 보일지는 기능마다" 중 추천 금액을 대체) |
 | [0072](0072-main-item-restriction-as-seat-item.md) | Accepted | eaT `MN_TRMT_LMT_YN`(주요 취급 품목 참가 제한)을 원천 코드로 저장하고, 품목 제한이 없는 공고는 (참가제한지역, "품목 제한 없음") 자리가 받는다 — 제목 짐작과 지역만 배정은 기각, 인증 종류 `CERT_KND_CD`는 저장만 한다 (0071 결정 1·2의 품목 정의와 "품목 없는 공고는 금액 없음"을 대체) |
+| [0073](0073-github-issue-as-work-source.md) | Accepted | 일의 원천을 GitHub issue 하나로 두고 가지 `<type>/<N>-<slug>`·PR `Closes #N`으로 잇는다 — Linear·claim·세션 잠금과 session hook을 삭제하고 한 일에 한 writer는 규칙으로만 지킨다 (0043 전체와 0026 결정 6의 claim 실행 대체) |
 
 ## 새 ADR 형식
 

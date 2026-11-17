@@ -48,5 +48,5 @@ description: 신뢰 경계, 스케일 동작, 계층형 안전장치를 점검�
 - eaT 크롤링·수집·재처리처럼 외부 응답을 신뢰 경계로 다루는 구체적인 불변식은
   `.agents/skills/eatbid-dataplane-invariants`가 소유한다. 여기서는 그 경계를 인식하는 사고 습관만 다룬다.
 - "무엇이 하드-투-리버스인가"의 조직적 무게(Principal/Distinguished 관점)는 이 저장소에서는 별도
-  조직 계층이 아니라 정언명령 20(work item당 writing owner 한 명, `pnpm workflow:claim`)과
+  조직 계층이 아니라 정언명령 20(work item당 writing owner 한 명, GitHub issue 하나)과
   ADR 절차로 대체된다 — 경계를 넘는 변경은 owner를 명확히 하고 ADR로 남긴다.

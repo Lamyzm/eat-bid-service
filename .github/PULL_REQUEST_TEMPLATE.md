@@ -1,6 +1,6 @@
 ## Work item
 
-- Linear issue: EAT-
+- Closes #
 - Writing owner:
 - Review agent/person:
 

@@ -1,6 +1,8 @@
 ---
+id: OPS-INFISICAL
 status: active
-last_reviewed: 2026-09-05
+canonical_for: infisical-secret-management-runbook
+last_reviewed: 2026-11-17
 review_trigger: infisical-project-environment-path-auth-or-secret-delivery-change
 ---
 
@@ -18,8 +20,9 @@ shell history에 기록하지 않는다.
 | 필요한 key 이름, 형식, 발급처, 목적, 소비자 | 향후 `@eatbid/config` Zod catalog; 구현 전까지 이 문서 |
 | 배포 구조와 secret delivery 결정 | Accepted ADR와 `docs/architecture/runtime-and-deployment.md` |
 
-현재 즉시 적용하는 범위는 로컬 개발·agent tooling secret이다. 첫 항목은 Linear workflow의
-`LINEAR_API_KEY`다. Kubernetes runtime을 SOPS+age에서 Infisical+External Secrets Operator로
+현재 즉시 적용하는 범위는 로컬 개발·agent tooling secret이다. 첫 항목이던 Linear workflow의
+`LINEAR_API_KEY`는 2026-11-17에 쓰임이 끝났다(ADR 0073 — 일의 원천이 GitHub issue로 바뀌어 저장소가 더는 읽지
+않는다). `dev:/tooling/linear`의 값 삭제와 Linear 쪽 key 폐기는 사람이 한다. Kubernetes runtime을 SOPS+age에서 Infisical+External Secrets Operator로
 바꾸는 일은 별도 ADR과 infrastructure issue 전에는 실행하지 않는다.
 
 ## 2. Infisical 계층의 의미
@@ -31,7 +34,7 @@ Infisical 홈의 항목들은 secret을 종류별로 나누어 넣는 저장소�
 
 | 제품 | 저장·처리 대상 | eatbid 판정 |
 |---|---|---|
-| Secrets Management | API key, password, token, connection string, application configuration | **지금 사용**. `LINEAR_API_KEY`, DB, R2, 외부 API credential은 모두 여기 |
+| Secrets Management | API key, password, token, connection string, application configuration | **지금 사용**. DB, R2, 외부 API credential은 모두 여기 |
 | Certificate Manager | CA와 X.509 TLS/mTLS/code-signing certificate의 발급·갱신·폐기 | 현재 보류. 자체 CA, workload mTLS 또는 certificate inventory가 필요할 때 평가 |
 | KMS | 외부로 추출되지 않는 암호키로 encrypt/decrypt 또는 sign/verify API 수행 | 현재 보류. env/API key 저장소가 아니며 application field encryption 요구가 생길 때 평가 |
 | Secret Scanning | Git repository, history, local directory, CI에서 노출된 credential 탐지 | 후속 도입 후보. 저장·주입 기능이 아니라 누출 탐지 방어선 |
@@ -39,7 +42,7 @@ Infisical 홈의 항목들은 secret을 종류별로 나누어 넣는 저장소�
 | Secret Sharing | 제한된 횟수·기간의 링크로 사람에게 값을 일회성 전달 | runtime/shared folder 대체 금지; 예외적 사람 간 전달에만 사용 |
 
 따라서 지금 생성할 것은 **Secrets Management project `eatbid` 하나뿐**이다. 같은
-`LINEAR_API_KEY`를 KMS, Secret Sharing, Secrets Management에 중복 저장하지 않는다.
+credential을 KMS, Secret Sharing, Secrets Management에 중복 저장하지 않는다.
 
 공식 제품 설명:
 
@@ -132,7 +135,7 @@ Organization
 
 | 위치 | key | 이유 |
 |---|---|---|
-| `dev:/tooling/linear` | `LINEAR_API_KEY` | 로컬 agent workflow만 사용 |
+| `dev:/tooling/linear` | `LINEAR_API_KEY` | 2026-11-17 쓰임 끝(ADR 0073), 삭제 대기 |
 | `dev:/runtime/server` | `DATABASE_URL` | 개발 server runtime 전용 |
 | `prod:/runtime/server` | `DATABASE_URL` | production server와 값·권한 분리 |
 | `prod:/runtime/dataplane` | `R2_ACCESS_KEY_ID` | production 수집 workload 전용 |
@@ -162,13 +165,13 @@ key는 대문자 `UPPER_SNAKE_CASE`를 사용하고 실행 프로세스가 실�
 comment 형식:
 
 ```text
-catalog_id: linear.agent-workflow.api-key
-purpose: Linear issue claim과 handoff comment를 위한 최소권한 credential
-issue_url: https://linear.app/eatbid/settings/account/security
-docs_url: https://linear.app/developers/graphql
-revoke_url: https://linear.app/eatbid/settings/account/security
-owner: developer-workflow
-consumer: tools/agent-workflow
+catalog_id: cloudflare.platform.api-token
+purpose: Cloudflare DNS·R2 resource 관리를 위한 최소권한 token
+issue_url: https://dash.cloudflare.com/profile/api-tokens
+docs_url: https://developers.cloudflare.com/fundamentals/api/get-started/create-token/
+revoke_url: https://dash.cloudflare.com/profile/api-tokens
+owner: platform
+consumer: infra
 rotation: compromise-or-scope-change
 ```
 
@@ -226,7 +229,6 @@ eatbid project ID: 0d794ce1-e0e3-4e48-83ea-88f2f05f9a65
 항상 project, environment, path, command를 명시한다.
 
 ```powershell
-infisical run --projectId=0d794ce1-e0e3-4e48-83ea-88f2f05f9a65 --env=dev --path=/tooling/linear --secret-overriding=false -- node tools/agent-workflow/cli.mjs doctor
 infisical run --projectId=0d794ce1-e0e3-4e48-83ea-88f2f05f9a65 --env=dev --path=/runtime/server --secret-overriding=false -- pnpm --filter @eatbid/server dev
 ```
 
@@ -356,6 +358,9 @@ Kubernetes Auth를 공식 지원한다. ADR 0022가 값 권위와 전달 경계�
 workload 전환은 별도 infrastructure issue와 배포 승인 범위다.
 
 ## 10. `LINEAR_API_KEY` 등록 계약
+
+> 2026-11-17부터 저장소는 이 key를 읽지 않는다(ADR 0073 — 일의 원천이 GitHub issue로 바뀌었다). 아래는 등록
+> 당시의 기록이며 절차의 `workflow:*` 명령은 삭제됐다. Infisical 값 삭제와 Linear key 폐기는 사람이 한다.
 
 등록 위치:
 

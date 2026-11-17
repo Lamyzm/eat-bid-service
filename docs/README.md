@@ -28,8 +28,7 @@ review_trigger: document-authority-location-or-docs-lint-rule-change
 | 운영자가 실제로 무엇을 실행하는가? | [`operations/`](operations/) |
 | AI 세션이 끊겼을 때 지금 작업을 어디서 이어받는가? | [`operations/agent-resume.md`](operations/agent-resume.md) |
 | 운영에서 무엇이 열려 있고 어느 창이 왜 막혔는지 어디서 어떻게 읽는가? | [`operations/diagnosis-map.md`](operations/diagnosis-map.md) — `pnpm ops:status`부터 |
-| Codex와 Claude가 Linear 작업 상태를 어떻게 공유하는가? | [`operations/linear-agent-workflow.md`](operations/linear-agent-workflow.md) |
-| Codex와 Claude가 구현을 번갈아 맡을 때 어떻게 안전하게 인계하는가? | [`operations/linear-agent-workflow.md#7-codex와-claude-사이-작업-인계`](operations/linear-agent-workflow.md#7-codex와-claude-사이-작업-인계) |
+| Codex와 Claude가 작업 상태를 어떻게 공유하고 번갈아 맡는가? | GitHub issue 하나와 [`operations/agent-resume.md`](operations/agent-resume.md) (ADR 0073) |
 | 비밀은 Infisical의 어느 환경·경로에 있고 어떻게 주입하는가? | [`operations/infisical.md`](operations/infisical.md) |
 | push한 코드가 어떻게 이미지가 되고 클러스터까지 가는가? | [`operations/main-authority-cutover.md`](operations/main-authority-cutover.md) |
 | Google OAuth client 없이 로컬에서 어떻게 실제 로그인을 하는가? | [`operations/local-dev-login.md`](operations/local-dev-login.md) |
@@ -45,7 +44,7 @@ review_trigger: document-authority-location-or-docs-lint-rule-change
 | 종류 | 위치 | 변경 규칙 |
 |---|---|---|
 | 제품 방향·로드맵 | `docs/product/` | 살아 있는 문서. 같은 주제의 새 파일을 만들지 말고 기존 권위 문서를 갱신한다. |
-| 작업 scope·상태 | Linear issue + project | 담당·상태·blocker·acceptance의 유일한 동적 원천이다. Markdown과 GitHub Issue에 복사하지 않는다. |
+| 작업 scope·상태 | GitHub issue | 담당·상태·blocker·acceptance의 유일한 동적 원천이다(ADR 0073). Markdown에 복사하지 않는다. |
 | 중대형 행동 변경 | 향후 OpenSpec change | 현재 변경의 delta만 기록한다. 작은 변경과 기존 시스템 전체에 강제하지 않는다. |
 | 목표 아키텍처 | `docs/architecture/` | 구현과 다르다고 코드에 맞춰 조용히 바꾸지 않는다. 결정 변경은 ADR이 먼저다. |
 | 아키텍처 결정 기록 | `docs/adr/` | Accepted ADR은 수정해 결론을 뒤집지 않는다. 새 ADR이 이전 ADR을 대체한다. |
@@ -101,7 +100,7 @@ CLAUDE.md가 그대로 import하는 지침이라 frontmatter 없이 링크·도�
 2. `AGENTS.md`가 지정한 필수 순서대로 `ARCHITECTURE.md`, product/quality, domain/data,
    C4, runtime/deployment, arc42, ADR index를 읽는다.
 3. 이 파일 `docs/README.md`
-4. Linear issue의 문제·scope·acceptance와 writing owner를 확인한다.
+4. GitHub issue의 문제·scope·acceptance와 writing owner를 확인한다.
 5. `docs/product/roadmap.md`의 해당 capability와 outcome gate를 확인한다.
 6. 제품 판단이 걸린 주제면 `docs/product/decisions/`의 PDR을 먼저 확인한다.
 7. 존재할 때만 해당 OpenSpec delta를 읽는다.
@@ -113,7 +112,7 @@ CLAUDE.md가 그대로 import하는 지침이라 frontmatter 없이 링크·도�
 ## 5. 다음 문서 정리 작업
 
 1. 기존 30개 루트 Markdown에 `authoritative | evidence | superseded | archive-candidate`를 부여한다.
-2. 살아 있는 delivery work는 Linear issue에 연결하고 중대형 행동 변경만 OpenSpec 파일럿 후보로
+2. 살아 있는 delivery work는 GitHub issue에 연결하고 중대형 행동 변경만 OpenSpec 파일럿 후보로
    분류한다.
 3. 완료된 실행계획이 현재 상태처럼 읽히지 않도록 history임을 표시한다.
 4. ~~링크·마지막 검토일·중복 권위를 검사하는 `docs-lint`를 CI에 추가한다.~~ 2026-09-09 EAT-116으로

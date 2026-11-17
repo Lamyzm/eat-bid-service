@@ -76,11 +76,12 @@
     소유한다. `/api/**`는 Nest ingress이며 Web-owned public handler는 별도 owner contract, non-`/api`
     prefix와 ingress rule 없이는 만들지 않는다. 이 경계를 검사하는 repository endpoint lint를 새 canonical operation과 같은 변경에서
     추가하고, baseline 예외를 넓혀 우회하지 않는다.
-20. **하나의 work item에는 한 명의 writing owner만 둔다.** 커밋하기 전에 Linear issue를 assign하고
-    그 worktree에서 `pnpm workflow:claim -- EAT-N`으로 claim하라. issue branch의 커밋은 branch의 식별자와
-    worktree claim이 같을 때만 만들어지고, 한 worktree는 한 번에 한 세션만 쓴다(세션 잠금). 의도한
-    owned path는 issue/handoff에 남긴다. 다른 세션이 잡은 worktree와 다른 writer의 issue는 read-only로
-    조사·review만 한다. 병렬 구현은 별도 issue·worktree에서 owned path가 겹치지 않을 때만 허용한다.
+20. **하나의 work item에는 한 명의 writing owner만 둔다.** 일의 원천은 이 저장소의 GitHub issue 하나다.
+    굵은 일은 issue를 먼저 만들고 가지를 `<type>/<N>-<slug>`(N은 issue 번호)로 만들며, 커밋에 `#N`을
+    남기고 `pnpm workflow:pr`이 PR 본문에 `Closes #N`을 넣는다. 한 issue·한 가지·한 worktree는 한 세션만
+    쓰고, 의도한 owned path는 issue에 남긴다. 다른 세션이 쓰는 worktree와 다른 writer의 issue는 read-only로
+    조사·review만 한다. 병렬 구현은 별도 issue·worktree에서 owned path가 겹치지 않을 때만 허용한다. 이 규칙은
+    잠금이 아니라 세션을 나누는 사람이 지킨다(ADR 0073).
 21. **이 저장소는 한국어 프로젝트이며 사람이 읽는 기본 언어는 한국어다.** 에이전트의 작업 계획·진행 보고와
     아키텍처·ADR·spec·plan·README, 이슈·PR·worklog, 코드의 이유 주석, 테스트명과 커밋 메시지는 한국어로
     작성한다. 코드 식별자, 라이브러리·프로토콜

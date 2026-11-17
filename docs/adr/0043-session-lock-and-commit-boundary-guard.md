@@ -1,7 +1,8 @@
 # 0043 — agent workflow 가드: 세션 잠금과 commit 경계 검사
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-09-10
+- Superseded by: [0073 — 일의 원천은 GitHub issue 하나다](0073-github-issue-as-work-source.md)
 - Supersedes: [2026-08-30 Linear agent workflow 설계](../superpowers/specs/2026-08-30-linear-agent-workflow-design.md)
   §4.1의 "명령 단위 mutation gate·read-only allowlist·lease writer 결박"과 §6의 "유일한 active worktree
   lease" 조항, [ADR 0026](0026-provider-neutral-ai-review-and-canonical-skills.md) 결정 3의 "lease 없이
