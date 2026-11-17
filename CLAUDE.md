@@ -15,3 +15,6 @@
   완료 상태의 진실 원천이 아니다.
 - 다른 Codex/Claude 세션과 병렬 작업할 때는 같은 파일을 공동 편집하지 말고 별도 worktree와
   한 명의 writing agent를 사용한다.
+- `.claude/settings.json`의 hook 넷이 위험한 손동작을 막는다(#233). main·deploy/prod로 가는 push와 손으로 만드는
+  release 태그는 막고, 운영 클러스터(`eatbid-prod`)·운영 DB를 바꾸는 명령은 사람에게 묻고, 고친 web 파일은 oxfmt로
+  맞추고, 영어로 쏠린 답은 다시 쓰게 한다. 판정 로직과 시험은 `tools/agent-hooks/`에 있다.
