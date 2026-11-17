@@ -34,7 +34,7 @@ test("eval case는 rubric 값이 선택지 안에 있고 id가 slug일 때만 �
   );
 });
 
-test("저장소 fixture는 스펙의 대표 case 7개를 중복 없이 담고 모두 유효하다", () => {
+test("저장소 fixture는 대표 case 6개를 중복 없이 담고 모두 유효하다", () => {
   const cases = loadEvalCases(casesDirectory);
   assert.deepEqual(
     cases.map((item) => item.id),
@@ -42,7 +42,6 @@ test("저장소 fixture는 스펙의 대표 case 7개를 중복 없이 담고 �
       "endpoint-literal",
       "file-responsibility",
       "korean-naming",
-      "lease-required",
       "reuse-existing",
       "secret-path",
       "zod-composition",

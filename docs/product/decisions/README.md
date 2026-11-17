@@ -18,7 +18,7 @@ Active PDR은 소급 수정해 결론을 뒤집지 않는다. 판단이 바뀌�
 상태는 `Proposed`, `Active`, `Superseded` 중 하나다. `Proposed`인 행의 모음이 곧 **제품 기획 범위의
 결정 대기 목록**이며, 이 목적으로 별도의 살아 있는 문서를 만들지 않는다.
 
-| 번호 | 제목 | 상태 | 요약 | Linear |
+| 번호 | 제목 | 상태 | 요약 | 작업(issue) |
 |---|---|---|---|---|
 | [0001](0001-region-is-user-set.md) | 업체 활동 지역은 사용자가 직접 설정한다 | Active | 사업자번호·참여 이력으로 유추하지 않는다. 지역 진실 원천은 `core` 코드 테이블 한 곳이고 canonical은 행정안전부 행정구역 코드, eaT 참가제한지역은 명시 매핑으로 잇는다 | EAT-54 |
 | [0002](0002-day-floor-is-derived.md) | 그날 하한은 관측값이 아니라 파생값이다 | Active | 하한율 × 추첨 예정가격으로 계산한다. `BID_STT`에 하한 미달 판정이 없으므로 표본·코호트·계산 버전과 함께만 발표한다 | EAT-42 |
@@ -33,9 +33,10 @@ Active PDR은 소급 수정해 결론을 뒤집지 않는다. 판단이 바뀌�
 
 ## 문서 사이의 역할
 
-- **Linear issue**: 무엇을 언제 만들 것인가. 담당·상태·blocker·acceptance의 유일한 동적 원천이다.
-  결정 본문을 Linear에 복사하지 않고 `관련 PDR: docs/product/decisions/NNNN-슬러그.md`만 적는다.
-- **PDR**: 왜 그렇게 하기로 했는가와 언제 다시 볼 것인가. 결정의 상태는 Linear가 아니라 PDR의
+- **GitHub issue**: 무엇을 언제 만들 것인가. 담당·상태·blocker·acceptance의 유일한 동적 원천이다(ADR 0073).
+  결정 본문을 issue에 복사하지 않고 `관련 PDR: docs/product/decisions/NNNN-슬러그.md`만 적는다. 2026-11-17 전
+  PDR의 `EAT-N`은 Linear 시절 기록이다.
+- **PDR**: 왜 그렇게 하기로 했는가와 언제 다시 볼 것인가. 결정의 상태는 issue가 아니라 PDR의
   `Status`가 원천이다.
 - **영역 문서의 "미결" 절**: 예를 들어
   [`../decision-screen-v2/architecture.md`](../decision-screen-v2/architecture.md) §7은 그 문서
@@ -56,7 +57,7 @@ Active PDR은 소급 수정해 결론을 뒤집지 않는다. 판단이 바뀌�
 - Date: YYYY-MM-DD
 - Supersedes: 없음
 - Superseded-by: 없음
-- Linear: EAT-NN
+- Issue: #N
 
 ## 결정
 한두 문장. "무엇을 하지 않기로 했는가"도 결정이다.
@@ -72,7 +73,7 @@ Active PDR은 소급 수정해 결론을 뒤집지 않는다. 판단이 바뀌�
 기록은 방치된다. 가능하면 관측 가능한 신호와 점검 지점을 함께 적는다.
 
 ## 영향
-어느 화면·계약·ADR·Linear issue가 이 결정을 전제하는가.
+어느 화면·계약·ADR·issue가 이 결정을 전제하는가.
 ```
 
 ADR의 `Consequences` 대신 **되돌리기 조건**을 필수 필드로 둔다. 지표를 인용할 때는 규칙 7에 따라

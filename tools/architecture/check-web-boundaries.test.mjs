@@ -244,6 +244,7 @@ test("파일 머리 waiver는 source-file-size finding만 면제하고 stale·�
   const report = await inspect({
     "apps/web/src/components/ui/waived.tsx": `${waiver}\n'use client';\n${oversized}\n`,
     "apps/web/src/components/ui/block.tsx": `/**\n * @module 책임: 블록 주석 안의 waiver도 파일 머리로 본다.\n * ${waiver.slice(3)}\n */\n${oversized}\n`,
+    "apps/web/src/components/ui/github.tsx": `// @boundary-waiver source-file-size owner=#216 reason="GitHub issue가 소유한다" splitTrigger="다음 변경"\n${oversized}\n`,
     "apps/web/src/components/ui/stale.tsx": `${waiver}\nexport const small = 1;\n`,
     "apps/web/src/components/ui/late.tsx": `export const first = 1;\n${waiver}\n${oversized}\n`,
     "apps/web/src/components/ui/english.tsx": `// @boundary-waiver source-file-size owner=EAT-121 reason="keep vendored" splitTrigger="next change"\n${oversized}\n`,
@@ -254,6 +255,7 @@ test("파일 머리 waiver는 source-file-size finding만 면제하고 stale·�
 
   assert.deepEqual(report.waived.map((item) => item.path).sort(), [
     "apps/web/src/components/ui/block.tsx",
+    "apps/web/src/components/ui/github.tsx",
     "apps/web/src/components/ui/waived.tsx",
   ]);
   assert.equal(report.waived[0].waiver.owner, "EAT-121");
@@ -271,7 +273,7 @@ test("파일 머리 waiver는 source-file-size finding만 면제하고 stale·�
   assert.match(failures, /late\.tsx: @boundary-waiver는 import와 코드보다 앞선/u);
   assert.match(failures, /english\.tsx:1 .*한국어 문장/u);
   assert.match(failures, /missing\.tsx:1 waiver에 reason, splitTrigger가 필요/u);
-  assert.match(failures, /owner\.tsx:1 waiver의 owner는 EAT-N 형식/u);
+  assert.match(failures, /owner\.tsx:1 waiver의 owner는 GitHub issue 번호\(#N\)/u);
   assert.match(failures, /other-rule\.ts:1 legacy-hooks-directory 규칙은 waiver로 면제할 수 없습니다/u);
   assert.ok(report.findings.some((item) => item.rule === "legacy-hooks-directory" && item.path === "apps/web/src/hooks/other-rule.ts"));
 });

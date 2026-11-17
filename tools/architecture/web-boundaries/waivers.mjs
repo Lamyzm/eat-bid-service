@@ -5,8 +5,9 @@ export const WAIVER_TAG = "@boundary-waiver";
 // waiver는 크기 규칙 하나에만 허용한다. 다른 규칙까지 열면 파일 안 주석이 새 ledger가 된다.
 export const WAIVABLE_RULES = Object.freeze(new Set([WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE]));
 const REQUIRED_FIELDS = Object.freeze(["owner", "reason", "splitTrigger"]);
-// owner는 추적 가능한 Linear issue 식별자여야 한다(AGENTS 20). 자유 문자열을 받으면 소유권이 없는 waiver가 남는다.
-const ISSUE_OWNER = /^EAT-\d+$/u;
+// owner는 추적 가능한 issue여야 한다(AGENTS 20). 자유 문자열을 받으면 소유권이 없는 waiver가 남는다. 새 waiver는
+// GitHub issue(`#N`)를 쓰고, Linear 시절 waiver의 `EAT-N`은 지울 때까지 기록으로 읽는다(ADR 0073).
+const ISSUE_OWNER = /^(?:#\d+|EAT-\d+)$/u;
 const hangul = /[가-힣]/u;
 const waiverLine = /@boundary-waiver\s+([a-z-]+)((?:\s+\w+=(?:"[^"]*"|\S+))*)\s*(?:\*\/)?\s*$/u;
 const field = /(\w+)=(?:"([^"]*)"|(\S+))/gu;
@@ -72,7 +73,7 @@ export function parseWaivers(source, displayPath) {
       continue;
     }
     if (!ISSUE_OWNER.test(values.owner)) {
-      failures.push(`${displayPath}:${line} waiver의 owner는 EAT-N 형식의 Linear issue 식별자여야 합니다.`);
+      failures.push(`${displayPath}:${line} waiver의 owner는 GitHub issue 번호(#N) 또는 옛 Linear 식별자(EAT-N)여야 합니다.`);
       continue;
     }
     if (!hangul.test(values.reason) || !hangul.test(values.splitTrigger)) {

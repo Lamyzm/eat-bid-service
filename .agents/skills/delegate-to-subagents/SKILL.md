@@ -95,4 +95,4 @@ BLOCKED 보고에는 같은 지시로 재시도하지 않는다 — 구체적 �
 - 정언명령 22에 따라 `pnpm review:ai`의 finding은 결정적 gate 뒤 읽기 전용 advisory다 —
   lint·typecheck·test·contract·architecture 실패를 덮을 수 없다.
 - 원본은 디스패치 점검·실행 상태 대시보드용 보조 Python 스크립트를 함께 두지만, 이 저장소는
-  그 자리를 결정적 gate(`pnpm architecture:check`)와 Linear claim 상태가 대신한다 — 옮기지 않는다.
+  그 자리를 결정적 gate(`pnpm architecture:check`)와 GitHub issue·PR 상태가 대신한다 — 옮기지 않는다.

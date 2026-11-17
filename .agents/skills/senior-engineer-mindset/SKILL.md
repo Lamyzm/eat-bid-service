@@ -105,8 +105,8 @@ LLM은 코드를 유창하게 생성하기 때문에 이 단계를 건너뛰기�
 - "구조형" 트랙의 위임·인계·dev 통합 절차는 `.agents/skills/eatbid-supervised-delivery`가 이미
   소유한다. 역할과 인수 기준은 그 스킬과 `docs/governance/ai-driven-documentation.md` 7절을 따르고
   여기서 다시 정의하지 않는다.
-- 트랙과 무관하게 커밋 전에는 정언명령 20에 따라 Linear issue를 assign하고 `pnpm workflow:claim`으로
-  claim한다. 한 worktree는 한 세션만 쓴다.
+- 트랙과 무관하게 커밋 전에는 정언명령 20에 따라 GitHub issue를 정하고 `<type>/<N>-<slug>` 가지에서
+  작업한다. 한 worktree는 한 세션만 쓴다.
 - 설계 노트·계획·인계는 정언명령 21에 따라 한국어로 쓴다. 코드 식별자·CLI 명령·라이브러리 고유명은
   영문을 유지할 수 있다.
 - 원본 스킬은 하드-투-리버스 변경 전 확인을 유도하는 보조 hook 스크립트를 함께 두지만, 이

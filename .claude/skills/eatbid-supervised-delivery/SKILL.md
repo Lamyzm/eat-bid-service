@@ -6,22 +6,22 @@ description: Eatbid 작업을 Claude 또는 다른 AI에 위임하거나, 구현
 # 작은 결과의 위임과 인수
 
 역할·권위·결정 기준은 `docs/governance/ai-driven-documentation.md` 7절을 읽는다.
-이 절차는 Linear 상태 원장이나 도구별 품질 규칙을 추가하지 않는다.
+이 절차는 GitHub issue 밖의 상태 원장이나 도구별 품질 규칙을 추가하지 않는다.
 
 ## 세션 중단에도 남는 인계
 
 - 교대와 복구는 `docs/operations/agent-resume.md`에서 시작한다. Claude 대화 ID는 보조 경로이며
-  대화가 없어도 Git의 작업 계획·실제 diff·Linear 최신 인계만으로 첫 행동을 정할 수 있어야 한다.
+  대화가 없어도 Git의 작업 계획·실제 diff·GitHub issue의 최신 인계 댓글만으로 첫 행동을 정할 수 있어야 한다.
 - 작업을 시작하거나 단계를 넘기기 전에 issue의 인계에 branch/worktree, 기준 commit, owned paths,
   재사용할 원문 위치와 다음 한 단계를 남긴다. 진행 중 Claude를 새 세션과 동시에 재개하지 않는다.
 - 코드와 함께 해당 worktree의 실행 계획을 갱신하고, 종료 시 검증 결과와 미검증을 구별해 인계한다.
   마지막 자연어 답변이나 Codex 전용 외부 폴더만이 유일한 인계 자료가 되면 안 된다.
 - 갑작스러운 종료로 dirty tree가 남으면 차이를 보존하고 실행자·자식 시험 종료를 확인한 뒤
-  기존 lifecycle 명령으로 claim과 세션 잠금을 넘겨받는다. 상태 파일 수기 편집과 변경 폐기는 복구 방법이 아니다.
+  같은 worktree에서 이어 쓴다. 변경 폐기는 복구 방법이 아니다.
 
 ## 총괄: 시작할 수 있는 작업 만들기
 
-1. 기존 Linear issue와 마일스톤을 먼저 찾는다. 사용자 결과 하나, 비목표, 완료 조건을 고정한다.
+1. 기존 GitHub issue를 먼저 찾고 없으면 만든다. 사용자 결과 하나, 비목표, 완료 조건을 고정한다.
 2. 시작 commit, 필수 명세·결정 원문/상태/적용 절, 디자인 원본 버전, 소비 계약 commit을 명시한다.
    AGENTS 필수 읽기 목록도 실제 경로로 펼쳐 전달한다. 자동 AGENTS 주입을 원문 조회로 세지 않는다.
 3. issue·별도 worktree·writer·허용 경로와 재사용 컴포넌트를 지정한다. 계약과 경로가 겹치는 writer는 직렬화한다.
@@ -32,14 +32,14 @@ description: Eatbid 작업을 Claude 또는 다른 AI에 위임하거나, 구현
 ## 구현자: 문맥 확인부터 제출까지
 
 1. AGENTS 필수 읽기와 위임된 원문을 읽고 적용 예시를 제시한다. 제목·요약·hash만으로 읽었다고 쓰지 않는다.
-2. `docs/operations/linear-agent-workflow.md`와 저장소 config에 따라 assign·claim·doctor를 확인한 뒤
-   수정한다. 한 worktree는 한 세션만 쓴다. hooks나 claim 검사 실패를 수기 상태 수정으로 우회하지 않는다.
+2. 지정된 issue의 가지 `<type>/<N>-<slug>`와 worktree에서 수정한다. 한 worktree는 한 세션만 쓰고, 다른 세션이
+   쓰는 worktree에서는 읽기만 한다(ADR 0073). git hook 실패를 `--no-verify`로 넘기지 않는다.
 3. 지정된 경로에서 기존 구성요소를 재사용한다. 새 계약·범위가 필요하면 해당 변경만 멈추고 총괄에게 알린다.
 4. 범위에 맞는 결정적 검사를 실행하고 실패를 해결한다. 명령은 작업 경로가 분명한 개별 명령으로
    실행하고 출력 축약 pipe의 성공을 원래 검사의 exit code로 쓰지 않는다. 설치 상태를 먼저 확인하며
    통과 후 새 실패 근거 없이 검사를 늘리지 않는다. 문서·계약 기준을 다시 대조하고 결과 commit을 남긴다.
 5. 인계는 commit·변경 경로·검사 결과·증거 위치·잔여 차이·결정 필요 사항만 간결히 제출한다.
-   공유 outbox에 다른 작업이 섞여 있으면 전체를 재전송하지 않고 해당 이슈 handoff를 정확히 연결한다.
+   인계는 해당 issue의 댓글로 남긴다.
 
 ## 총괄: 다른 AI의 완료 문장을 검증하기
 
@@ -49,7 +49,7 @@ description: Eatbid 작업을 Claude 또는 다른 AI에 위임하거나, 구현
   대신하지 않는다. 고정 fixture 비교가 없으면 시안 충실도 검증을 미수행으로 남긴다.
 - 실제 공고·선택 회차·필터가 섞이지 않는지 dev에서 확인한다. 없는 API를 mock으로 연결하고 기능 완료라 쓰지 않는다.
 - 결정적 gate 뒤 `pnpm review:ai`만 코드 advisory 경로로 사용한다. finding은 총괄이 판정한다.
-- 인계 writer의 claim을 release한 뒤 통합 worktree의 소유권을 확인하고 통합한다. 필요한 smoke를 실행한다.
+- 인계 writer가 끝난 것을 확인한 뒤 통합 worktree에서 통합한다. 필요한 smoke를 실행한다.
 - 구현 검증/dev 통합/운영 배포/사용자 인수를 각각 보고한다. 전체 MVP나 5년 수집 완료를 부분 증거로 선언하지 않는다.
 
 ## 재작업과 다음 작업
