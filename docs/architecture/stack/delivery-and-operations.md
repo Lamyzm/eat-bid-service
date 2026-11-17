@@ -112,3 +112,11 @@ Node 바이너리는 `libz.so`를 링크하지 않고(readelf NEEDED 확인) 내
 (2) 런타임이 그 코드를 싣거나 부르지 않음을 실제로 확인했다. (3) 항목마다 이유와 31일 안의 만료일을 단다.
 `infra/tests/test_build_contract.py`가 (3)을 강제하고 만료가 지나면 Trivy가 다시 막는다. `ignore-unfixed`처럼
 한 부류를 통째로 끄는 설정은 쓰지 않는다. 만료(2026-11-19) 전에 trixie 수정판이 나오면 digest를 올리고 항목을 지운다.
+
+### 2026-11-17 — 같은 zlib에 새 취약점, digest 상향으로 예외까지 지웠다 (#230)
+
+`release/v0.1.91`이 server·web·migration 모두 Trivy 게이트에서 거부됐다. 같은 `zlib1g` 1:1.3.dfsg+really1.3.1-1+b1에
+CVE-2026-85091(HIGH, `gz_vacate` 힙 넘침)이 새로 걸렸다. 이번에는 trixie에 고친 판 `1:1.3.dfsg+really1.3.1-1+deb13u1`이
+나왔고 최신 distroless nodejs24-debian13 digest(`sha256:6abfcb36…`)가 그 판을 싣는다. 로컬 Trivy 0.73.0으로 그
+digest를 HIGH·CRITICAL 스캔해 예외 없이 0건임을 확인하고(CVE-2026-76844도 함께 고쳐짐) 세 Dockerfile의 런타임 digest를
+올리고 `.trivyignore.yaml`의 항목을 지웠다. 예외는 만료 이틀 전에 기한 안에서 풀렸다.
