@@ -2,10 +2,13 @@
 
 - Status: Accepted
 - Date: 2026-09-10
+- Supersedes: 없음
 - Amends: [ADR 0023](0023-nextjs-web-modular-boundaries.md)의 "한 route에서만 쓰는 presentation과
   interactive leaf는 route segment의 private `_model`/`_ui`/`_lib`가 소유한다" 조항. 여섯 층과 의존 방향,
   capability 승격 조건은 그대로 둔다.
 - 관련 작업: EAT-137
+- 부분 대체: segment 안 배치(`_widgets/`·`_features/<name>/{ui,model,lib}`·`_lib/`)와 결정 5는 [ADR 0075](0075-web-work-and-kind-folders-checked-by-import-graph.md)가
+  대체한다(2026-11-18). 결정 1의 칸 규칙은 0075의 종류 폴더 이름으로, 결정 2·3·4·6·7은 그대로 이어 간다.
 
 ## Context
 

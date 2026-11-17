@@ -4,9 +4,9 @@
  */
 import Link from 'next/link';
 
-import { ClosingDays } from '../_features/pass-values/ui/closing-days';
-import { ValueCards } from '../_features/pass-values/ui/value-cards';
-import type { WorkView } from '../_lib/load-work-page';
+import { ClosingDays } from '../_pass-values/components/closing-days';
+import { ValueCards } from '../_pass-values/components/value-cards';
+import type { WorkView } from '../load-work-page';
 import { WorkFrame } from './work-frame';
 
 function Notice({ title, action }: { readonly title: string; readonly action?: React.ReactNode }) {

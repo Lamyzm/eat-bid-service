@@ -7,7 +7,7 @@
  */
 import type { MyBidBoardRead } from '@/api/account';
 import type { MyBusinessesRead } from '@/api/account/server';
-import { presentWorkBoard, type BusinessInput, type WorkBoardView } from '../_features/pass-values/model/work-board';
+import { presentWorkBoard, type BusinessInput, type WorkBoardView } from './_pass-values/utils/work-board';
 
 export type WorkView =
   | WorkBoardView

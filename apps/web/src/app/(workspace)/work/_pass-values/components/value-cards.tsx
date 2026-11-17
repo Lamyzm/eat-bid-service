@@ -5,7 +5,7 @@
 import { CopyValue } from '@/shared/ui/copy-value';
 import { Icons } from '@/shared/ui/icons';
 
-import type { ValueCard } from '../model/work-board';
+import type { ValueCard } from '../utils/work-board';
 
 export function ValueCards({ monthLabel, cards }: { readonly monthLabel: string; readonly cards: readonly ValueCard[] }) {
   return (

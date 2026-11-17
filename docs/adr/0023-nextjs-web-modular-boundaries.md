@@ -4,7 +4,8 @@
 - Date: 2026-08-31
 - Supersedes: 없음
 - Amended by: [ADR 0044](0044-route-segment-slice-structure.md) — route segment 내부를 기능 슬라이스로
-  나누고 `entities` 층을 추가한다. 아래 층 목록과 의존 방향에 그 결과를 반영했다.
+  나누고 `entities` 층을 추가한다. 아래 층 목록과 의존 방향에 그 결과를 반영했다. [ADR 0075](0075-web-work-and-kind-folders-checked-by-import-graph.md)
+  — segment 안을 일 폴더와 종류 폴더로 다시 두고 아래 의존 방향을 import 그래프 검사기로 강제한다.
 
 ## Context
 
