@@ -2,7 +2,7 @@
 id: DOCS-MAP
 status: active
 canonical_for: documentation-map-and-document-hierarchy-rules
-last_reviewed: 2026-09-09
+last_reviewed: 2026-11-17
 review_trigger: document-authority-location-or-docs-lint-rule-change
 ---
 
@@ -22,6 +22,9 @@ review_trigger: document-authority-location-or-docs-lint-rule-change
 | 분석이 어떤 질문·cohort·품질·replay 계약을 지키는가? | [`product/decision-support.md`](product/decision-support.md) |
 | 각 화면에서 무엇을 보고 어떤 행동을 하는가? | [`product/screen-system.md`](product/screen-system.md) |
 | 문서를 AI 작업의 입력과 결과로 어떻게 운영하는가? | [`governance/ai-driven-documentation.md`](governance/ai-driven-documentation.md) |
+| 가지를 리뷰할 때 무엇을 먼저 읽고 무엇으로 막는가? | [`../REVIEW.md`](../REVIEW.md) |
+| 화면에 어떤 말을 쓰고 어떤 말을 쓰지 않는가? (초안) | [`product/ui-words.md`](product/ui-words.md) |
+| 들인 외부 원문 스킬의 출처와 우리 규칙과의 판정은? | [`governance/external-skills.md`](governance/external-skills.md) |
 | 확정된 아키텍처 결정과 변경 방법은 무엇인가? | [`adr/README.md`](adr/README.md) |
 | 제품 기획 판단을 왜 그렇게 정했고 언제 다시 보는가? | [`product/decisions/README.md`](product/decisions/README.md) |
 | 데이터·런타임·품질 경계는 무엇인가? | [`architecture/README.md`](architecture/README.md) |

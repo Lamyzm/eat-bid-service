@@ -105,6 +105,9 @@
 
 - 위임·인계·dev 통합 작업은 [`공통 delivery 절차`](.agents/skills/eatbid-supervised-delivery/SKILL.md)를
   적용한다. 역할과 인수 기준은 [`문서·기능 실행 workflow`](docs/governance/ai-driven-documentation.md#7-codex와-claude의-협업-규칙)가 소유한다.
+- `main`으로 가는 가지의 리뷰는 [`REVIEW.md`](REVIEW.md)를 따른다. 화면 글은
+  [`docs/product/ui-words.md`](docs/product/ui-words.md), 외부 원문 스킬(`ext-*`)의 출처와 판정은
+  [`docs/governance/external-skills.md`](docs/governance/external-skills.md)가 소유한다.
 - 아키텍처 경계를 바꾸기 전에 관련 ADR을 새로 작성하거나 대체 ADR로 갱신하라.
 - 데이터 모델 변경은 `domain-and-data.md`, 런타임 변경은 `runtime-and-deployment.md`,
   시스템 경계 변경은 `c4.md`와 `arc42.md`를 같은 변경에서 갱신하라.

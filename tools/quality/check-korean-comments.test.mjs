@@ -117,6 +117,22 @@ test("테스트·fixture·생성물·선언형 config/schema·순수 barrel은 �
   }
 });
 
+test("외부 원문 고정본 ext-* 스킬의 코드는 원문 그대로 두므로 책임 설명을 묻지 않는다", () => {
+  const fixture = repository({
+    ".agents/skills/ext-tool/scripts/search.py": "import sys\n",
+    ".claude/skills/ext-tool/assets/viewer.js": "export const viewer = true;\n",
+    "apps/web/.agents/skills/ext-tool/x.cjs": "module.exports = 1;\n",
+    ".agents/skills/our-tool/run.mjs": "export const ours = true;\n",
+  });
+  try {
+    const report = inspectKoreanComments({ repoRoot: fixture.root });
+
+    assert.deepEqual(report.violations.map((item) => item.path), [".agents/skills/our-tool/run.mjs"]);
+  } finally {
+    fixture.close();
+  }
+});
+
 test("변경 범위가 주어지면 그 안의 production 모듈만 검사하고 건드리지 않은 기존 모듈은 묻지 않는다", () => {
   const fixture = repository({
     "src/legacy.ts": "export const legacy = true;\n",

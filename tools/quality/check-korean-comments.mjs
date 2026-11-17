@@ -15,6 +15,9 @@ const excludedPath =
   /(?:^|\/)(?:node_modules|dist|build|\.next|generated|__generated__|coverage|migrations|__fixtures__|fixtures?|e2e|tests?)(?:\/|$)|(?:^|\/)scripts\/cleanup-templates(?:\/|$)/iu;
 const excludedFile =
   /(?:\.(?:test|spec)\.[cm]?[jt]sx?$|\.d\.ts$|\.config\.[cm]?[jt]s$|\.schema\.[cm]?[jt]s$)/iu;
+// 외부 원문 고정본(`ext-*` 스킬)은 바이트 그대로 둬야 sha·커밋으로 출처를 대조할 수 있다. 우리 설명을 넣으면
+// 원문이 아니게 되므로 책임 설명은 그 스킬의 SKILL.md 머리가 대신 진다(docs/governance/external-skills.md).
+const vendoredSkillPath = /(?:^|\/)\.(?:agents|claude)\/skills\/ext-[^/]+\//u;
 const hangul = /[가-힣]/gu;
 const genericDescription =
   /^(?:이\s*)?(?:모듈|코드|기능|해당\s*코드)(?:을|를)?\s*(?:설명|담당)(?:한다|합니다)?[.!]?$/u;
@@ -70,6 +73,7 @@ function pureBarrel(file, source) {
 
 function eligible(file, source) {
   if (excludedPath.test(file) || excludedFile.test(path.basename(file))) return false;
+  if (vendoredSkillPath.test(file)) return false;
   if (/(?:^|\/)schemas?(?:\/|$)/iu.test(file)) return false;
   return !pureBarrel(file, source);
 }
