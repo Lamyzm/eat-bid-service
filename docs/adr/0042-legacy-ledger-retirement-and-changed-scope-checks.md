@@ -7,6 +7,8 @@
   Consequences의 legacy 공존을 삭제 전용 baseline으로 운영하던 규칙, [ADR 0035](0035-administrative-region-canonical-and-mapping.md)
   확정 근거의 "ledger는 비어 있다"는 운영 방식. 세 ADR의 나머지 결정은 그대로다.
 - 관련 작업: EAT-121
+- 부분 대체: 결정 1의 "ledger를 두지 않는다"는 Web 폴더 꼴·import 그래프 규칙에 한해 [ADR 0075](0075-web-work-and-kind-folders-checked-by-import-graph.md)의
+  줄어들기만 하는 기준 목록(사라진 열쇠·늘어난 열쇠 모두 실패)으로 대체한다(2026-11-18). 변경 범위 규칙과 waiver는 그대로다.
 
 ## Context
 

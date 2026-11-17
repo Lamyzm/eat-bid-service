@@ -3,10 +3,14 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { compareBaseline, readBaseline } from "./baseline.mjs";
 import { clientValueExportCrossings } from "./client-value-exports.mjs";
 import { exportedManualDtos } from "./dto-provenance.mjs";
+import { kindFolderFindings, kindFolderMismatches } from "./folder-layout.mjs";
 import { isDomLibrarySymbol, isGlobalFetchCall } from "./global-fetch-analysis.mjs";
+import { importGraphFindings } from "./import-graph.mjs";
 import {
+  BASELINED_RULES,
   CHANGE_SCOPED_RULES,
   MAX_SOURCE_LINES,
   MIN_DUPLICATE_BYTES,
@@ -55,6 +59,30 @@ function sourceFiles(sourceRoot) {
   };
   visit(sourceRoot);
   return files.sort(codePointCompare);
+}
+
+// 폴더 꼴 규칙은 시험·css·시험 자료의 자리도 판정하므로 production program과 따로 모든 파일 경로를 모은다.
+function placedFiles(root, sourceRoot) {
+  const files = [];
+  const visit = (entry) => {
+    if (!existsSync(entry)) return;
+    if (statSync(entry).isDirectory()) {
+      if (!["node_modules", ".next", "dist", "coverage"].includes(path.basename(entry))) for (const child of readdirSync(entry)) visit(path.join(entry, child));
+    } else files.push(display(root, entry));
+  };
+  visit(sourceRoot);
+  return files.sort(codePointCompare);
+}
+
+// 폴더 꼴(종류 폴더 자리·이름)과 import 그래프(사사 파일·층 방향·순환) finding을 기존 finding과 같은 모양으로 만든다.
+function folderFindings(root, sourceRoot, edges) {
+  const placed = placedFiles(root, sourceRoot);
+  const textOf = (displayPath) => (displayPath.endsWith(".model.ts") ? readFileSync(path.join(root, displayPath), "utf8") : undefined);
+  const out = [];
+  for (const item of kindFolderFindings(placed, textOf)) out.push({ rule: WEB_BOUNDARY_RULES.KIND_FOLDER, path: item.path, kind: "SourceFile", reason: item.reason, key: item.key });
+  for (const item of kindFolderMismatches(placed, textOf)) out.push({ rule: WEB_BOUNDARY_RULES.KIND_FOLDER_MISMATCH, path: item.path, kind: "SourceFile", reason: item.reason });
+  for (const item of importGraphFindings(edges, placed)) out.push({ rule: item.rule, path: item.path, kind: item.key.includes(" <-> ") ? "ImportCycle" : "ImportEdge", reason: item.reason, key: item.key });
+  return out;
 }
 
 function resolveModule(specifier, sourceFile, options) {
@@ -362,7 +390,7 @@ function transportRuntimeViolation(root, file, target) {
  * `changedPaths`가 주어졌을 때 그 밖의 파일에서 난 변경 범위 규칙(legacy import·hooks·lib) finding이다.
  * `changedPaths`를 생략하면 모든 finding을 보고한다. 신규 위반을 예외로 흡수하는 목록은 어디에도 없다.
  */
-export async function inspectWebBoundaries({ repoRoot, sourceRoot, changedPaths }) {
+export async function inspectWebBoundaries({ repoRoot, sourceRoot, changedPaths, baseline }) {
   const root = path.resolve(repoRoot);
   const source = path.resolve(sourceRoot);
   const files = sourceFiles(source);
@@ -374,6 +402,8 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, changedPaths 
   const duplicates = new Map();
   const manualDeclarations = new Set();
   const sources = new Map();
+  const productionPaths = new Set(files.map((file) => display(root, file)));
+  const edges = [];
   for (const file of files) {
     const sourceFile = sourceByName.get(path.resolve(file));
     if (!sourceFile) continue;
@@ -420,6 +450,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, changedPaths 
       if (moduleReference) {
         const target = moduleReference.known === false ? undefined : resolveModule(moduleReference.text, sourceFile, options);
         const targetLayer = target ? sourceLayer(target) : undefined;
+        if (target && productionPaths.has(display(root, target))) edges.push({ from: displayPath, to: display(root, target) });
         if (isCanonicalLayerPath(displayPath) && moduleReference.known !== false && isLegacyDirectoryReference(moduleReference.text, target ? display(root, target) : undefined)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IMPORT, file, node, sourceFile, "신규 층은 legacy components·hooks·lib·config·types와 legacy route-private module(app/dashboard·welcome·s)을 import 또는 re-export할 수 없습니다.");
         // 의존 방향은 app → routing이다. routing이 route-private legacy builder를 re-export하는 shim은
         // 방향을 뒤집는 역참조이므로 예외 없이 거부한다.
@@ -467,13 +498,24 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, changedPaths 
     const members = [...candidate.members].sort(codePointCompare);
     add(findings, root, WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP, path.join(root, members[0]), "SourceFileGroup", undefined, "동일한 큰 source group은 shared extraction 또는 의도적인 분리를 검토해야 합니다.", members);
   }
+  findings.push(...folderFindings(root, source, edges));
   findings.sort((left, right) => codePointCompare(`${left.rule}\0${left.path}\0${left.kind}\0${left.reason}`, `${right.rule}\0${right.path}\0${right.kind}\0${right.reason}`));
-  const waiverResult = applyWaivers({ findings, sources });
+  const waiverResult = applyWaivers({ findings: findings.filter((item) => !BASELINED_RULES.has(item.rule)), sources });
   const skipped = [];
   const reported = [];
   for (const item of waiverResult.findings) {
     if (changedPaths && CHANGE_SCOPED_RULES.has(item.rule) && !changedPaths.has(item.path)) skipped.push(item);
     else reported.push(item);
   }
-  return { findings: reported, waived: waiverResult.waived, skipped, failures: waiverResult.failures };
+  // 폴더 꼴·import 그래프 규칙은 변경 범위가 아니라 기준 목록으로 판정한다(ADR 0075). 목록에 없는 위반은 보고하고, 사라진 열쇠와
+  // 목록에 올릴 수 없는 규칙의 열쇠는 실패로 드러내 목록이 지금 트리의 옛 꼴을 정확히 담게 한다.
+  const comparison = compareBaseline(findings.filter((item) => BASELINED_RULES.has(item.rule)), baseline ?? readBaseline(root), BASELINED_RULES);
+  reported.push(...comparison.fresh);
+  reported.sort((left, right) => codePointCompare(`${left.rule}\0${left.path}\0${left.kind}\0${left.reason}`, `${right.rule}\0${right.path}\0${right.kind}\0${right.reason}`));
+  const failures = [
+    ...waiverResult.failures,
+    ...comparison.stale.map((item) => `기준 목록의 ${item.rule} 열쇠 '${item.key}'는 더 이상 위반이 아닙니다. pnpm lint:web-boundaries -- --prune-baseline으로 지우십시오.`),
+    ...comparison.foreign.map((item) => `${item.rule} 규칙은 기준 목록에 올릴 수 없습니다('${item.key}').`),
+  ];
+  return { findings: reported, waived: waiverResult.waived, skipped, baselined: comparison.kept, stale: comparison.stale, failures };
 }

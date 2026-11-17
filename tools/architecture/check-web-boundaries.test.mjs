@@ -6,9 +6,12 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { inspectWebBoundaries } from "./web-boundaries/inspect.mjs";
-import { isTestOrFixture } from "./web-boundaries/policy.mjs";
+import { BASELINED_RULES, WEB_BOUNDARY_RULES, isTestOrFixture } from "./web-boundaries/policy.mjs";
 
 const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
+// 이 파일의 표본은 폴더 꼴(ADR 0075) 이전 규칙을 재므로 그 꼴을 따르지 않는다. 폴더 꼴·import 그래프 규칙은
+// check-web-folder-boundaries.test.mjs가 따로 재고, 여기서는 그 finding을 빼고 본다.
+const FOLDER_RULES = new Set([...BASELINED_RULES, WEB_BOUNDARY_RULES.KIND_FOLDER_MISMATCH]);
 const cli = path.join(repositoryRoot, "tools", "architecture", "check-web-boundaries.mjs");
 
 function fixture(files) {
@@ -24,11 +27,12 @@ function fixture(files) {
 async function inspect(files, changedPaths) {
   const subject = fixture(files);
   try {
-    return await inspectWebBoundaries({
+    const report = await inspectWebBoundaries({
       repoRoot: subject.root,
       sourceRoot: subject.sourceRoot,
       changedPaths,
     });
+    return { ...report, findings: report.findings.filter((finding) => !FOLDER_RULES.has(finding.rule)) };
   } finally {
     rmSync(subject.root, { recursive: true, force: true });
   }

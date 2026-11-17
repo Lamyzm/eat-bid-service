@@ -11,10 +11,15 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   LEGACY_LIB_DIRECTORY: "legacy-lib-directory",
   LEGACY_IMPORT: "legacy-import",
   DUPLICATE_SOURCE_GROUP: "duplicate-source-group",
+  ENTITY_CROSS_IMPORT: "entity-cross-import",
+  FEATURE_CYCLE: "feature-cycle",
   FEATURE_LIB_REACT: "feature-lib-react",
   FEATURE_MODEL_JSX: "feature-model-jsx",
   FRONTEND_ENDPOINTS_MIRROR: "frontend-endpoints-mirror",
   ID_NUMBER_CONVERSION: "id-number-conversion",
+  KIND_FOLDER: "kind-folder",
+  KIND_FOLDER_MISMATCH: "kind-folder-mismatch",
+  LAYER_DIRECTION: "layer-direction",
   MANUAL_API_RESPONSE: "manual-api-response",
   MOTION_DURATION_LITERAL: "motion-duration-literal",
   MOTION_LOCAL_PRESS: "motion-local-press",
@@ -22,8 +27,10 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   PAGE_CONTAINER_LOADING_STATE: "page-container-loading-state",
   RAW_FETCH: "raw-fetch",
   ROUTE_CLIENT_COMPONENT: "route-client-component",
+  ROUTE_PRIVATE: "route-private",
   SHELL_BOUNDARY_IMPORT: "shell-boundary-import",
   SHARED_CONTROL_RESPONSIBILITY: "shared-control-responsibility",
+  SLICE_CYCLE: "slice-cycle",
   SOURCE_FILE_SIZE: "source-file-size",
   TRANSPORT_RUNTIME_CROSS_IMPORT: "transport-runtime-cross-import",
   UI_NON_RENDER_MODULE: "ui-non-render-module",
@@ -53,6 +60,20 @@ export const CHANGE_SCOPED_RULES = Object.freeze(
   ]),
 );
 
+// 폴더 꼴·import 그래프 규칙(ADR 0075)은 옛 위반을 기준 목록(`folder-baseline.json`)에 싣고 줄어들기만 한다. 걷을 옛 화면을
+// 옮기지 않고 남겨 두려면 파일을 건드려도 판정이 바뀌지 않아야 하므로 변경 범위 규칙이 아니라 기준 목록으로 둔다.
+// 종류 폴더의 자리·이름 어긋남(`kind-folder-mismatch`)은 새 꼴을 쓰기 시작한 자리의 실수라 목록에 올릴 수 없다.
+export const BASELINED_RULES = Object.freeze(
+  new Set([
+    WEB_BOUNDARY_RULES.KIND_FOLDER,
+    WEB_BOUNDARY_RULES.ROUTE_PRIVATE,
+    WEB_BOUNDARY_RULES.LAYER_DIRECTION,
+    WEB_BOUNDARY_RULES.ENTITY_CROSS_IMPORT,
+    WEB_BOUNDARY_RULES.FEATURE_CYCLE,
+    WEB_BOUNDARY_RULES.SLICE_CYCLE,
+  ]),
+);
+
 export const MAX_SOURCE_LINES = 300;
 export const MIN_DUPLICATE_NONBLANK_LINES = 10;
 export const MIN_DUPLICATE_BYTES = 200;
@@ -79,7 +100,7 @@ const LEGACY_HOOKS_PATH = /^apps\/web\/src\/hooks\//;
 const LEGACY_LIB_PATH = /^apps\/web\/src\/lib\//;
 // routing 층은 canonical decimal ID route만 만든다. 복합 문자열 identity를 쓰는 legacy dashboard route
 // builder는 canonical 층에 들어올 수 없다.
-const LEGACY_IDENTITY_SCOPE = /^apps\/web\/src\/(?:routing\/|app\/(?:.+\/)?_lib\/)/;
+const LEGACY_IDENTITY_SCOPE = /^apps\/web\/src\/(?:routing\/|app\/(?:.+\/)?_(?:lib|utils)\/)/;
 const LEGACY_ROUTE_PREFIX = /^\/dashboard(?:\/|$)/;
 
 export function isLegacyHooksPath(displayPath) {
@@ -98,12 +119,13 @@ export function isLegacyRouteLiteral(text) {
   return LEGACY_ROUTE_PREFIX.test(text);
 }
 
-// ADR 0044는 route segment 안을 파일 유형이 아니라 변경 단위로 나눈다. 세 자리의 역할이 다르므로 경로로
-// 판정한다. lib은 React를 모르는 순수 함수, model은 JSX를 만들지 않는 상태·표시 변환, ui는 렌더링이다.
-// 이 규칙이 없으면 계산 모듈이 다시 표현 폴더에 쌓이고(ADR 0044 Context) 슬라이스 경계가 이름만 남는다.
-const SEGMENT_FEATURE_LIB_PATH = /^apps\/web\/src\/app\/.+\/_features\/[^/]+\/lib\//;
-const SEGMENT_FEATURE_MODEL_PATH = /^apps\/web\/src\/app\/.+\/_features\/[^/]+\/model\//;
-const SEGMENT_RENDER_PATH = /^apps\/web\/src\/app\/.+\/(?:_ui|_features\/[^/]+\/ui)\//;
+// 단위 안 세 칸의 거주 조건(ADR 0044 결정 1을 ADR 0075의 종류 폴더로 이어 받음). 셈(옛 lib·새 utils)은 React를 모르는 순수 함수,
+// 흐름(옛 model·새 hooks·remotes)은 JSX를 만들지 않는 상태·표시 변환, 그리기(옛 ui·새 components)는 렌더링이다. 이 규칙이 없으면
+// 계산 모듈이 다시 표현 폴더에 쌓이고(ADR 0044 Context) 종류 폴더가 이름만 남는다. 높이 상수 `*.frame.ts`는 그리기와 함께 바뀌는
+// components 거주자라 렌더 판정에서 뺀다.
+const SEGMENT_FEATURE_LIB_PATH = /^apps\/web\/src\/(?:app\/(?:.+\/)?(?:_features\/[^/]+\/lib|_utils|_(?!_)[^/]+\/utils)|(?:entities|capabilities)\/[^/]+\/utils)\//;
+const SEGMENT_FEATURE_MODEL_PATH = /^apps\/web\/src\/(?:app\/(?:.+\/)?(?:_features\/[^/]+\/model|_hooks|_remotes|_(?!_)[^/]+\/(?:hooks|remotes))|(?:entities|capabilities)\/[^/]+\/(?:hooks|remotes))\//;
+const SEGMENT_RENDER_PATH = /^apps\/web\/src\/(?:app\/(?:.+\/)?(?:_ui|_features\/[^/]+\/ui|_components|_(?!_)[^/]+\/components)|(?:entities|capabilities)\/[^/]+\/components)\/(?![^/]*\.frame\.ts$)/;
 // React runtime과 그 하위 entry를 함께 막는다. 순수 함수 자리에는 hook도 type도 들어오지 않는다.
 const REACT_MODULE_SPECIFIER = /^react(?:-dom)?(?:\/|$)/;
 

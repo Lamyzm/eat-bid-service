@@ -53,8 +53,7 @@
 - segment의 여러 테스트가 함께 쓰는 test-only 표본과 렌더 도우미는 그 segment의 `__fixtures__`에 두며,
   production 모듈은 `__fixtures__`를 import하지 않는다.
 - 한 route에만 필요한 presentation과 interactive leaf는 그 segment의 private 폴더에 둔다. 안쪽 배치는
-  ADR 0044가 소유하며 아직 옮기지 않은 화면은 `_model`/`_ui`/`_lib`를 유지한다.
-  단순 조회 화면이나 두 곳에서 쓴다는 이유만으로 capability를 만들지 않는다. 독립된 사용자 intent,
+  ADR 0075가 소유한다(아래 "route segment 안" 줄). 단순 조회 화면이나 두 곳에서 쓴다는 이유만으로 capability를 만들지 않는다. 독립된 사용자 intent,
   command/permission/feedback lifecycle 또는 여러 resource orchestration이 있을 때만 승격한다.
 - raw `fetch`와 `Response` body decode는 `api/_transport`만 수행한다. resource는 승인된 request adapter에
   operation schema를 주입해 `unknown` public response를 parse한다. generic `res.json() as T`, resource의
@@ -75,12 +74,25 @@
   primitive는 `shared/ui`, 범용 helper와 hook은 `shared/lib`, 탐색·헤더·사이드바·명령 palette 같은 chrome은
   `shell/layout`, 한 화면 전용은 그 segment의 private 폴더가 소유한다.
 - `entities`는 도메인을 알지만 화면에 매이지 않은 표시 조각의 자리다(ADR 0044-6). 올리는 조건은 하나,
-  **두 화면 이상에서 실제로 쓴다**이며 미리 만들지 않는다. entity끼리 서로 import하지 않는다. 한 화면만 쓰면
-  그 segment에 두고, 도메인을 모르는 primitive는 `shared`에 남긴다.
-- route segment 안은 파일 유형이 아니라 변경 단위로 나눈다(ADR 0044). `page.tsx`는 조회 주입과 조립만 하는
-  오케스트레이터, `_widgets/`는 페이지 섹션 블록, `_features/<name>/{ui,model,lib}`는 함께 바뀌는 기능 하나,
-  `_lib/`는 그 segment 전체가 쓰는 조각이다. `lib`는 React를 import하지 않고, `model`은 JSX를 만들지 않으며,
-  `ui`에는 렌더링하지 않는 모듈을 두지 않는다. 이 셋은 `lint:web-boundaries`가 변경 범위에서 검사한다.
+  **두 화면 이상에서 실제로 쓴다**이며 미리 만들지 않는다. entity끼리 서로 import하지 않는다(`entity-cross-import`).
+  한 화면만 쓰면 그 segment에 두고, 도메인을 모르는 primitive는 `shared`에 남긴다.
+- route segment 안은 밖은 일, 안은 종류다(ADR 0075, 본보기 `app/(workspace)/work`).
+  - 화면 폴더 바로 아래에는 Next 파일(`page`·`layout`·`loading`·`error`·`not-found` …)과 로더 `load-*.ts`(와 그 시험),
+    `__fixtures__/`, 밑줄 붙은 종류 폴더 `_components/`·`_hooks/`·`_remotes/`·`_utils/`(조립·틀·뼈대·여러 일 공용)만 둔다.
+    밑줄 없는 `components/`는 Next가 주소 조각으로 읽는다.
+  - 사람이 이름 붙이는 일 하나는 `_<일>/`이고 그 안은 종류 폴더 한 겹 `components/`·`hooks/`·`remotes/`·`utils/`다(파일 있는
+    종류만). 일이 하나뿐인 화면도 일 폴더를 둔다. `entities/<e>/`·`capabilities/<c>/`도 같은 꼴이며 capability 바로 아래에는
+    공개 입구 `index.ts`·`server.ts`만 남는다.
+  - 이름이 종류를 고른다. `.tsx`·css·`*.frame.ts`는 components, `use-*.ts`는 hooks, `*-queries.ts`와 `@/api`를 값으로 부르는
+    `*.model.ts`는 remotes, 나머지 `.ts`(`present-*.ts` 포함)는 utils다. 시험은 원본 곁에 둔다.
+  - `utils`는 React를 import하지 않고, `hooks`·`remotes`는 JSX를 만들지 않으며, `components`에는 렌더링하지 않는 모듈을
+    두지 않는다(`*.frame.ts` 제외). 이 셋은 `lint:web-boundaries`가 변경 범위에서 검사한다.
+  - 다른 화면의 사사 파일 import(`route-private`), ADR 0023 층 방향(`layer-direction`), 일 폴더 순환(`feature-cycle`)과
+    entity·capability·shared 칸 순환(`slice-cycle`), 종류 폴더 자리(`kind-folder`·`kind-folder-mismatch`)도 같은 gate가 막는다.
+    옛 위반은 `tools/architecture/web-boundaries/folder-baseline.json`에 있고 줄어들기만 한다. 고쳐서 사라진 열쇠는
+    `pnpm lint:web-boundaries -- --prune-baseline`으로 지우며 목록에 새 열쇠를 손으로 넣지 않는다.
+  - 걷을 화면(`/today`·`/review`·`/setup`·`/floor`·`/auctions/[auctionId]`)은 옮기지 않고 지운다. 새 화면은 처음부터 이 꼴로
+    짓고, 남은 단위는 실질적으로 고치는 변경이 통째로 옮긴다.
 - 아이콘은 `@/shared/ui/icons`의 registry에서 가져온다. `@tabler/icons-react`를 직접 import하는 자리는
   `shared/ui` primitive뿐이며 route·capability·shell 화면은 registry를 거친다. 같은 층의
   `shared/ui/workspace-icons`는 dock·계정 허브가 쓰는 좁은 재수출이라 registry와 함께 정리 대상이다.
