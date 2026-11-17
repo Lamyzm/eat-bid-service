@@ -73,16 +73,9 @@ test('주소에 지역이 없으면 내 업체가 가장 많이 넣은 공고지
   await expect(page.getByText('내 업체가 최근 1년 가장 많이 넣은 지역이라 이 지역부터 보여 줘요.')).toBeVisible();
 });
 
-test('오늘 투찰·공고 상세의 입구 줄은 하한선 자리 요약과 같은 범위를 말하고 그 지역으로 연다', async ({ page }) => {
+test('공고 상세의 입구 줄은 하한선 자리 요약과 같은 범위를 말한다', async ({ page }) => {
   await page.goto('/auctions/9007199254740993');
   await expect(page.locator('[data-slot="floor-entry"]')).toContainText('이 지역(');
-  await page.goto('/work');
-  const workEntry = page.locator('[data-slot="floor-entry"]');
-  await expect(workEntry).toContainText('김해시 하한선 · 최근 1년 열 번 중 다섯 번은 사정률');
-  const range = await workEntry.locator('b').innerText();
-  await workEntry.getByRole('link', { name: '하한선 자리 보기 →' }).click();
-  await expect(page).toHaveURL(/\/floor\?region=459$/);
-  await expect(page.getByLabel('요약').locator('b')).toHaveText(range);
 });
 
 test('복기의 입구 줄은 그 달로 확대한 하한선 자리를 열고 보이는 기간 문장이 같은 범위를 말한다', async ({ page }) => {

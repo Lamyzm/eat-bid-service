@@ -88,6 +88,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0071](0071-market-seat-and-auction-amount-assignment.md) | Accepted | 추천 금액을 받을 권리는 시장 자리(eaT 참가제한지역 코드 × 품목 코드, 정확 일치)이고 공고 하나는 워크스페이스 한 곳만 받는다 — 우선권 시작일이 이른 자리가 맡아 자리가 살아 있는 한 마감까지 유지하고, 배정을 금액보다 먼저 기록해 실패하면 금액 없이 응답하며, 마감 뒤 확정·정정 줄로 남긴다. 사업자번호와 자리 기간 겹침은 `btree_gist` 제약이 막고, 운영자 잠금은 배정 확인으로 바뀐다 (0062의 "누구에게 보일지는 기능마다" 중 추천 금액을 대체) |
 | [0072](0072-main-item-restriction-as-seat-item.md) | Accepted | eaT `MN_TRMT_LMT_YN`(주요 취급 품목 참가 제한)을 원천 코드로 저장하고, 품목 제한이 없는 공고는 (참가제한지역, "품목 제한 없음") 자리가 받는다 — 제목 짐작과 지역만 배정은 기각, 인증 종류 `CERT_KND_CD`는 저장만 한다 (0071 결정 1·2의 품목 정의와 "품목 없는 공고는 금액 없음"을 대체) |
 | [0073](0073-github-issue-as-work-source.md) | Accepted | 일의 원천을 GitHub issue 하나로 두고 가지 `<type>/<N>-<slug>`·PR `Closes #N`으로 잇는다 — Linear·claim·세션 잠금과 session hook을 삭제하고 한 일에 한 writer는 규칙으로만 지킨다 (0043 전체와 0026 결정 6의 claim 실행 대체) |
+| [0074](0074-bid-value-shows-base-relative-percent.md) | Accepted | 사장님 화면의 투찰 값은 기초금액 대비 % 하나로 크게 보이고 사정률을 앞세우지 않는다 — 하한율 묶음 머리가 분모를 말하고 원 금액은 주 값이 아니다 (0066 결정 1·2 대체, 계약·서버는 그대로) |
 
 ## 새 ADR 형식
 

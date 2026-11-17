@@ -6,6 +6,7 @@
   (추천을 경계 안에 들임, 근거와 함께 냄, 자동 투찰 금지)는 그대로다.
 - 관련 작업: EAT-336, [PDR-0008](../product/decisions/0008-my-bids-market-pick-and-work-screen.md)
 - 승인: 사용자 결정(2026-10-11, "사정률과 기초금액 대비 %를 둘 다 보이고 금액은 확인용")
+- 부분 대체: 결정 1·2는 [ADR 0074](0074-bid-value-shows-base-relative-percent.md)가 대체한다(2026-11-17).
 
 ## Context
 
