@@ -15,6 +15,11 @@ const SESSION_COOKIE_VALUE = 'fixture-session';
  * 쿠키 유무만 보는 proxy는 통과시키고 세션 계약을 읽는 layout만 걸러야 하는 상태다.
  */
 export const UNINITIALIZED_SESSION_COOKIE_VALUE = 'fixture-uninitialized';
+/**
+ * 사업장 여럿을 가진 운영자 계정이다. 넣을 공고는 운영자에게만 열리고(PDR-0011) 사업장 수에 따라 첫 화면이 달라서, 쿠키 값
+ * 끝의 숫자가 등록 사업장 수(2·5)를 고른다. 사업장 목록 fixture도 같은 쿠키를 읽는다.
+ */
+export const OWNER_SESSION_COOKIE_PREFIX = 'fixture-owner-';
 
 const ACCOUNT: AccountLabel = { displayName: '검사 계정', maskedEmail: 'e***@example.com' };
 
@@ -26,6 +31,8 @@ const ACTIVE_SESSION: CurrentSessionV1Response = {
   operator: false
 };
 
+const OWNER_SESSION: CurrentSessionV1Response = { ...ACTIVE_SESSION, operator: true };
+
 const UNINITIALIZED_SESSION: CurrentSessionV1Response = {
   state: 'uninitialized',
   account: ACCOUNT
@@ -36,12 +43,12 @@ const UNAUTHENTICATED_SESSION: CurrentSessionV1Response = { state: 'unauthentica
  * Playwright context에 심는 로그인 상태다. `use.storageState`로 전체 스위트에 적용하고, 게이트 자체를
  * 검사하는 스위트만 빈 상태로 덮어쓴다. 파일로 떨어뜨리지 않고 config 안에서 값으로 만든다.
  */
-export function signedInStorageState(host: string) {
+export function signedInStorageState(host: string, value: string = SESSION_COOKIE_VALUE) {
   return {
     cookies: [
       {
         name: SESSION_COOKIE_NAME,
-        value: SESSION_COOKIE_VALUE,
+        value,
         domain: host,
         path: '/',
         expires: -1,
@@ -65,6 +72,8 @@ export function sessionResponse(request: Request): Response | undefined {
   if (cookie.includes(`${SESSION_COOKIE_NAME}=${UNINITIALIZED_SESSION_COOKIE_VALUE}`)) {
     return Response.json(UNINITIALIZED_SESSION);
   }
+  if (cookie.includes(`${SESSION_COOKIE_NAME}=${OWNER_SESSION_COOKIE_PREFIX}`))
+    return Response.json(OWNER_SESSION);
   const signedIn = cookie.includes(`${SESSION_COOKIE_NAME}=`);
   return Response.json(signedIn ? ACTIVE_SESSION : UNAUTHENTICATED_SESSION);
 }

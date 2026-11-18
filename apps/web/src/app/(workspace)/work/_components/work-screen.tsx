@@ -6,8 +6,7 @@ import Link from 'next/link';
 
 import { EmptyState } from '@/shared/ui/empty-state';
 
-import { ClosingDays } from '../_pass-values/components/closing-days';
-import { ValueCards } from '../_pass-values/components/value-cards';
+import { WorkBoard } from '../_bid-values/components/work-board';
 import type { WorkView } from '../load-work-page';
 import { WorkFrame } from './work-frame';
 
@@ -60,13 +59,7 @@ export function WorkScreen({ view }: { readonly view: WorkView }) {
   }
   return (
     <WorkFrame stamp={`${view.asOfText} 기준`}>
-      <ValueCards monthLabel={view.monthLabel} cards={view.cards} />
-      {view.truncated ? (
-        <p role='status' className='rounded-control bg-muted px-4 py-3 text-body font-semibold'>
-          늦게 마감하는 공고 일부를 읽지 못했어요.
-        </p>
-      ) : null}
-      <ClosingDays days={view.days} businessNames={view.businessNames} />
+      <WorkBoard board={view} />
     </WorkFrame>
   );
 }
