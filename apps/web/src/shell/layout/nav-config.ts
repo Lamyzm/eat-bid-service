@@ -29,6 +29,8 @@ export interface NavItem {
 export interface NavGroup {
   label: string;
   items: NavItem[];
+  /** 'bottom'이면 왼쪽 메뉴의 아래쪽(계정 바로 위)에 선다. 일하는 화면 묶음은 위, 계정에 딸린 묶음은 아래다. */
+  placement?: 'top' | 'bottom';
 }
 
 /** sidebar와 Cmd+K가 같은 항목을 사용하며 각 group은 SidebarGroupLabel로 표시한다. */
@@ -37,15 +39,30 @@ export const navGroups: NavGroup[] = [
     label: '공고',
     items: [
       // 오늘은 canonical `/today`(EAT-39)가 소유한다.
-      { title: '오늘', url: '/today', icon: 'sun', isActive: false, shortcut: ['t', 't'], items: [] }
+      {
+        title: '오늘',
+        url: '/today',
+        icon: 'sun',
+        isActive: false,
+        shortcut: ['t', 't'],
+        items: []
+      }
     ]
   },
   {
     label: '나',
+    placement: 'bottom',
     items: [
       // 사업자 등록의 진실 원천은 로그인 계정이다. 이 항목이 localStorage 화면을 가리키면 같은 개념의
       // 진실 원천이 둘로 보인다. canonical `/setup`이 유일한 진입이다(ADR 0032 §5).
-      { title: '내 사업자', url: '/setup', icon: 'settings', isActive: false, shortcut: ['b', 'b'], items: [] }
+      {
+        title: '내 사업자',
+        url: '/setup',
+        icon: 'settings',
+        isActive: false,
+        shortcut: ['b', 'b'],
+        items: []
+      }
     ]
   }
 ];

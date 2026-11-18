@@ -1,4 +1,4 @@
-/* 공통 헤더 아래의 중앙 지면·전역 상세·바로가기 위치만 소유한다. 화면 데이터는 route에 남는다. */
+/* 공통 헤더 아래의 중앙 지면·전역 상세 위치와 왼쪽 메뉴의 폭 단계만 소유한다. 화면 데이터는 route에 남는다. */
 /* 이 파일은 globals.css와 따로 컴파일되므로 폭 경계 이름(@variant md·xl)을 쓰려면 원천을 참조해야 한다.
    @reference는 값만 읽고 CSS를 다시 내보내지 않는다. 폭 숫자를 여기에 적지 않는다(EAT-154). */
 @reference '../../styles/tokens/breakpoints.css';
@@ -8,11 +8,19 @@
 [data-slot='workspace-columns'] { display: flex; align-items: flex-start; min-width: 0; }
 [data-slot='workspace-page'] { flex: 1; min-width: 0; }
 [data-slot='workspace-columns'] > [data-dock-host='panel'] { display: none; }
-[data-slot='workspace-tool-rail'] { display: none; }
-[data-slot='workspace-header-tools'] { display: flex; align-items: center; gap: 4px; }
 
-@variant md {
-  [data-workspace-shell] { --workspace-header-height: 56px; }
+/* PC 폭에서는 머리 막대를 두지 않으므로(header.tsx) 그 높이를 기대는 sticky 자리도 맨 위에서 시작한다. */
+@variant sm {
+  [data-workspace-shell] { --workspace-header-height: 0px; }
+}
+
+/* 왼쪽 메뉴는 nav 폭 아래(1100px 이하)에서 아이콘 아래 이름을 둔 92px 꼴로 선다(#241 정본). 1024 창과 반 창에서
+   본문 폭을 지키려는 것이다. 휴대폰 폭(sm 아래)은 메뉴가 Sheet라 이 단계를 받지 않는다. sidebar provider가 넓은 폭을
+   inline으로 박으므로 덮어쓴다. 접힘 cookie 규칙(globals.css)은 선택자가 더 구체적이라 접힘이 이긴다. */
+@variant sm {
+  @variant max-nav {
+    [data-slot='sidebar-wrapper'] { --sidebar-width: 5.75rem !important; }
+  }
 }
 
 /* 차트가 같은 DOM 자리를 유지한 채 전체보기를 요청한다. 업무 route 이름을 읽거나 별도 셸을
@@ -23,8 +31,7 @@ body:has([data-workspace-fullscreen='true']) { overflow: hidden; }
   height: 100dvh; min-height: 0; overflow: hidden;
 }
 [data-slot='sidebar-wrapper']:has([data-workspace-fullscreen='true']) > :not([data-workspace-shell]),
-[data-workspace-shell]:has([data-workspace-fullscreen='true']) [data-slot='workspace-header'],
-[data-workspace-shell]:has([data-workspace-fullscreen='true']) [data-slot='workspace-tool-rail'] { display: none; }
+[data-workspace-shell]:has([data-workspace-fullscreen='true']) [data-slot='workspace-header'] { display: none; }
 [data-workspace-shell]:has([data-workspace-fullscreen='true']) {
   height: 100dvh; min-height: 0; margin: 0; border-radius: 0;
 }
@@ -34,28 +41,14 @@ body:has([data-workspace-fullscreen='true']) { overflow: hidden; }
 [data-workspace-shell]:has([data-workspace-fullscreen='true']) [data-dock-host='panel'] {
   top: 0; height: 100dvh;
 }
-/* 보조 패널과 도구 줄이 본문 옆에 고정되는 xl 경계다. 같은 경계를 useWideWorkspace가 matchMedia로 읽어
+/* 보조 패널이 본문 옆에 고정되는 xl 경계다. 같은 경계를 useWideWorkspace가 matchMedia로 읽어
    그 아래에서는 같은 내용을 Sheet로 연다. 둘이 어긋나면 패널이 두 번 그려지거나 아예 안 그려진다. */
 @variant xl {
-  [data-slot='workspace-header-tools'] { display: none; }
-  [data-slot='workspace-tool-rail'],
   [data-slot='workspace-columns'] > [data-dock-host='panel'] {
     position: sticky;
     top: var(--workspace-header-height);
     height: calc(100dvh - var(--workspace-header-height));
     flex-shrink: 0;
-  }
-  [data-slot='workspace-tool-rail'] {
-    display: flex; flex-direction: column; width: 64px; padding: 10px 4px;
-    border-left: 1px solid var(--border); background: var(--background); overflow-y: auto;
-  }
-  [data-slot='workspace-tool-rail'] button {
-    width: 56px; height: 58px; flex-direction: column; gap: 5px; padding-inline: 0;
-  }
-  [data-slot='workspace-tool-rail'] button svg { width: 19px; height: 19px; }
-  [data-slot='workspace-tool-rail'] button span { font-size: 12px; }
-  [data-slot='workspace-tool-rail'] [data-dock-host='rail']:not(:empty) {
-    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
   }
   [data-slot='workspace-columns'] > [data-dock-host='panel']:has([data-slot='responsive-dock']:not([hidden])) {
     display: block; width: 320px; border-left: 1px solid var(--border); background: var(--background);

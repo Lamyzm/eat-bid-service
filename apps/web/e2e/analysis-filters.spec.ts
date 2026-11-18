@@ -17,9 +17,10 @@ test('새 상세는 비교조건으로 바로 시작하고 적용·탭·전체�
   await expect(form.getByRole('button', { name: '전 기간', exact: true })).toBeDisabled();
   await page.screenshot({ path: testInfo.outputPath('새-상세-1440.png'), fullPage: true });
   await page.mouse.wheel(0, 500);
+  // 조건 막대는 머리 막대 바로 아래에 붙는다. PC 폭에는 머리 막대가 없으므로(#241) 창 맨 위다.
   await expect
     .poll(async () => (await page.locator('[data-slot="analysis-sticky"]').boundingBox())!.y)
-    .toBe(56);
+    .toBe(0);
   // 조건은 누르는 버튼 없이 적용된다. 적어 넣는 칸은 칸을 떠날 때 보내고, 잘못된 범위는 조회하지
   // 않고 그 자리에서 설명한다. 명단 범위는 여닫이 안에 있고 패널은 form 밖(portal)에 뜬다.
   const openListCount = async () => {
@@ -102,7 +103,8 @@ test('새 상세는 비교조건으로 바로 시작하고 적용·탭·전체�
   await page.screenshot({ path: testInfo.outputPath('새-상세-전체보기.png') });
   expect(new URL(page.url()).searchParams.get('analysis')).toBe(applied);
   await page.keyboard.press('Escape');
-  await expect(page.locator('[data-slot="workspace-header"]')).toBeVisible();
+  // PC 폭에는 머리 막대가 없다(#241). 전체보기를 닫으면 왼쪽 메뉴가 돌아온다.
+  await expect(page.locator('[data-slot="sidebar-container"]')).toBeVisible();
   await expect(page.getByRole('button', { name: '전체보기', exact: true })).toBeFocused();
   await page.reload();
   // 새로고침해도 고른 지역이 여닫이 이름에 그대로 남는다. 주소가 조건의 진실 원천이다.

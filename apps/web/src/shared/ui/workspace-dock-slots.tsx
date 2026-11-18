@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
-type DockSlotName = 'panel' | 'rail' | 'header';
+type DockSlotName = 'panel';
 type Hosts = Record<DockSlotName, HTMLElement | null>;
 type Slots = {
   hosts: Hosts;
@@ -20,7 +20,7 @@ type Slots = {
 const Context = createContext<Slots | null>(null);
 
 export function DockSlotsProvider({ children }: { readonly children: ReactNode }) {
-  const [hosts, setHosts] = useState<Hosts>({ panel: null, rail: null, header: null });
+  const [hosts, setHosts] = useState<Hosts>({ panel: null });
   const register = useCallback((slot: DockSlotName, host: HTMLElement | null) => {
     setHosts((current) => (current[slot] === host ? current : { ...current, [slot]: host }));
   }, []);

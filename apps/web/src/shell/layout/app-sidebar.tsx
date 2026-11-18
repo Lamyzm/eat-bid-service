@@ -5,8 +5,10 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarRail
+  SidebarRail,
+  SidebarTrigger
 } from '@/shared/ui/sidebar';
+import { ThemeModeToggle } from '@/shell/theme/theme-mode-toggle';
 import { navGroups } from './nav-config';
 import { NavGroupMenus } from './nav-group-menu';
 import * as React from 'react';
@@ -24,12 +26,29 @@ interface AppSidebarProps {
 export default function AppSidebar({ footer, extraNav }: AppSidebarProps) {
   return (
     <Sidebar collapsible='icon'>
-      <SidebarHeader />
+      <SidebarHeader className='px-6.5 pt-6 pb-5 sm:max-nav:px-0 sm:max-nav:pt-5 sm:max-nav:text-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:text-center'>
+        <span className='text-title font-extrabold tracking-tight sm:max-nav:text-body group-data-[collapsible=icon]:text-label'>
+          eat<span className='text-brand'>bid</span>
+        </span>
+      </SidebarHeader>
       <SidebarContent className='overflow-x-hidden'>
-        <NavGroupMenus groups={navGroups} />
+        <NavGroupMenus groups={navGroups.filter((group) => group.placement !== 'bottom')} />
         {extraNav}
+        {/* 내 사업장처럼 계정에 딸린 묶음은 메뉴 아래쪽, 계정 바로 위에 둔다(#241 시안 D의 "내 자리" 자리). */}
+        <div className='mt-auto pt-2.5'>
+          <div aria-hidden className='mx-6 mb-2.5 h-px bg-line sm:max-nav:mx-4' />
+          <NavGroupMenus groups={navGroups.filter((group) => group.placement === 'bottom')} />
+        </div>
       </SidebarContent>
-      {footer ? <SidebarFooter>{footer}</SidebarFooter> : null}
+      <SidebarFooter>
+        {/* 휴대폰 폭에서는 머리 막대에 명암 전환과 메뉴 단추가 있다. PC 폭에는 머리 막대가 없어 두 단추를 메뉴 아래에 둔다
+            — 접은 메뉴를 다시 펴는 길이 키보드에도 남아야 한다. */}
+        <div className='hidden flex-wrap items-center gap-1 px-1.5 sm:flex sm:max-nav:justify-center group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center'>
+          <ThemeModeToggle />
+          <SidebarTrigger aria-label='메뉴 접기·펴기' title='메뉴 접기·펴기' />
+        </div>
+        {footer}
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );
