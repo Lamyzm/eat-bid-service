@@ -1,9 +1,9 @@
-/** @module 책임: breadcrumb·theme control과 상위 layout이 주입한 control slot을 공통 workspace header에 배치한다. */
+/** @module 책임: breadcrumb·명암 전환과 상위 layout이 주입한 control slot을 공통 workspace header에 배치한다. */
 import React, { Suspense } from 'react';
 import { SidebarTrigger } from '@/shared/ui/sidebar';
 import { Separator } from '@/shared/ui/separator';
 import { Breadcrumbs } from './breadcrumbs';
-import { ThemeModeToggle, ThemeSelector } from '@/shell';
+import { ThemeModeToggle } from '@/shell';
 import { SidebarOpenSync } from './sidebar-open-sync';
 
 interface HeaderProps {
@@ -16,9 +16,9 @@ interface HeaderProps {
 }
 
 /**
- * 헤더는 최소로 — 토글 · 브레드크럼 | (주입된 control) · 모드 · 색상 테마.
+ * 헤더는 최소로 — 토글 · 브레드크럼 | (주입된 control) · 명암 전환.
  * 계정(이메일·로그아웃)은 사이드바 하단 계정 허브로 이동 (R6 NAV 개편).
- * 색상 테마 선택기는 데스크톱에서 노출하고, 좁은 화면에서는 공간을 확보한다.
+ * 색 테마는 하나뿐이라 고르는 자리를 두지 않는다(#240).
  */
 export default function Header({ controls, dockControls }: HeaderProps) {
   return (
@@ -42,9 +42,6 @@ export default function Header({ controls, dockControls }: HeaderProps) {
         {controls}
         {dockControls}
         <ThemeModeToggle />
-        <div className='hidden sm:block'>
-          <ThemeSelector />
-        </div>
       </div>
     </header>
   );

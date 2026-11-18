@@ -7,21 +7,40 @@ import { Icons } from '@/shared/ui/icons';
 
 import type { ValueCard } from '../utils/work-board';
 
-export function ValueCards({ monthLabel, cards }: { readonly monthLabel: string; readonly cards: readonly ValueCard[] }) {
+export function ValueCards({
+  monthLabel,
+  cards
+}: {
+  readonly monthLabel: string;
+  readonly cards: readonly ValueCard[];
+}) {
   return (
-    <section aria-labelledby='work-values-title' className='mt-5 grid gap-3'>
-      <h2 id='work-values-title' className='text-[18px] font-bold'>{monthLabel}</h2>
+    <section aria-labelledby='work-values-title' className='grid gap-3'>
+      <h2 id='work-values-title' className='text-body font-bold'>
+        {monthLabel}
+      </h2>
       <ul className='grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]'>
         {cards.map((card, index) => (
-          <li key={`${index}-${card.name}`} className='grid content-start gap-2 rounded-xl bg-card p-4 shadow-xs ring-1 ring-border'>
-            <p className='truncate text-[18px] font-bold' title={card.name}>{card.name}</p>
+          <li
+            key={`${index}-${card.name}`}
+            className='grid content-start gap-2 rounded-panel bg-card p-5'
+          >
+            <p className='truncate text-body font-bold' title={card.name}>
+              {card.name}
+            </p>
             <div className='grid gap-0.5'>
-              <span className='text-[16px] font-semibold text-muted-foreground'>하한 90%</span>
+              <span className='text-label font-semibold text-ink-3'>하한 90%</span>
               {card.value90 === null ? (
-                <span className='text-[17px] font-semibold text-muted-foreground'>{card.reason90 ?? '—'}</span>
+                <span className='text-body font-semibold text-muted-foreground'>
+                  {card.reason90 ?? '—'}
+                </span>
               ) : (
-                <CopyValue value={card.value90} label={`${card.name} 하한 90% 값`} className='inline-flex items-center gap-2 justify-self-start rounded hover:underline'>
-                  <span className='font-mono text-[32px] leading-tight font-bold tabular-nums'>{card.value90}%</span>
+                <CopyValue
+                  value={card.value90}
+                  label={`${card.name} 하한 90% 값`}
+                  className='inline-flex items-center gap-2 justify-self-start rounded-chip hover:underline'
+                >
+                  <span className='text-value font-extrabold tabular-nums'>{card.value90}%</span>
                   <Icons.copy aria-hidden className='size-6 text-muted-foreground' />
                 </CopyValue>
               )}
@@ -29,7 +48,7 @@ export function ValueCards({ monthLabel, cards }: { readonly monthLabel: string;
             <CopyValue
               value={card.passText}
               label={`${card.name}에 보낼 값`}
-              className='inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-secondary px-4 text-[17px] font-bold text-secondary-foreground hover:bg-accent'
+              className='pressable inline-flex min-h-12 items-center justify-center gap-2 rounded-control bg-secondary px-4 text-body font-bold text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)]'
             >
               넘겨주기
             </CopyValue>

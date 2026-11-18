@@ -203,12 +203,21 @@ test("기준 목록의 옛 위반은 보고하지 않고 사라진 열쇠와 올
 });
 
 test("기준 목록은 기준 commit보다 늘면 그 열쇠를 돌려주고 첫 목록이면 늘었다고 보지 않는다", () => {
-  const before = parseBaseline(formatBaseline(new Map([["kind-folder", new Set(["a.tsx", "b.tsx"])]])));
+  const before = parseBaseline(formatBaseline(new Map([["kind-folder", new Set(["a.tsx", "b.tsx"])], ["route-private", new Set()]])));
   const now = new Map([["kind-folder", new Set(["a.tsx", "c.tsx"])], ["route-private", new Set(["x -> y"])]]);
 
   assert.deepEqual(grownKeys(now, before), [{ rule: "kind-folder", key: "c.tsx" }, { rule: "route-private", key: "x -> y" }]);
   assert.deepEqual(grownKeys(now, undefined), []);
   assert.match(formatBaseline(now), /"\$comment"/u);
+});
+
+test("빈 목록도 규칙 이름을 남기고, 기준 commit에 이름조차 없던 규칙은 이 변경이 들인 새 규칙의 첫 목록으로 본다", () => {
+  const written = parseBaseline(formatBaseline(new Map([["slice-cycle", new Set()]])));
+  assert.equal(written.has("slice-cycle"), true);
+
+  const before = parseBaseline(formatBaseline(new Map([["kind-folder", new Set(["a.tsx"])]])));
+  const now = new Map([["kind-folder", new Set(["a.tsx"])], ["color-literal", new Set(["apps/web/src/old.ts"])]]);
+  assert.deepEqual(grownKeys(now, before), []);
 });
 
 test("종류 폴더의 utils React import와 components 비렌더 모듈을 거부하고 높이 상수 frame은 허용한다", async () => {

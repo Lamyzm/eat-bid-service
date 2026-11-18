@@ -16,3 +16,9 @@
     --motion-duration-panel: 0ms;
   }
 }
+
+/* 누른 메뉴의 이동 대기 표시가 나타나기까지 기다리는 시간. 움직임 줄이기에서도 같은 값이다 — 깜박임을 막는 값이지
+   움직임이 아니기 때문이다. */
+:root {
+  --motion-nav-pending-delay: 150ms;
+}

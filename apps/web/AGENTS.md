@@ -134,6 +134,18 @@
 - 기존 hook·shared helper·`es-toolkit` 재사용과 React/Next advisory 검토는 `pnpm review:ai`의 실제
   저장소 근거를 사용한다. AI finding은 자동 수정하거나 lint·type·test·architecture 판정을 대체하지 않는다.
 
+## 화면 토대
+
+값·부품·검사의 표는 [`docs/product/screen-system.md`](../../docs/product/screen-system.md) §9.4가 소유한다. 코드에서 지킬 것만 둔다.
+
+- 색·면·반경·글자·폭 토큰은 `src/styles/themes/eatbid.css` 하나에만 있다. 테마를 고르는 장치는 없고 밝게·어둡게만 있다.
+  두 번째 테마 파일, 초록 계열 클래스, 그 파일 밖의 색 글자값(`#hex`·`rgb()`·`oklch()`)은 `lint:web-boundaries`가 막는다.
+- 글자는 네 단(`text-label`·`text-body`·`text-title`·`text-value`), 반경은 셋(`rounded-chip`·`rounded-control`·`rounded-panel`)이다.
+  `text-[Npx]`와 `w-[Npx]`·`max-w-[…]` 같은 임의 값을 새로 쓰지 않는다.
+- 화면은 `PageFrame`·`PageHeader`(`@/shared/ui/page-frame`)로 시작하고 뼈대도 같은 틀을 쓴다. 누르는 것은 `Button` 또는
+  `pressable`, 토스트는 `@/shared/ui/notify`, 숫자 표기는 `@/shared/lib/number-format`만 쓴다.
+- 옛 위반은 폴더 꼴과 같은 기준 목록에서 줄어들기만 한다. 화면 글은 `pnpm copy:lint`가 따로 본다.
+
 ## 화면 글
 
 화면 글을 쓰거나 고치기 전에 [`docs/product/ui-words.md`](../../docs/product/ui-words.md)를 연다(초안 — 원칙과 낱말 표가 있다).

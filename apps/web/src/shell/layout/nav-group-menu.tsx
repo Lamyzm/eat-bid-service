@@ -6,6 +6,7 @@ import * as React from 'react';
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/ui/collapsible';
 import { Icons } from '@/shared/ui/icons';
+import { NavPending } from '@/shared/ui/nav-pending';
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -19,7 +20,13 @@ import {
 import type { NavGroup } from './nav-config';
 
 /** pathname이 아직 없으면(static shell) 활성 표시 없이 같은 menu를 그린다. */
-function NavGroupMenu({ group, pathname }: { readonly group: NavGroup; readonly pathname: string | null }) {
+function NavGroupMenu({
+  group,
+  pathname
+}: {
+  readonly group: NavGroup;
+  readonly pathname: string | null;
+}) {
   return (
     <SidebarGroup className='py-0'>
       {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
@@ -27,11 +34,7 @@ function NavGroupMenu({ group, pathname }: { readonly group: NavGroup; readonly 
         {group.items.map((item) => {
           const Icon = item.icon ? Icons[item.icon] : Icons.logo;
           return item?.items && item?.items?.length > 0 ? (
-            <Collapsible
-              key={item.title}
-              defaultOpen={item.isActive}
-              render={<SidebarMenuItem />}
-            >
+            <Collapsible key={item.title} defaultOpen={item.isActive} render={<SidebarMenuItem />}>
               <CollapsibleTrigger
                 render={
                   <SidebarMenuButton
@@ -54,6 +57,7 @@ function NavGroupMenu({ group, pathname }: { readonly group: NavGroup; readonly 
                         isActive={pathname === subItem.url}
                       >
                         <span>{subItem.title}</span>
+                        <NavPending />
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   ))}
@@ -69,6 +73,7 @@ function NavGroupMenu({ group, pathname }: { readonly group: NavGroup; readonly 
               >
                 <Icon />
                 <span>{item.title}</span>
+                <NavPending />
               </SidebarMenuButton>
             </SidebarMenuItem>
           );
@@ -82,13 +87,17 @@ function NavGroupMenu({ group, pathname }: { readonly group: NavGroup; readonly 
 // 내려 sidebar frame과 menu는 prerender하고 활성 표시만 request 시점에 streaming한다.
 function CurrentPathNavGroupMenus({ groups }: { readonly groups: readonly NavGroup[] }) {
   const pathname = usePathname();
-  return groups.map((group) => <NavGroupMenu key={group.label || 'ungrouped'} group={group} pathname={pathname} />);
+  return groups.map((group) => (
+    <NavGroupMenu key={group.label || 'ungrouped'} group={group} pathname={pathname} />
+  ));
 }
 
 export function NavGroupMenus({ groups }: { readonly groups: readonly NavGroup[] }) {
   return (
     <React.Suspense
-      fallback={groups.map((group) => <NavGroupMenu key={group.label || 'ungrouped'} group={group} pathname={null} />)}
+      fallback={groups.map((group) => (
+        <NavGroupMenu key={group.label || 'ungrouped'} group={group} pathname={null} />
+      ))}
     >
       <CurrentPathNavGroupMenus groups={groups} />
     </React.Suspense>

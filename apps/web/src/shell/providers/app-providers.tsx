@@ -3,13 +3,8 @@
 
 import type { ReactNode } from 'react';
 
-import { ActiveThemeProvider } from '../theme/active-theme';
 import { QueryProvider } from './query-provider';
 
 export function AppProviders({ children }: { readonly children: ReactNode }) {
-  return (
-    <ActiveThemeProvider>
-      <QueryProvider>{children}</QueryProvider>
-    </ActiveThemeProvider>
-  );
+  return <QueryProvider>{children}</QueryProvider>;
 }

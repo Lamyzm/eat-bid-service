@@ -102,6 +102,13 @@ export const CHECKS = Object.freeze([
     scope: [/^(?:apps\/(?:web|server)|packages\/(?:contracts|db))\/src\/.*\.[cm]?tsx?$/i],
   },
   {
+    id: "web-copy",
+    label: "화면 글(copy:lint)",
+    script: "tools/architecture/check-web-copy.mjs",
+    weight: 1,
+    scope: [/^apps\/web\/src\/.*\.[cm]?tsx?$/i],
+  },
+  {
     id: "decision-vocabulary",
     label: "결정 어휘 금지",
     script: "tools/architecture/check-decision-vocabulary.mjs",

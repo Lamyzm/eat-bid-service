@@ -3,11 +3,6 @@ import { VIEWPORT_WIDTH } from './support/viewports';
 
 const auctionId = process.env.EATBID_E2E_AUCTION_ID ?? '5796468';
 const analysisUrl = `/auctions/${auctionId}`;
-test.beforeEach(async ({ context }) => {
-  await context.addCookies([
-    { name: 'active_theme', value: 'toss', domain: '127.0.0.1', path: '/' }
-  ]);
-});
 test('새 상세는 비교조건으로 바로 시작하고 적용·탭·전체보기에서 같은 값을 유지한다', async ({
   page
 }, testInfo) => {
@@ -178,13 +173,17 @@ test('새 상세는 잘못된 주소 조건을 기존 차트나 0건 결과로 �
   await expect(page.getByText('표본 0건')).toHaveCount(0);
 });
 
-test('최신 관측이 발행에서 빠진 공고는 헤더가 색이 아니라 문장으로 그 사실을 말한다', async ({ page }) => {
+test('최신 관측이 발행에서 빠진 공고는 헤더가 색이 아니라 문장으로 그 사실을 말한다', async ({
+  page
+}) => {
   // fixture 5796471은 진행 중 공고와 같은 코호트이되, 더 늦은 관측이 제외돼 옛 revision이 남은 공고다.
   await page.goto('/auctions/5796471');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('창원 남산초등학교');
   const notice = page.getByRole('status').filter({ hasText: '최신 관측 반영 안 됨' });
   await expect(notice).toBeVisible();
-  await expect(notice).toContainText('2026-09-28 14:10에 받은 내용은 형식 문제로 반영하지 못했어요');
+  await expect(notice).toContainText(
+    '2026-09-28 14:10에 받은 내용은 형식 문제로 반영하지 못했어요'
+  );
   await expect(notice).toContainText('2026-09-28 08:40에 받은 내용이라 지금 eaT와 다를 수 있어요');
   // 반영된 공고에는 문장이 없다. 모르는 것을 경고하지 않는다.
   await page.goto(analysisUrl);

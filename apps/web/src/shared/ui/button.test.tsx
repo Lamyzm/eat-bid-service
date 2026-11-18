@@ -31,15 +31,20 @@ describe('공통 버튼 상호작용', () => {
     );
   });
 
-  test('focus를 지연하지 않고 popup과 reduced motion에서 위치 이동을 막는다', () => {
+  test('누름은 공통 pressable 하나가 맡고 popup·움직임 줄이기 처리는 그 안에 있다', () => {
     const className = buttonVariants({ interaction: 'press' });
 
-    expect(className).toContain(
-      'transition-[color,background-color,border-color,opacity,transform]'
-    );
+    expect(className).toContain('pressable');
     expect(className).not.toContain('transition-all');
-    expect(className).not.toContain('box-shadow');
-    expect(className).toContain('not-aria-[haspopup]');
-    expect(className).toContain('motion-reduce:transform-none');
+    expect(className).not.toContain('translate-y-px');
+  });
+
+  test('기본 단추는 48px·17px·bold이고 어떤 크기도 40px 아래로 내려가지 않는다', () => {
+    expect(buttonVariants()).toContain('h-12');
+    expect(buttonVariants()).toContain('text-body');
+    expect(buttonVariants()).toContain('font-bold');
+    for (const size of ['xs', 'sm', 'icon', 'icon-xs', 'icon-sm'] as const) {
+      expect(buttonVariants({ size })).toMatch(/(?:^|\s)(?:h|size)-10(?:\s|$)/);
+    }
   });
 });

@@ -6,7 +6,7 @@ import {
   defaultShouldDehydrateQuery,
   isServer
 } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { notifyFailure } from '@/shared/ui/notify';
 
 export type ErrorPresentation = 'toast' | 'inline' | 'silent';
 
@@ -79,7 +79,7 @@ export function createQueryClientResolver(options: QueryClientResolverOptions): 
 
 const applicationPorts: QueryClientPorts = {
   notify: (messageId) => {
-    toast.error('요청을 처리하지 못했습니다.', { id: messageId });
+    notifyFailure('요청을 처리하지 못했습니다.', { id: messageId });
   },
   report: (error) => {
     // 정상 경로의 초기 bundle에는 관측 SDK를 싣지 않고 실제 오류가 생겼을 때만 불러온다.

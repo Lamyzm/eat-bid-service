@@ -6,12 +6,19 @@ import { WorkFrame } from './work-frame';
 export function WorkScreenSkeleton() {
   return (
     <WorkFrame stamp={<Skeleton className='h-5 w-40' />}>
-      <div className='mt-5 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(210px,1fr))]' aria-hidden>
-        {[0, 1].map((index) => <Skeleton key={index} className='h-[150px] w-full rounded-xl' />)}
+      <div
+        className='grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]'
+        aria-hidden
+      >
+        {[0, 1].map((index) => (
+          <Skeleton key={index} className='h-38 w-full rounded-panel' />
+        ))}
       </div>
-      <div className='mt-6 grid gap-3' aria-hidden>
+      <div className='grid gap-3' aria-hidden>
         <Skeleton className='h-7 w-48' />
-        {[0, 1, 2, 3].map((index) => <Skeleton key={index} className='h-[52px] w-full rounded-xl' />)}
+        {[0, 1, 2, 3].map((index) => (
+          <Skeleton key={index} className='h-14 w-full rounded-panel' />
+        ))}
       </div>
     </WorkFrame>
   );

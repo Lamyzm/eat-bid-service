@@ -6,24 +6,35 @@
 import Link from 'next/link';
 
 import { CopyValue } from '@/shared/ui/copy-value';
+import { formatCount } from '@/shared/lib/number-format';
 import { Icons } from '@/shared/ui/icons';
 
 import type { ClosingDay, Notice88Row, NoticeRow } from '../utils/work-board';
 
 const NONE = (label: string) => (
-  <span className='text-[17px] text-muted-foreground'>—<span className='sr-only'>{label} 없음</span></span>
+  <span className='text-body text-muted-foreground'>
+    —<span className='sr-only'>{label} 없음</span>
+  </span>
 );
 
 function Time({ row }: { readonly row: NoticeRow }) {
   return (
-    <span className={`font-mono text-[18px] tabular-nums ${row.unusualTime ? 'font-extrabold text-primary' : ''}`}>{row.time ?? '—'}</span>
+    <span
+      className={`font-mono text-body tabular-nums ${row.unusualTime ? 'font-extrabold text-primary' : ''}`}
+    >
+      {row.time ?? '—'}
+    </span>
   );
 }
 
 function BidNo({ row }: { readonly row: NoticeRow }) {
   if (row.bidNo === null) return NONE('공고번호');
   return (
-    <CopyValue value={row.bidNo} label={`${row.organization} 공고번호`} className='inline-flex items-center gap-1.5 rounded font-mono text-[17px] tabular-nums hover:underline'>
+    <CopyValue
+      value={row.bidNo}
+      label={`${row.organization} 공고번호`}
+      className='inline-flex items-center gap-1.5 rounded-chip font-mono text-body tabular-nums hover:underline'
+    >
       {row.bidNo}
       <Icons.copy aria-hidden className='size-5 text-muted-foreground' />
     </CopyValue>
@@ -32,7 +43,11 @@ function BidNo({ row }: { readonly row: NoticeRow }) {
 
 function Organization({ row }: { readonly row: NoticeRow }) {
   return (
-    <Link href={row.href} className='block truncate text-[18px] font-bold hover:underline' title={row.organization}>
+    <Link
+      href={row.href}
+      className='block truncate text-body font-bold hover:underline'
+      title={row.organization}
+    >
       {row.organization}
     </Link>
   );
@@ -42,21 +57,35 @@ function Organization({ row }: { readonly row: NoticeRow }) {
 function Columns({ businesses }: { readonly businesses: number }) {
   return (
     <colgroup>
-      <col className='w-[88px]' />
+      <col className='w-22' />
       <col />
-      <col className='w-[250px]' />
-      {Array.from({ length: businesses }, (_, index) => <col key={index} className='w-[130px]' />)}
+      <col className='w-62' />
+      {Array.from({ length: businesses }, (_, index) => (
+        <col key={index} className='w-32' />
+      ))}
     </colgroup>
   );
 }
 
-function Head({ title, count, tone }: { readonly title: string; readonly count: number; readonly tone: '88' | 'plain' }) {
+function Head({
+  title,
+  count,
+  tone
+}: {
+  readonly title: string;
+  readonly count: number;
+  readonly tone: '88' | 'plain';
+}) {
   return (
-    <caption className={`px-4 py-2.5 text-left ${tone === '88' ? 'bg-chart-3/10' : 'bg-muted'}`}>
-      <span className={`inline-flex items-center gap-2 rounded-md px-2.5 py-0.5 text-[17px] font-bold ${tone === '88' ? 'bg-chart-3 text-background' : ''}`}>
+    <caption className='px-4 pt-4 pb-2 text-left'>
+      <span
+        className={`inline-flex items-center gap-2 rounded-chip px-2.5 py-0.5 text-label font-bold ${tone === '88' ? 'bg-caution-weak text-caution' : 'bg-muted text-muted-foreground'}`}
+      >
         {title}
       </span>
-      <span className='ml-2 font-mono text-[17px] font-bold'>{count}건</span>
+      <span className='ml-2 text-label font-semibold text-ink-3 tabular-nums'>
+        {formatCount(count)}
+      </span>
     </caption>
   );
 }
@@ -75,18 +104,31 @@ function Block({
   const withValues = tone === '88';
   // 칸 안의 sr-only 글자는 절대 위치라, 기준을 이 상자에 두지 않으면 표 폭만큼 문서를 옆으로 민다.
   return (
-    <div className={`relative min-w-0 overflow-x-auto rounded-xl bg-card ${withValues ? 'ring-2 ring-chart-3' : 'ring-1 ring-border'}`}>
+    <div className='relative min-w-0 overflow-x-auto rounded-panel bg-card'>
       {/* 고정 폭 칸이 사업장 수만큼 늘어나므로 최소 폭도 함께 늘려 공고 열이 찌그러지지 않게 한다. 넘치면 이 상자 안에서만 민다. */}
-      <table className='w-full table-fixed border-collapse text-left' style={{ minWidth: 88 + 220 + 250 + 130 * businessNames.length }}>
+      <table
+        className='w-full table-fixed border-collapse text-left'
+        style={{ minWidth: 88 + 220 + 248 + 128 * businessNames.length }}
+      >
         <Head title={title} count={rows.length} tone={tone} />
         <Columns businesses={businessNames.length} />
         <thead>
-          <tr className='text-[16px] text-muted-foreground'>
-            <th scope='col' className='px-4 py-2 font-semibold'>마감</th>
-            <th scope='col' className='px-2 py-2 font-semibold'>공고</th>
-            <th scope='col' className='px-2 py-2 font-semibold'>공고번호</th>
+          <tr className='text-label text-muted-foreground'>
+            <th scope='col' className='px-4 py-2 font-semibold'>
+              마감
+            </th>
+            <th scope='col' className='px-2 py-2 font-semibold'>
+              공고
+            </th>
+            <th scope='col' className='px-2 py-2 font-semibold'>
+              공고번호
+            </th>
             {businessNames.map((name, index) => (
-              <th key={`${index}-${name}`} scope='col' className='px-2 py-2 font-bold break-all text-foreground'>
+              <th
+                key={`${index}-${name}`}
+                scope='col'
+                className='px-2 py-2 font-bold break-all text-foreground'
+              >
                 {withValues ? name : <span className='sr-only'>{name}</span>}
               </th>
             ))}
@@ -94,17 +136,29 @@ function Block({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.auctionId} className='h-[54px] border-t border-border'>
-              <td className='px-4'><Time row={row} /></td>
-              <th scope='row' className='px-2 font-normal'><Organization row={row} /></th>
-              <td className='px-2'><BidNo row={row} /></td>
+            <tr key={row.auctionId} className='h-14 border-t border-border'>
+              <td className='px-4'>
+                <Time row={row} />
+              </td>
+              <th scope='row' className='px-2 font-normal'>
+                <Organization row={row} />
+              </th>
+              <td className='px-2'>
+                <BidNo row={row} />
+              </td>
               {businessNames.map((name, index) => {
                 if (!withValues || !('values' in row)) return <td key={index} aria-hidden />;
                 const value = row.values[index] ?? null;
                 return (
                   <td key={index} className='px-2'>
-                    {value === null ? NONE(`${name} 값`) : (
-                      <CopyValue value={value} label={`${row.organization} ${name} 값`} className='inline-flex items-center gap-1.5 rounded font-mono text-[19px] font-bold text-chart-3 tabular-nums hover:underline'>
+                    {value === null ? (
+                      NONE(`${name} 값`)
+                    ) : (
+                      <CopyValue
+                        value={value}
+                        label={`${row.organization} ${name} 값`}
+                        className='inline-flex items-center gap-1.5 rounded-chip font-mono text-body font-extrabold text-caution tabular-nums hover:underline'
+                      >
                         {value}%
                         <Icons.copy aria-hidden className='size-5 text-muted-foreground' />
                       </CopyValue>
@@ -120,19 +174,46 @@ function Block({
   );
 }
 
-export function ClosingDays({ days, businessNames }: { readonly days: readonly ClosingDay[]; readonly businessNames: readonly string[] }) {
-  if (days.length === 0) return <p className='mt-8 text-[18px] font-bold text-muted-foreground'>넣을 공고 0건</p>;
+export function ClosingDays({
+  days,
+  businessNames
+}: {
+  readonly days: readonly ClosingDay[];
+  readonly businessNames: readonly string[];
+}) {
+  if (days.length === 0)
+    return <p className='text-body font-bold text-muted-foreground'>넣을 공고 0건</p>;
   return (
-    <div className='mt-6 grid gap-8'>
+    <div className='grid gap-8'>
       {days.map((day) => (
-        <section key={day.key} aria-labelledby={`work-day-${day.key}`} className='grid min-w-0 gap-3'>
-          <h2 id={`work-day-${day.key}`} className='flex items-baseline gap-3 text-[21px] font-extrabold'>
+        <section
+          key={day.key}
+          aria-labelledby={`work-day-${day.key}`}
+          className='grid min-w-0 gap-3'
+        >
+          <h2
+            id={`work-day-${day.key}`}
+            className='flex items-baseline gap-3 text-title font-extrabold'
+          >
             {day.label} 마감
-            <span className='font-mono text-[18px] font-semibold text-muted-foreground'>{day.count}건</span>
+            <span className='text-label font-semibold text-ink-3 tabular-nums'>
+              {formatCount(day.count)}
+            </span>
           </h2>
-          {day.rows88.length === 0 ? null : <Block title='하한 88%' tone='88' rows={day.rows88} businessNames={businessNames} />}
-          {day.rows90.length === 0 ? null : <Block title='하한 90%' tone='plain' rows={day.rows90} businessNames={businessNames} />}
-          {day.rowsOther.length === 0 ? null : <Block title='하한율 미확인' tone='plain' rows={day.rowsOther} businessNames={businessNames} />}
+          {day.rows88.length === 0 ? null : (
+            <Block title='하한 88%' tone='88' rows={day.rows88} businessNames={businessNames} />
+          )}
+          {day.rows90.length === 0 ? null : (
+            <Block title='하한 90%' tone='plain' rows={day.rows90} businessNames={businessNames} />
+          )}
+          {day.rowsOther.length === 0 ? null : (
+            <Block
+              title='하한율 미확인'
+              tone='plain'
+              rows={day.rowsOther}
+              businessNames={businessNames}
+            />
+          )}
         </section>
       ))}
     </div>

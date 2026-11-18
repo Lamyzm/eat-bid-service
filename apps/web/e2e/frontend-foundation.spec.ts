@@ -17,7 +17,6 @@ test('공고 화면은 공통 셸과 화면 전용 skeleton 뒤 계약 응답을
   await expect(page.getByRole('status', { name: '공고 정보를 불러오는 중' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '창원 남산초등학교', level: 1 })).toBeVisible();
   await expect(page.getByText('1,234,567,890.5원')).toBeVisible();
-  await expect(page.getByLabel('색상 테마')).toBeVisible();
   await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
   await expect(page.locator('main')).toHaveCount(1);
 });
@@ -40,12 +39,16 @@ test('유효하지 않거나 존재하지 않는 공고 ID는 같은 셸 안에�
     await page.goto(`/auctions/${auctionId}`);
     await expect(page.getByRole('heading', { name: '공고를 찾을 수 없습니다' })).toBeVisible();
     // 404 Problem이 `use cache` 경계를 예외로 넘으면 class 정체성을 잃어 error 경계로 샌다(EAT-97).
-    await expect(page.getByRole('heading', { name: '공고 정보를 불러오지 못했습니다' })).toHaveCount(0);
-    await expect(page.getByLabel('색상 테마')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: '공고 정보를 불러오지 못했습니다' })
+    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
   }
 });
 
-test('canonical 공고 화면의 header에는 legacy 지역 칩과 전역 설정 control이 없다', async ({ page }) => {
+test('canonical 공고 화면의 header에는 legacy 지역 칩과 전역 설정 control이 없다', async ({
+  page
+}) => {
   await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
   await expect(page.getByRole('heading', { name: '창원 남산초등학교', level: 1 })).toBeVisible();
   await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
@@ -64,25 +67,35 @@ test('503은 404로 바꾸지 않고 안전한 재시도 경계에 전달한다'
   await expect(page.getByText('의존성 내부 상세')).toHaveCount(0);
 });
 
-test('server 응답은 cookie theme을 반영하지 않고 첫 paint 전 inline script가 적용한다', async ({
+test('색 테마는 하나라 옛 테마 cookie가 남아 있어도 같은 주 색으로 그린다', async ({
   page,
   baseURL
 }) => {
   await page.context().addCookies([{ name: 'active_theme', value: 'claude', url: baseURL! }]);
 
   const html = await (await page.request.get(`/auctions/${SUCCESS_AUCTION_ID}`)).text();
-  expect(html).toContain('data-theme="toss"');
-  expect(html).not.toContain('data-theme="claude"');
+  expect(html).not.toContain('data-theme=');
 
-  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`, { waitUntil: 'commit' });
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'claude');
-  await page.reload({ waitUntil: 'commit' });
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'claude');
+  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
   await expect(page.getByRole('heading', { name: '창원 남산초등학교', level: 1 })).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'claude');
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
+  // 주 색은 토큰 정본의 파랑(#3182f6)이다. 계산값은 rgb로 돌아온다.
+  const primary = await page.evaluate(() => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--primary)';
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  expect(primary).toBe('rgb(49, 130, 246)');
+  await expect(page.getByLabel('색상 테마')).toHaveCount(0);
 });
 
-test('접힌 sidebar cookie는 shell을 static으로 둔 채 client에서 반영된다', async ({ page, baseURL }) => {
+test('접힌 sidebar cookie는 shell을 static으로 둔 채 client에서 반영된다', async ({
+  page,
+  baseURL
+}) => {
   await page.context().addCookies([{ name: 'sidebar_state', value: 'false', url: baseURL! }]);
 
   await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
@@ -109,25 +122,14 @@ test('hydration 전에도 inline script가 접힘 폭을 적용한다', async ({
   await context.close();
 });
 
-test('색상 테마 선택은 DOM과 cookie에 남아 새로고침 뒤에도 유지된다', async ({ page }) => {
-  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'toss');
-
-  await page.getByLabel('색상 테마').click();
-  await page.getByRole('option', { name: 'Vercel' }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'vercel');
-
-  await page.reload({ waitUntil: 'commit' });
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'vercel');
-  await expect(page.getByRole('heading', { name: '창원 남산초등학교', level: 1 })).toBeVisible();
-});
-
 /**
  * 보조 패널의 고정/overlay 분기는 CSS(`@variant xl`)와 JS(useWideWorkspace)가 같은 경계를 읽는다.
  * 경계 양쪽 1px에서 봐야 둘 중 하나만 어긋나도 잡힌다(EAT-154). 공고 상세의 보조 패널은 고른 회차의 명단이며
  * 공유받은 주소처럼 회차를 주소로 연다.
  */
-test('xl 경계에서 회차 명단 패널은 경계 폭이면 화면 안에 고정되고 1px 좁으면 Sheet로 열린다', async ({ page }) => {
+test('xl 경계에서 회차 명단 패널은 경계 폭이면 화면 안에 고정되고 1px 좁으면 Sheet로 열린다', async ({
+  page
+}) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: VIEWPORT_WIDTH.xl, height: 900 });
   await page.goto(`/auctions/${SUCCESS_AUCTION_ID}?round=9101&roundRevision=9101`);
