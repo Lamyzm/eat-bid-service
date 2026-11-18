@@ -9,7 +9,31 @@ export const COPY_BASELINE_PATH = "tools/architecture/web-copy/baseline.json";
 export const COPY_RULES = Object.freeze({
   FORBIDDEN_WORD: "copy-forbidden-word",
   QUESTION: "copy-question",
+  SCREEN_WORD: "copy-screen-word",
 });
+
+/**
+ * 한 화면에만 두지 않는 말이다. 넣을 공고는 값만 보인다 — 사장님이 사업장마다 eaT에 직접 넣으므로 복사·넘겨주기와 넣었다는
+ * 완료 표시가 할 일이 없다(#241, PDR-0011 결정 4를 대체한 결정). 다른 화면(공고 상세의 복사 등)은 이 규칙의 대상이 아니다.
+ * 옛 위반이 없는 규칙이라 기준 목록에 올리지 않는다.
+ */
+export const SCREEN_FORBIDDEN_WORDS = Object.freeze([
+  Object.freeze({
+    prefix: "apps/web/src/app/(workspace)/work/",
+    words: Object.freeze(["복사", "넘겨", "완료", "넣었어요", "넣음"]),
+    reason: "넣을 공고는 값만 보입니다. 복사·넘겨주기·완료 표시를 두지 않습니다(#241).",
+  }),
+]);
+
+/** 그 화면 경로에서 쓰면 안 되는 말을 찾는다. 경로는 저장소 기준 `/` 구분자다. */
+export function screenForbiddenWord(displayPath, text) {
+  for (const scope of SCREEN_FORBIDDEN_WORDS) {
+    if (!displayPath.startsWith(scope.prefix)) continue;
+    const word = scope.words.find((candidate) => text.includes(candidate));
+    if (word !== undefined) return { word, reason: scope.reason };
+  }
+  return undefined;
+}
 
 /** `ui-words.md` "쓰지 않는 말"의 낱말이다. 대신 쓸 말은 그 표가 소유한다. */
 export const FORBIDDEN_WORDS = Object.freeze([

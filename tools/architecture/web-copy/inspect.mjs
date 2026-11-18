@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { isTestOrFixture, isTypeScriptSource, normalizedPath } from "../decision-vocabulary/policy.mjs";
-import { COPY_RULES, forbiddenWord, isQuestion } from "./policy.mjs";
+import { COPY_RULES, forbiddenWord, isQuestion, screenForbiddenWord } from "./policy.mjs";
 
 const IGNORED_DIRECTORIES = new Set(["node_modules", ".next", "dist", "coverage", "generated"]);
 
@@ -49,6 +49,11 @@ export function inspectWebCopy({ repoRoot, sourceRoot }) {
       if (word !== undefined && !seen.has(COPY_RULES.FORBIDDEN_WORD)) {
         seen.add(COPY_RULES.FORBIDDEN_WORD);
         findings.push({ rule: COPY_RULES.FORBIDDEN_WORD, path: displayPath, key: displayPath, line, phrase: word, reason: "우리 연구·코드 말은 사용자 화면에 쓰지 않습니다. 대신 쓸 말은 docs/product/ui-words.md \"쓰지 않는 말\" 표에 있습니다." });
+      }
+      const screenWord = screenForbiddenWord(displayPath, text);
+      if (screenWord !== undefined && !seen.has(COPY_RULES.SCREEN_WORD)) {
+        seen.add(COPY_RULES.SCREEN_WORD);
+        findings.push({ rule: COPY_RULES.SCREEN_WORD, path: displayPath, key: displayPath, line, phrase: screenWord.word, reason: screenWord.reason });
       }
       if (isQuestion(text) && !seen.has(COPY_RULES.QUESTION)) {
         seen.add(COPY_RULES.QUESTION);

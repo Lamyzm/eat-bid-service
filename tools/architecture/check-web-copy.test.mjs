@@ -52,6 +52,24 @@ test("화면 글만 보고 주석·import·시험 파일은 보지 않는다", (
   }
 });
 
+test("넣을 공고 화면에서만 복사·넘겨주기·완료 표시 말을 막고 다른 화면은 보지 않는다", () => {
+  const root = tree({
+    "apps/web/src/app/(workspace)/work/_bid-values/components/a.tsx": "export const A = () => <button>넘겨주기</button>;\n",
+    "apps/web/src/app/(workspace)/work/_bid-values/components/b.tsx": "export const B = () => <span aria-label='공고번호 복사'>E1</span>;\n",
+    "apps/web/src/app/(workspace)/work/_bid-values/components/c.tsx": "export const C = () => <p>하한 90% 88.641%</p>;\n",
+    "apps/web/src/app/(workspace)/auctions/d.tsx": "export const D = () => <button>복사</button>;\n",
+  });
+  try {
+    const report = inspectWebCopy({ repoRoot: root, sourceRoot: "apps/web/src" });
+    assert.deepEqual(report.findings.map((item) => `${item.rule} ${item.phrase} ${item.path}`).sort(), [
+      `${COPY_RULES.SCREEN_WORD} 넘겨 apps/web/src/app/(workspace)/work/_bid-values/components/a.tsx`,
+      `${COPY_RULES.SCREEN_WORD} 복사 apps/web/src/app/(workspace)/work/_bid-values/components/b.tsx`,
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("목록에 있는 옛 위반은 통과시키고, 새 위반과 사라진 열쇠는 실패로 보고하며 정리 명령은 지우기만 한다", () => {
   const root = tree({
     "apps/web/src/app/old.tsx": "export const A = () => <p>표본 120건</p>;\n",
