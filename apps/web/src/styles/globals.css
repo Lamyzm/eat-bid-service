@@ -40,6 +40,22 @@ html[data-sidebar-state='collapsed'] [data-slot='sidebar-menu-button'] {
   padding: calc(var(--spacing) * 2);
 }
 
+/* 왼쪽 메뉴 항목(nav-group-menu.tsx)의 접힌 꼴도 hydration 전에 같은 결과를 흉내 낸다. 이름은 읽기 전용으로만 남긴다. */
+html[data-sidebar-state='collapsed'] [data-slot='nav-item'] {
+  width: calc(var(--spacing) * 10);
+  height: calc(var(--spacing) * 10);
+  justify-content: center;
+  padding: 0;
+}
+html[data-sidebar-state='collapsed'] [data-slot='nav-item'] > span:not([data-slot='nav-pending']) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

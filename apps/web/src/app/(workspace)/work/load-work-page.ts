@@ -7,7 +7,11 @@
  */
 import type { MyBidBoardRead } from '@/api/account';
 import type { MyBusinessesRead } from '@/api/account/server';
-import { presentWorkBoard, type BusinessInput, type WorkBoardView } from './_pass-values/utils/work-board';
+import {
+  presentWorkBoard,
+  type BusinessInput,
+  type WorkBoardView
+} from './_bid-values/utils/work-board';
 
 export type WorkView =
   | WorkBoardView
@@ -20,22 +24,28 @@ export type WorkView =
  * 몇 곳인지는 공고 응답이 센 연결 사업장 수를 쓴다.
  */
 function fallbackBusinesses(count: number): readonly BusinessInput[] {
-  return Array.from({ length: Math.max(1, count) }, (_, index) => ({ businessNumber: '', supplierLabel: `${index + 1}번 사업장` }));
+  return Array.from({ length: Math.max(1, count) }, () => ({ supplierLabel: null }));
 }
 
 export async function loadWorkPage(dependencies: {
   readonly readBoard: () => Promise<MyBidBoardRead>;
   readonly readBusinesses: () => Promise<MyBusinessesRead>;
 }): Promise<WorkView> {
-  const businesses = dependencies.readBusinesses().catch((): MyBusinessesRead => ({ kind: 'unread' }));
+  const businesses = dependencies
+    .readBusinesses()
+    .catch((): MyBusinessesRead => ({ kind: 'unread' }));
   try {
     const read = await dependencies.readBoard();
     if (read.kind === 'forbidden') return { kind: 'forbidden' };
     const listed = await businesses;
-    if (listed.kind === 'businesses' && listed.response.businesses.length === 0) return { kind: 'no-business' };
-    const inputs = listed.kind === 'businesses'
-      ? listed.response.businesses
-      : fallbackBusinesses('marketPick' in read.response ? read.response.marketPick.linkedBusinesses : 1);
+    if (listed.kind === 'businesses' && listed.response.businesses.length === 0)
+      return { kind: 'no-business' };
+    const inputs =
+      listed.kind === 'businesses'
+        ? listed.response.businesses
+        : fallbackBusinesses(
+            'marketPick' in read.response ? read.response.marketPick.linkedBusinesses : 1
+          );
     return presentWorkBoard(read.response, inputs);
   } catch {
     return { kind: 'failed' };
